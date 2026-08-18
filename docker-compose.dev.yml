@@ -1,0 +1,12 @@
+services:
+  web:
+    image: prosewire:dev
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+  worker:
+    image: prosewire:dev
+    build:
+      context: .
+      dockerfile: Dockerfile

@@ -1,0 +1,36 @@
+{
+  "name": "@prosewire/cli",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "type": "module",
+  "description": "Prosewire command-line interface.",
+  "exports": { ".": "./src/index.ts" },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "tsdown",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "test:coverage": "vitest run --coverage --passWithNoTests",
+    "prepublishOnly": "tsdown"
+  },
+  "publishConfig": {
+    "access": "public",
+    "bin": { "prosewire": "./dist/index.mjs" },
+    "main": "./dist/index.mjs",
+    "module": "./dist/index.mjs",
+    "types": "./dist/index.d.mts"
+  },
+  "dependencies": {
+    "@prosewire/sdk": "workspace:^",
+    "commander": "^14.0.3"
+  },
+  "devDependencies": {
+    "@prosewire/config": "workspace:*",
+    "@types/node": "^24.0.0",
+    "eslint": "9.39.4",
+    "tsdown": "^0.22.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.5"
+  }
+}

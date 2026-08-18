@@ -1,0 +1,46 @@
+{
+  "name": "@prosewire/web",
+  "version": "0.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "scripts": {
+    "dev": "next dev --hostname 0.0.0.0",
+    "build": "next build",
+    "start": "next start --hostname 0.0.0.0",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "test:coverage": "vitest run --coverage --passWithNoTests"
+  },
+  "dependencies": {
+    "@prosewire/contract": "workspace:*",
+    "@prosewire/core": "workspace:*",
+    "@prosewire/db": "workspace:*",
+    "@orpc/openapi": "^1.14.2",
+    "@orpc/server": "^1.14.2",
+    "@orpc/zod": "^1.14.2",
+    "better-auth": "^1.6.25",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "drizzle-orm": "^0.45.2",
+    "lucide-react": "^0.577.0",
+    "next": "16.2.11",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "sonner": "^2.0.7",
+    "tailwind-merge": "^3.5.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@prosewire/config": "workspace:*",
+    "@tailwindcss/postcss": "^4.3.1",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "eslint": "9.39.4",
+    "pg": "^8.20.0",
+    "tailwindcss": "^4.3.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.5"
+  }
+}

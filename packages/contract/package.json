@@ -1,0 +1,26 @@
+{
+  "name": "@prosewire/contract",
+  "version": "0.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./router": "./src/router.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@orpc/contract": "^1.14.2",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@prosewire/config": "workspace:*",
+    "@types/node": "^24.0.0",
+    "eslint": "9.39.4",
+    "typescript": "^6.0.3"
+  }
+}

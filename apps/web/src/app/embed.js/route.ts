@@ -1,0 +1,5 @@
+export function GET(request: Request) {
+  const origin = new URL(request.url).origin;
+  const script = `(()=>{const s=document.currentScript;const blog=s?.dataset.blog||document.querySelector('[data-prosewire]')?.dataset.prosewire;const path=s?.dataset.path||'';if(!blog)return;const root=document.querySelector('[data-prosewire="'+CSS.escape(blog)+'"]')||document.querySelector('[data-prosewire]');if(!root)return;root.setAttribute('aria-busy','true');fetch('${origin}/api/rendered/'+encodeURIComponent(blog)+'/'+path.replace(/^\\//,'')).then(r=>{if(!r.ok)throw new Error('Prosewire '+r.status);return r.text()}).then(html=>{root.innerHTML=html;root.removeAttribute('aria-busy');root.dispatchEvent(new CustomEvent('prosewire:ready',{bubbles:true}))}).catch(error=>{root.removeAttribute('aria-busy');root.innerHTML='<p role="alert">Unable to load this publication.</p>';console.error(error)})})();`;
+  return new Response(script, { headers: { "Content-Type": "application/javascript; charset=utf-8", "Access-Control-Allow-Origin": "*", "Cache-Control": "public, max-age=300" } });
+}

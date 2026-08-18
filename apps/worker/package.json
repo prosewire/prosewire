@@ -1,0 +1,30 @@
+{
+  "name": "@prosewire/worker",
+  "version": "0.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "build": "tsdown",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "test:coverage": "vitest run --coverage --passWithNoTests"
+  },
+  "dependencies": {
+    "@prosewire/db": "workspace:*",
+    "bullmq": "^5.70.1",
+    "drizzle-orm": "^0.45.2"
+  },
+  "devDependencies": {
+    "@prosewire/config": "workspace:*",
+    "@types/node": "^24.0.0",
+    "eslint": "9.39.4",
+    "tsdown": "^0.22.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.5"
+  }
+}

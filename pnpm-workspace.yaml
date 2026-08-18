@@ -1,0 +1,12 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+engineStrict: false
+
+allowBuilds:
+  esbuild: true
+  lefthook: true
+  msgpackr-extract: true
+  sharp: true
+  unrs-resolver: true

@@ -1,0 +1,66 @@
+name: prosewire
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: prosewire
+      POSTGRES_USER: prosewire
+      POSTGRES_PASSWORD: prosewire
+    ports:
+      - "5432:5432"
+    volumes:
+      - prosewire_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U prosewire -d prosewire"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - prosewire_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://prosewire:prosewire@postgres:5432/prosewire
+      REDIS_URL: redis://redis:6379
+      PROSEWIRE_PUBLIC_URL: http://localhost:3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["node", "apps/worker/dist/index.mjs"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://prosewire:prosewire@postgres:5432/prosewire
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  prosewire_postgres:
+  prosewire_redis:

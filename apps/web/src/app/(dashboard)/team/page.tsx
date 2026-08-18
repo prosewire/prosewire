@@ -1,0 +1,23 @@
+import { ShieldCheck, UserPlus, Users2 } from "lucide-react";
+import { eq } from "drizzle-orm";
+import { schema } from "@prosewire/db";
+import { db } from "@/lib/db";
+import { getAuthors, getDefaultBlog } from "@/server/data";
+
+export const metadata = { title: "Authors & team" };
+
+export default async function TeamPage() {
+  const blog = await getDefaultBlog();
+  if (!blog) return null;
+  const [authors, members] = await Promise.all([
+    getAuthors(blog.id),
+    db().select({ id: schema.user.id, name: schema.user.name, email: schema.user.email, role: schema.blogMember.role }).from(schema.blogMember).innerJoin(schema.user, eq(schema.blogMember.userId, schema.user.id)).where(eq(schema.blogMember.blogId, blog.id)),
+  ]);
+  return (
+    <main className="mx-auto max-w-[1100px] px-4 py-6 sm:px-7 lg:px-9 lg:py-8">
+      <header className="flex items-end justify-between"><div><p className="text-xs font-semibold text-[#ef6848]">People</p><h1 className="mt-1 text-3xl font-semibold tracking-[-.04em]">Authors & team</h1><p className="mt-2 text-sm text-[#6e787d]">Separate dashboard access from public author identity.</p></div><button className="hidden h-10 items-center gap-2 rounded-xl bg-[#172329] px-4 text-sm font-semibold text-white sm:inline-flex"><UserPlus className="size-3.5" />Invite member</button></header>
+      <section className="card mt-7 overflow-hidden"><div className="flex items-center justify-between border-b border-[#e2e3de] px-5 py-4"><div className="flex items-center gap-2"><Users2 className="size-4 text-[#ef6848]" /><h2 className="text-sm font-semibold">Workspace members</h2></div><span className="text-xs text-[#8a9397]">{members.length}</span></div><div className="divide-y divide-[#ecece8]">{members.map((member) => <div key={member.id} className="grid items-center gap-3 bg-white px-5 py-4 sm:grid-cols-[1fr_auto]"><div className="flex items-center gap-3"><div className="grid size-9 place-items-center rounded-full bg-[#20343a] text-xs font-semibold text-white">{member.name.slice(0, 1)}</div><div><p className="text-sm font-semibold">{member.name}</p><p className="mt-0.5 text-[11px] text-[#8a9397]">{member.email}</p></div></div><span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-[#dce8e2] bg-[#f0f8f3] px-2.5 py-1 text-[10px] font-semibold capitalize text-[#1f6e52]"><ShieldCheck className="size-3" />{member.role}</span></div>)}</div></section>
+      <section className="card mt-4 overflow-hidden"><div className="flex items-center justify-between border-b border-[#e2e3de] px-5 py-4"><div><h2 className="text-sm font-semibold">Public authors</h2><p className="mt-1 text-[11px] text-[#8a9397]">Profiles strengthen attribution and E-E-A-T signals.</p></div><span className="text-xs text-[#8a9397]">{authors.length}</span></div><div className="grid gap-px bg-[#ecece8] sm:grid-cols-2">{authors.map((author) => <article key={author.id} className="bg-white p-5"><div className="flex items-start gap-3"><div className="grid size-11 place-items-center rounded-xl bg-[#fee9df] text-sm font-bold text-[#bd452c]">{author.name.split(' ').map((part) => part[0]).join('').slice(0, 2)}</div><div><h3 className="text-sm font-semibold">{author.name}</h3><p className="mt-0.5 text-[11px] text-[#ef6848]">{author.jobTitle}</p></div></div><p className="mt-4 text-xs leading-5 text-[#6d787d]">{author.bio}</p><p className="mt-3 text-[10px] font-medium text-[#8a9397]">{author.credentials}</p></article>)}</div></section>
+    </main>
+  );
+}

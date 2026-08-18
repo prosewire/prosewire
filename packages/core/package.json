@@ -1,0 +1,32 @@
+{
+  "name": "@prosewire/core",
+  "version": "0.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./content": "./src/content.ts",
+    "./seo": "./src/seo.ts",
+    "./types": "./src/types.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "marked": "^17.0.4",
+    "sanitize-html": "^2.17.2"
+  },
+  "devDependencies": {
+    "@prosewire/config": "workspace:*",
+    "@types/node": "^24.0.0",
+    "@types/sanitize-html": "^2.16.1",
+    "eslint": "9.39.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.5"
+  }
+}
