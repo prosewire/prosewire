@@ -19,6 +19,8 @@
 </p>
 
 <p align="center">
+  <a href="https://prosewire-site.akntech.workers.dev">Website</a> ·
+  <a href="https://prosewire-site.akntech.workers.dev/docs/">Docs</a> ·
   <a href="#why-prosewire">Why Prosewire</a> ·
   <a href="#features">Features</a> ·
   <a href="#quick-start">Quick Start</a> ·
@@ -124,6 +126,7 @@ Prosewire keeps its product surfaces in one TypeScript monorepo:
 
 ```text
 apps/web           Next.js 16 dashboard, auth, APIs, embed, and public reader
+apps/site          Astro landing page and MDX documentation
 apps/worker        BullMQ scheduled-publishing worker
 packages/db        Postgres 17 schema and Drizzle migrations
 packages/core      Rendering, sanitization, slugs, reading time, and SEO checks

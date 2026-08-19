@@ -1,0 +1,116 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import SiteFooter from "../components/SiteFooter.astro";
+
+const features = [
+  ["01", "Editorial workflow", "Draft, schedule, revise, localize, organize, and restore from one focused workspace."],
+  ["02", "Search-ready", "Canonical URLs, redirects, metadata, JSON-LD, RSS, sitemaps, authors, and content checks."],
+  ["03", "Native delivery", "Use a script, rendered HTML, raw JSON, or the typed SDK. No iframe and no forced frontend."],
+  ["04", "Agent-first", "The REST contract, SDK, CLI, and MCP server share the same rules and operation risk metadata."],
+];
+---
+
+<BaseLayout>
+  <main class="site-shell">
+    <section class="hero">
+      <div class="hero-copy">
+        <a class="release-note" href="https://github.com/prosewire/prosewire">
+          <span>Open source</span> Publishing infrastructure you own <b aria-hidden="true">→</b>
+        </a>
+        <h1>Publish beautifully.<br /><em>Stay portable.</em></h1>
+        <p class="hero-lede">Prosewire gives your team a focused editorial workspace and gives your website clean, native content—without rebuilding around a traditional CMS.</p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="/docs/getting-started/">Read the quickstart <span aria-hidden="true">→</span></a>
+          <a class="button button-secondary" href="https://github.com/prosewire/prosewire">View on GitHub <span aria-hidden="true">↗</span></a>
+        </div>
+        <p class="hero-proof"><span aria-hidden="true">✓</span> Apache-2.0 · self-hostable · no feature tiers</p>
+      </div>
+
+      <div class="workspace-frame" id="product" aria-label="A preview of the Prosewire editor">
+        <div class="frame-top">
+          <div class="traffic-lights" aria-hidden="true"><i></i><i></i><i></i></div>
+          <span>prosewire / fieldnotes</span>
+          <span class="publish-control">Publish ↗</span>
+        </div>
+        <div class="editor-grid">
+          <aside class="editor-rail" aria-hidden="true">
+            <img src="/icon.png" alt="" width="25" height="25" />
+            <span class="rail-dot active"></span><span class="rail-dot"></span><span class="rail-dot"></span><span class="rail-dot rail-bottom"></span>
+          </aside>
+          <article class="editor-canvas">
+            <p class="eyebrow">DRAFT · 6 MIN READ</p>
+            <h2>Your content should outlive your website stack.</h2>
+            <p>Portable publishing starts with a clean source of truth and ends with a reading experience that feels entirely your own.</p>
+            <div class="editor-rule"></div>
+            <h3>One story, every surface</h3>
+            <p class="muted-lines">Write once, then deliver semantic HTML, structured JSON, or a native SDK response wherever your readers already are.</p>
+          </article>
+          <aside class="checks-panel">
+            <div class="checks-heading"><span>CONTENT CHECKS</span><b>86</b></div>
+            <div class="score"><div>86<small>/100</small></div></div>
+            <p class="ready"><span></span> Ready to publish</p>
+            <div class="check-row"><span>Search title</span><b class="pass">Pass</b></div>
+            <div class="check-row"><span>Description</span><b class="pass">Pass</b></div>
+            <div class="check-row"><span>Structure</span><b class="pass">Pass</b></div>
+            <div class="check-row"><span>Alt text</span><b class="review">Review</b></div>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <section class="outcomes-section">
+      <div class="section-heading">
+        <p>BUILT FOR THE WHOLE CONTENT PATH</p>
+        <h2>From first draft to every reader.</h2>
+        <span>Prosewire connects editorial control with delivery freedom. Your team gets a real publishing system; your developers keep the stack they chose.</span>
+      </div>
+      <div class="feature-list">
+        {features.map(([number, title, copy]) => (
+          <article><span>{number}</span><h3>{title}</h3><p>{copy}</p></article>
+        ))}
+      </div>
+    </section>
+
+    <section class="delivery-section">
+      <div class="delivery-copy">
+        <p class="section-label">ONE SOURCE, EVERY SURFACE</p>
+        <h2>Start with copy-paste.<br />Keep every escape hatch.</h2>
+        <p>The dashboard, public reader, embed, SDK, CLI, and MCP server share the same publishing rules—so teams and tools stay in sync.</p>
+        <a class="text-link" href="/docs/integrate/javascript/">Explore integrations <span aria-hidden="true">→</span></a>
+      </div>
+      <div class="code-window">
+        <div class="code-tabs"><span class="active">Embed</span><span>TypeScript</span><span>HTTP</span></div>
+        <pre><code><i>&lt;div</i> data-prosewire=<b>&quot;fieldnotes&quot;</b><i>&gt;&lt;/div&gt;</i>
+<i>&lt;script</i>
+  async
+  src=<b>&quot;https://publish.example.com/embed.js&quot;</b>
+  data-blog=<b>&quot;fieldnotes&quot;</b>
+<i>&gt;&lt;/script&gt;</i></code></pre>
+        <div class="code-status"><span><i></i> Connected</span><b>Semantic HTML · no iframe</b></div>
+      </div>
+    </section>
+
+    <section class="ownership-section">
+      <div class="ownership-card coral-card">
+        <p>PORTABLE BY DESIGN</p><h2>Your content. Your database. Your exit plan.</h2>
+        <span>Run the complete stack yourself and export posts, authors, categories, redirects, and metadata whenever you need them.</span>
+        <a href="/docs/self-host/docker/">Self-hosting guide <b aria-hidden="true">→</b></a>
+      </div>
+      <div class="ownership-card ink-card">
+        <p>READY FOR PEOPLE + AGENTS</p><h2>One publishing model, safely automated.</h2>
+        <span>Scoped keys, audit history, and declared operation risk keep dashboard, API, CLI, and MCP workflows aligned.</span>
+        <a href="/docs/concepts/architecture/">See the architecture <b aria-hidden="true">→</b></a>
+      </div>
+    </section>
+
+    <section class="final-cta">
+      <p>OPEN SOURCE PUBLISHING INFRASTRUCTURE</p>
+      <h2>Make your next story<br /><em>entirely yours.</em></h2>
+      <div class="hero-actions">
+        <a class="button button-primary" href="/docs/getting-started/">Start with the docs <span aria-hidden="true">→</span></a>
+        <a class="button button-secondary" href="https://github.com/prosewire/prosewire">Star on GitHub <span aria-hidden="true">↗</span></a>
+      </div>
+    </section>
+    <SiteFooter />
+  </main>
+</BaseLayout>

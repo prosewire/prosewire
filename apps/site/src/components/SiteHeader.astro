@@ -1,0 +1,16 @@
+---
+const { compact = false } = Astro.props;
+---
+
+<header class:list={["topbar", { "topbar-compact": compact }]}>
+  <a class="brand" href="/" aria-label="Prosewire home">
+    <img src="/icon.png" alt="" width="31" height="31" />
+    <span>Prosewire</span>
+  </a>
+  <nav class="nav-links" aria-label="Main navigation">
+    <a href="/#product">Product</a>
+    <a href="/docs/">Docs</a>
+    <a href="https://github.com/prosewire/prosewire">GitHub</a>
+  </nav>
+  <a class="nav-cta" href="/docs/getting-started/">Get started <span aria-hidden="true">↗</span></a>
+</header>
