@@ -1,0 +1,46 @@
+---
+title: Run Prosewire locally
+description: Bring up the dashboard, background worker, Postgres, and Redis in a few minutes.
+section: Start here
+order: 1
+---
+
+## Prerequisites
+
+You need Node.js 24 or newer, pnpm 11 or newer, Docker, and Git.
+
+- Node.js 24+
+- pnpm 11+
+- Docker Desktop or Docker Engine
+- Git
+
+## Clone and start
+
+Clone the repository, install the workspace, start its supporting services, then run the web app.
+
+```shell
+git clone https://github.com/prosewire/prosewire.git
+cd prosewire
+cp .env.example .env
+pnpm install
+docker compose up -d postgres redis
+pnpm dev
+```
+
+> The first boot applies the committed database migrations and seeds a local workspace.
+
+## Open the dashboard
+
+Visit `http://localhost:3000` and sign in with the local development account.
+
+```text
+Email:    admin@prosewire.local
+Password: prosewire-local-dev
+```
+
+## Publish your first post
+
+1. Open **Content**, then choose **New post**.
+2. Add a title and body. The slug and reading time update automatically.
+3. Review the content checks, then publish immediately or schedule a future time.
+4. Open the Fieldnotes blog to verify the public, server-rendered article.

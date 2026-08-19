@@ -1,0 +1,38 @@
+---
+title: Add a blog with one script
+description: Embed a complete reader without an iframe and keep control of the surrounding page.
+section: Integrate
+order: 3
+---
+
+## Add the mount point
+
+Place a Prosewire mount element where the blog should appear, then load the embed script from your deployment.
+
+```html
+<div data-prosewire="fieldnotes"></div>
+<script
+  async
+  src="https://publish.example.com/embed.js"
+  data-blog="fieldnotes"
+></script>
+```
+
+## Render one article
+
+Add `data-path` when the host application already knows which article it needs.
+
+```html
+<script
+  async
+  src="https://publish.example.com/embed.js"
+  data-blog="fieldnotes"
+  data-path="shipping-with-confidence"
+></script>
+```
+
+## Style the reader
+
+The embed returns semantic HTML with stable `pw-*` classes. Define typography, color, and spacing in the host site so the reader looks native instead of boxed into a vendor theme.
+
+> Public HTML is sanitized before it reaches the reader and remains usable without JavaScript enhancement.

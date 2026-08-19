@@ -1,0 +1,24 @@
+---
+title: One content model, every surface
+description: The dashboard, public reader, embed, SDK, CLI, and MCP server all follow the same publishing rules.
+section: Start here
+order: 2
+---
+
+## The contract stays in the center
+
+Prosewire keeps its schemas and operation metadata in a shared contract package. Product surfaces consume that contract instead of reimplementing publishing behavior independently.
+
+This makes draft visibility, scheduled publication, audit records, and destructive-operation safeguards consistent whether a person uses the dashboard or an agent uses MCP.
+
+## Choose your delivery surface
+
+- JavaScript embed for the fastest integration
+- Rendered HTML for server or client composition
+- Public JSON for custom reading experiences
+- TypeScript SDK for typed application code
+- CLI and MCP for automation and agent workflows
+
+## Own the runtime
+
+The web app and worker run against your Postgres database. Redis powers scheduled publishing by default. Content remains exportable and public pages remain readable without client-side JavaScript.

@@ -1,0 +1,30 @@
+---
+title: Configuration map
+description: The core runtime settings to define before sharing a Prosewire deployment.
+section: Reference
+order: 8
+---
+
+## Required values
+
+```dotenv
+DATABASE_URL=postgres://…
+BETTER_AUTH_SECRET=replace-with-a-long-secret
+BETTER_AUTH_URL=https://publish.example.com
+```
+
+## Background publishing
+
+```dotenv
+REDIS_URL=redis://redis:6379
+```
+
+Redis connects the web process to the scheduled-publishing worker. Keep both services pointed at the same Postgres and Redis instances.
+
+## Security notes
+
+- Never commit production environment files
+- Rotate development credentials before deployment
+- Store API tokens as hashes
+- Encrypt secrets that must be recovered later
+- Scope API keys to the operations an integration needs

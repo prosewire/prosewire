@@ -1,0 +1,34 @@
+---
+title: Self-host with Docker Compose
+description: Run the web app, worker, Postgres, and Redis as one portable stack.
+section: Operate
+order: 6
+---
+
+## Prepare configuration
+
+Copy the example environment file and replace the development secrets before exposing the deployment.
+
+```shell
+cp .env.example .env
+# Edit database, auth, and public URL values
+```
+
+## Start the stack
+
+```shell
+docker compose up -d
+docker compose ps
+docker compose logs -f web worker
+```
+
+Keep the web and worker services on the same release version. The web process handles dashboard and reading traffic; the worker handles scheduled publication.
+
+## Production checklist
+
+- Use a long, unique authentication secret
+- Put the web service behind HTTPS
+- Back up Postgres on a tested schedule
+- Persist Redis when scheduled work must survive restarts
+- Pin a released image version instead of a moving tag
+- Verify an export and restore before launch

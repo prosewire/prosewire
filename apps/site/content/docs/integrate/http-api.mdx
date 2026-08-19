@@ -1,0 +1,28 @@
+---
+title: Use raw JSON or rendered HTML
+description: Choose a structured response for custom rendering or sanitized HTML for quick composition.
+section: Integrate
+order: 5
+---
+
+## Public JSON
+
+```http
+GET /api/public/:blog/posts
+GET /api/public/:blog/posts/:slug
+```
+
+The public API supports pagination, search, author and category relationships, and canonical article lookup.
+
+## Rendered HTML
+
+```http
+GET /api/rendered/:blog
+GET /api/rendered/:blog/:slug
+```
+
+Rendered routes return sanitized, semantic HTML. They are useful when the host wants server-rendered content without adopting Prosewire’s JavaScript loader.
+
+## Private operations
+
+Authenticated publishing operations use scoped API keys and the shared oRPC/OpenAPI contract. Mutations create audit records, and destructive agent operations carry explicit risk metadata.

@@ -1,0 +1,34 @@
+---
+title: Build a native reader with TypeScript
+description: Use the public client during a server render, in a route, or from any JavaScript runtime with fetch.
+section: Integrate
+order: 4
+---
+
+## Create a client
+
+```typescript
+import { createPublicClient } from "@prosewire/sdk";
+
+const content = createPublicClient({
+  baseUrl: "https://publish.example.com",
+  blog: "fieldnotes",
+});
+```
+
+## List and retrieve posts
+
+```typescript
+const posts = await content.listPosts({ limit: 10 });
+const article = await content.getPost("shipping-with-confidence");
+```
+
+Public queries only return published content whose publication time has arrived. Drafts and future scheduled posts stay private.
+
+## What the client returns
+
+- Post content and excerpt
+- Canonical slug and publication timestamps
+- Authors and categories
+- Locale and search metadata
+- Related posts and reading time
