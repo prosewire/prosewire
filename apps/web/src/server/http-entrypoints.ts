@@ -206,7 +206,24 @@ export async function getPublicPost(
     ),
     request.signal,
   );
-  if (!result) return json({ error: "Post not found" }, { status: 404 });
+  if (!result) {
+    const target = await runAppEffect(
+      Effect.flatMap(PublicContent.Service, (content) =>
+        content.redirect(blogSlug.value, postSlug),
+      ),
+      request.signal,
+    );
+    if (target) {
+      return Response.redirect(
+        new URL(
+          `/api/public/${encodeURIComponent(rawBlog)}/posts/${encodeURIComponent(target)}`,
+          request.url,
+        ),
+        301,
+      );
+    }
+    return json({ error: "Post not found" }, { status: 404 });
+  }
   return json(
     {
       blog: {

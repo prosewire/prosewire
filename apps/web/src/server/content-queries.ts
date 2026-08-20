@@ -391,6 +391,20 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
     return row ? toPublicPost(row) : undefined;
   });
 
+  const getPublicRedirect = Effect.fn("ContentQueries.getPublicRedirect")(
+    function* (blogId: BlogId, fromPath: string) {
+      const row = yield* execute("redirect.getPublic", (client) =>
+        client.query.redirect.findFirst({
+          where: and(
+            eq(schema.redirect.blogId, blogId),
+            eq(schema.redirect.fromPath, fromPath),
+          ),
+        }),
+      );
+      return row?.toPath;
+    },
+  );
+
   const recordPostView = Effect.fn("ContentQueries.recordPostView")(function* (
     postId: PostId,
     referrer: string | null,
@@ -416,6 +430,7 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
     getPublicAuthor,
     getPublicPosts,
     getPublicPost,
+    getPublicRedirect,
     recordPostView,
   };
 });

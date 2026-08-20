@@ -9,8 +9,9 @@
     "start": "next start --hostname 0.0.0.0",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests",
-    "test:coverage": "vitest run --coverage --passWithNoTests"
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:acceptance": "playwright test"
   },
   "dependencies": {
     "@orpc/openapi": "^1.14.2",
@@ -35,10 +36,16 @@
   },
   "devDependencies": {
     "@effect/vitest": "4.0.0-rc.110",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@playwright/test": "^1.51.1",
+    "@prosewire/cli": "workspace:*",
     "@prosewire/config": "workspace:*",
+    "@prosewire/mcp": "workspace:*",
+    "@prosewire/sdk": "workspace:*",
     "@tailwindcss/postcss": "^4.3.1",
     "@types/node": "^24.0.0",
     "@types/nodemailer": "^8.0.1",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "eslint": "9.39.4",

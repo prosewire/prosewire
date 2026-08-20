@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import { ArrowLeft, ArrowRight, CalendarDays, Clock3 } from "lucide-react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { readingMinutes, slugify } from "@prosewire/core";
 import { PublicHeader } from "@/components/public-header";
 import { ReadingProgress } from "@/components/public-progress";
-import { loadPublicPost } from "@/server/page-entrypoints";
+import { loadPublicPost, loadPublicRedirect } from "@/server/page-entrypoints";
 
 export async function generateMetadata({ params }: { params: Promise<{ blog: string; slug: string }> }): Promise<Metadata> {
   const { blog: blogSlug, slug } = await params;
@@ -19,7 +19,11 @@ export async function generateMetadata({ params }: { params: Promise<{ blog: str
 export default async function PublicPostPage({ params }: { params: Promise<{ blog: string; slug: string }> }) {
   const { blog: blogSlug, slug } = await params;
   const result = await loadPublicPost(blogSlug, slug);
-  if (!result) notFound();
+  if (!result) {
+    const target = await loadPublicRedirect(blogSlug, slug);
+    if (target) permanentRedirect(`/b/${blogSlug}/${target}`);
+    notFound();
+  }
   const { blog, post, allPosts, publicUrl } = result;
   const related = allPosts.filter((item) => item.id !== post.id && item.categories.some((entry) => post.categories.some((own) => own.categoryId === entry.categoryId))).slice(0, 2);
   const headings = (post.contentMarkdown.match(/^#{2,3}\s+.+$/gm) ?? []).map((heading) => ({ level: heading.startsWith('###') ? 3 : 2, label: heading.replace(/^#{2,3}\s+/, ''), id: slugify(heading.replace(/^#{2,3}\s+/, '')) }));

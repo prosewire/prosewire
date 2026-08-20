@@ -211,6 +211,16 @@ export function loadPublicPost(blogSlug: string, postSlug: string) {
   );
 }
 
+export function loadPublicRedirect(blogSlug: string, postSlug: string) {
+  const parsed = parseBlogSlug(blogSlug);
+  if (Option.isNone(parsed)) return Promise.resolve(undefined);
+  return runAppEffect(
+    Effect.flatMap(PublicContent.Service, (content) =>
+      content.redirect(parsed.value, postSlug),
+    ),
+  );
+}
+
 export function loadPublicAuthor(blogSlug: string, authorSlug: string) {
   const parsed = parseBlogSlug(blogSlug);
   if (Option.isNone(parsed)) return Promise.resolve(null);

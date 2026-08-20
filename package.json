@@ -19,6 +19,7 @@
     "test": "turbo run test && pnpm test:packages",
     "test:packages": "node scripts/package-tarball-smoke.mjs",
     "test:coverage": "turbo run test:coverage",
+    "test:acceptance": "pnpm --filter @prosewire/web test:acceptance",
     "db:generate": "pnpm --filter @prosewire/db generate",
     "db:migrate": "pnpm --filter @prosewire/db migrate",
     "db:push": "pnpm --filter @prosewire/db push",
