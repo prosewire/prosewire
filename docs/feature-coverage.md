@@ -52,7 +52,7 @@ Prosewire therefore treats self-hosting, bulk operations, portable content, and 
 | Automatic table of contents | Implemented |
 | Instant search | Implemented with Postgres full-text search |
 | Related posts | Implemented |
-| Scheduled posts | Implemented with Redis/BullMQ |
+| Scheduled posts | Implemented with interruptible Effect schedules and atomic Postgres updates |
 | Pinned posts | Implemented as featured posts |
 | Localization | Per-blog and per-post locale implemented; translation UI planned |
 | Rich copy/paste | Plain Markdown editor today; structured paste pipeline planned |

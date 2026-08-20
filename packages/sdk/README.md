@@ -20,3 +20,7 @@ const drafts = await management.posts.list({ status: "draft" });
 ```
 
 Keep management API keys on trusted servers. Public clients do not require a key.
+
+For Effect applications, `createEffectClient` exposes the same operations as
+typed Effects. `createClient` is the Promise-compatible facade for existing
+callers; both are generated from the shared Effect HttpApi contract.

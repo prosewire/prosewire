@@ -50,8 +50,8 @@ The entire stack is portable and Apache-2.0 licensed. Run it locally, self-host 
 - **Writing experience** — Markdown formatting controls, live preview, cover-image metadata, reading time, and real-time content checks
 - **Discovery** — canonical URLs, automatic slug redirects, search, related posts, table of contents, RSS, XML sitemap, and JSON-LD
 - **Reader experience** — server-rendered blog and author pages, reading progress, view events, and custom CSS
-- **Integration surfaces** — JavaScript embed without an iframe, rendered HTML API, public JSON API, private oRPC/OpenAPI contract, TypeScript SDK, CLI, and MCP server
-- **Operations** — Better Auth sessions, scoped hashed API keys, audit records, portable JSON and CSV exports, Postgres 17, Redis/BullMQ scheduling, and Docker Compose
+- **Integration surfaces** — JavaScript embed without an iframe, rendered HTML API, public JSON API, private Effect HttpApi/OpenAPI contract, TypeScript SDK, CLI, and MCP server
+- **Operations** — Better Auth sessions, scoped hashed API keys, audit records, portable JSON and CSV exports, Postgres 17, Effect schedules, and Docker Compose
 
 See [the feature coverage map](docs/feature-coverage.md) for detailed behavior and current coverage.
 
@@ -64,7 +64,7 @@ git clone https://github.com/prosewire/prosewire.git
 cd prosewire
 cp .env.example .env
 pnpm install
-docker compose up -d postgres redis
+docker compose up -d postgres
 pnpm dev
 ```
 
@@ -119,10 +119,10 @@ Prosewire keeps its product surfaces in one TypeScript monorepo:
 ```text
 apps/web           Next.js 16 dashboard, auth, APIs, embed, and public reader
 apps/site          Astro landing page and MDX documentation
-apps/worker        BullMQ scheduled-publishing worker
+apps/worker        Effect scheduled-publishing and retention worker
 packages/db        Postgres 17 schema and Drizzle migrations
 packages/core      Rendering, sanitization, slugs, reading time, and SEO checks
-packages/contract  Zod and oRPC contract with operation-risk metadata
+packages/contract  Effect Schema and HttpApi contract
 packages/sdk       Typed private API and public-content clients
 packages/cli       Command-line publishing client
 packages/mcp       Agent-facing MCP server

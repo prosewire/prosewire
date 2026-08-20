@@ -15,7 +15,6 @@
   },
   "dependencies": {
     "@prosewire/db": "workspace:*",
-    "bullmq": "^5.70.1",
     "drizzle-orm": "^0.45.2",
     "effect": "4.0.0-rc.110"
   },

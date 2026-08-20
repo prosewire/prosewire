@@ -9,13 +9,12 @@ order: 8
 
 ```dotenv
 DATABASE_URL=postgres://…
-REDIS_URL=redis://…
 BETTER_AUTH_SECRET=replace-with-at-least-32-random-characters
 PROSEWIRE_PUBLIC_URL=https://publish.example.com
 NEXT_PUBLIC_PROSEWIRE_PUBLIC_URL=https://publish.example.com
 ```
 
-The public URL must be the external HTTPS origin seen by browsers. The web and worker must use the same Postgres and Redis services.
+The public URL must be the external HTTPS origin seen by browsers. The web and worker must use the same Postgres database.
 
 `PROSEWIRE_ANALYTICS_RETENTION_DAYS` controls raw page-view retention and defaults to 365. The worker deletes older events daily.
 
@@ -45,7 +44,7 @@ Use one stable server-action encryption key across every web replica and release
 ## Security notes
 
 - Never commit production environment files
-- Keep Postgres and Redis on private networks
+- Keep Postgres on a private network
 - Store API tokens as hashes and use the narrowest read/write scope
 - Rotate a compromised API key by creating a replacement, changing the consumer, then revoking the old key
 - Back up Postgres and test a restore before launch

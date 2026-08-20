@@ -1,109 +1,164 @@
-import { z } from "zod";
+import { Effect, Schema } from "effect";
 
-export const postStatus = z.enum(["draft", "scheduled", "published", "archived"]);
+const withDefault = <S extends Schema.Constraint>(
+  schema: S,
+  value: S["Encoded"],
+) => Schema.withDecodingDefaultKey(Effect.succeed(value))(schema);
 
-export const authorOutput = z.object({
-  id: z.string().uuid(),
-  name: z.string(),
-  slug: z.string(),
-  bio: z.string().nullable(),
-  avatarUrl: z.string().nullable(),
-  jobTitle: z.string().nullable(),
-  credentials: z.string().nullable(),
+const uuid = Schema.String.check(Schema.isUUID());
+const isoDateTime = Schema.String.check(
+  Schema.isPattern(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/),
+);
+const url = Schema.String.check(
+  Schema.isPattern(/^[a-z][a-z\d+.-]*:\/\/\S+$/i),
+);
+const nullable = <S extends Schema.Top>(schema: S) => Schema.NullOr(schema);
+
+export const postStatus = Schema.Literals([
+  "draft",
+  "scheduled",
+  "published",
+  "archived",
+]);
+
+export const authorOutput = Schema.Struct({
+  id: uuid,
+  name: Schema.String,
+  slug: Schema.String,
+  bio: nullable(Schema.String),
+  avatarUrl: nullable(Schema.String),
+  jobTitle: nullable(Schema.String),
+  credentials: nullable(Schema.String),
 });
 
-export const categoryOutput = z.object({
-  id: z.string().uuid(),
-  name: z.string(),
-  slug: z.string(),
-  description: z.string().nullable(),
+export const categoryOutput = Schema.Struct({
+  id: uuid,
+  name: Schema.String,
+  slug: Schema.String,
+  description: nullable(Schema.String),
 });
 
-export const postOutput = z.object({
-  id: z.string().uuid(),
-  blogId: z.string().uuid(),
-  title: z.string(),
-  slug: z.string(),
-  excerpt: z.string(),
-  contentMarkdown: z.string(),
-  contentHtml: z.string(),
-  coverImageUrl: z.string().nullable(),
-  coverImageAlt: z.string().nullable(),
+export const postOutput = Schema.Struct({
+  id: uuid,
+  blogId: uuid,
+  title: Schema.String,
+  slug: Schema.String,
+  excerpt: Schema.String,
+  contentMarkdown: Schema.String,
+  contentHtml: Schema.String,
+  coverImageUrl: nullable(Schema.String),
+  coverImageAlt: nullable(Schema.String),
   status: postStatus,
-  locale: z.string(),
-  featured: z.boolean(),
-  seoTitle: z.string().nullable(),
-  seoDescription: z.string().nullable(),
-  focusKeyword: z.string().nullable(),
-  canonicalUrl: z.string().nullable(),
-  publishedAt: z.string().datetime().nullable(),
-  scheduledAt: z.string().datetime().nullable(),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
+  locale: Schema.String,
+  featured: Schema.Boolean,
+  seoTitle: nullable(Schema.String),
+  seoDescription: nullable(Schema.String),
+  focusKeyword: nullable(Schema.String),
+  canonicalUrl: nullable(Schema.String),
+  publishedAt: nullable(isoDateTime),
+  scheduledAt: nullable(isoDateTime),
+  createdAt: isoDateTime,
+  updatedAt: isoDateTime,
   author: authorOutput,
-  categories: z.array(categoryOutput),
+  categories: Schema.Array(categoryOutput),
 });
 
-const postMutableFields = {
-  authorId: z.string().uuid(),
-  title: z.string().trim().min(1).max(180),
-  slug: z
-    .string()
-    .trim()
-    .min(1)
-    .max(120)
-    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use a lowercase URL slug"),
-  excerpt: z.string().max(500),
-  contentMarkdown: z.string(),
-  coverImageUrl: z.url().nullable(),
-  coverImageAlt: z.string().max(180).nullable(),
-  status: postStatus,
-  locale: z.string().min(2).max(10),
-  featured: z.boolean(),
-  seoTitle: z.string().max(70).nullable(),
-  seoDescription: z.string().max(180).nullable(),
-  focusKeyword: z.string().max(120).nullable(),
-  canonicalUrl: z.url().nullable(),
-  scheduledAt: z.iso.datetime().nullable(),
-  categoryIds: z.array(z.string().uuid()),
-};
+const authorId = uuid;
+const title = Schema.Trim.pipe(
+  Schema.check(Schema.isMinLength(1), Schema.isMaxLength(180)),
+);
+const slug = Schema.Trim.pipe(
+  Schema.check(
+    Schema.isMinLength(1),
+    Schema.isMaxLength(120),
+    Schema.isPattern(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+  ),
+);
+const excerpt = Schema.String.check(Schema.isMaxLength(500));
+const contentMarkdown = Schema.String;
+const coverImageUrl = nullable(url);
+const coverImageAlt = nullable(
+  Schema.String.check(Schema.isMaxLength(180)),
+);
+const locale = Schema.String.check(
+  Schema.isMinLength(2),
+  Schema.isMaxLength(10),
+);
+const featured = Schema.Boolean;
+const seoTitle = nullable(Schema.String.check(Schema.isMaxLength(70)));
+const seoDescription = nullable(
+  Schema.String.check(Schema.isMaxLength(180)),
+);
+const focusKeyword = nullable(
+  Schema.String.check(Schema.isMaxLength(120)),
+);
+const canonicalUrl = nullable(url);
+const scheduledAt = nullable(isoDateTime);
+const categoryIds = Schema.Array(uuid);
 
-export const postCreateInput = z.object({
-  blogId: z.string().uuid(),
-  ...postMutableFields,
-  excerpt: postMutableFields.excerpt.optional(),
-  contentMarkdown: postMutableFields.contentMarkdown.default(""),
-  coverImageUrl: postMutableFields.coverImageUrl.optional(),
-  coverImageAlt: postMutableFields.coverImageAlt.optional(),
-  status: postMutableFields.status.default("draft"),
-  locale: postMutableFields.locale.default("en"),
-  featured: postMutableFields.featured.default(false),
-  seoTitle: postMutableFields.seoTitle.optional(),
-  seoDescription: postMutableFields.seoDescription.optional(),
-  focusKeyword: postMutableFields.focusKeyword.optional(),
-  canonicalUrl: postMutableFields.canonicalUrl.optional(),
-  scheduledAt: postMutableFields.scheduledAt.optional(),
-  categoryIds: postMutableFields.categoryIds.default([]),
+export const postCreateInput = Schema.Struct({
+  blogId: uuid,
+  authorId,
+  title,
+  slug,
+  excerpt: Schema.optionalKey(excerpt),
+  contentMarkdown: withDefault(contentMarkdown, ""),
+  coverImageUrl: Schema.optionalKey(coverImageUrl),
+  coverImageAlt: Schema.optionalKey(coverImageAlt),
+  status: withDefault(postStatus, "draft"),
+  locale: withDefault(locale, "en"),
+  featured: withDefault(featured, false),
+  seoTitle: Schema.optionalKey(seoTitle),
+  seoDescription: Schema.optionalKey(seoDescription),
+  focusKeyword: Schema.optionalKey(focusKeyword),
+  canonicalUrl: Schema.optionalKey(canonicalUrl),
+  scheduledAt: Schema.optionalKey(scheduledAt),
+  categoryIds: withDefault(categoryIds, []),
 });
 
-export const postUpdateInput = z.object(postMutableFields).partial();
-
-export const blogOutput = z.object({
-  id: z.string().uuid(),
-  name: z.string(),
-  slug: z.string(),
-  description: z.string(),
-  locale: z.string(),
-  accentColor: z.string(),
-  customCss: z.string(),
-  publicUrl: z.string().nullable(),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
+export const postUpdateInput = Schema.Struct({
+  authorId: Schema.optionalKey(authorId),
+  title: Schema.optionalKey(title),
+  slug: Schema.optionalKey(slug),
+  excerpt: Schema.optionalKey(excerpt),
+  contentMarkdown: Schema.optionalKey(contentMarkdown),
+  coverImageUrl: Schema.optionalKey(coverImageUrl),
+  coverImageAlt: Schema.optionalKey(coverImageAlt),
+  status: Schema.optionalKey(postStatus),
+  locale: Schema.optionalKey(locale),
+  featured: Schema.optionalKey(featured),
+  seoTitle: Schema.optionalKey(seoTitle),
+  seoDescription: Schema.optionalKey(seoDescription),
+  focusKeyword: Schema.optionalKey(focusKeyword),
+  canonicalUrl: Schema.optionalKey(canonicalUrl),
+  scheduledAt: Schema.optionalKey(scheduledAt),
+  categoryIds: Schema.optionalKey(categoryIds),
 });
 
-export const paginatedPosts = z.object({
-  items: z.array(postOutput),
-  total: z.number().int(),
-  page: z.number().int(),
-  pageSize: z.number().int(),
+export const blogOutput = Schema.Struct({
+  id: uuid,
+  name: Schema.String,
+  slug: Schema.String,
+  description: Schema.String,
+  locale: Schema.String,
+  accentColor: Schema.String,
+  customCss: Schema.String,
+  publicUrl: nullable(Schema.String),
+  createdAt: isoDateTime,
+  updatedAt: isoDateTime,
 });
+
+export const paginatedPosts = Schema.Struct({
+  items: Schema.Array(postOutput),
+  total: Schema.Int,
+  page: Schema.Int,
+  pageSize: Schema.Int,
+});
+
+export type PostStatus = typeof postStatus.Type;
+export type Post = typeof postOutput.Type;
+export type Blog = typeof blogOutput.Type;
+export type PostCreateInput = typeof postCreateInput.Type;
+export type PostCreateEncodedInput = typeof postCreateInput.Encoded;
+export type PostUpdateInput = typeof postUpdateInput.Type;
+export type PaginatedPosts = typeof paginatedPosts.Type;

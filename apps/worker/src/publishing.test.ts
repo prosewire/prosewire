@@ -59,7 +59,6 @@ describe("publishScheduledPosts", () => {
     let closed = 0;
     const config = Layer.succeed(WorkerConfig, {
       databaseUrl: Redacted.make("postgres://test"),
-      redisUrl: Redacted.make("redis://localhost:6379"),
       analyticsRetentionDays: 365,
     });
     const repository = PublishingRepository.layerWith(() => ({

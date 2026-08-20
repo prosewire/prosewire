@@ -7,7 +7,7 @@ order: 2
 
 ## The contract stays in the center
 
-Prosewire keeps its schemas and operation metadata in a shared contract package. Product surfaces consume that contract instead of reimplementing publishing behavior independently.
+Prosewire keeps its Effect Schemas and HttpApi declarations in a shared contract package. The server and generated Effect client consume that contract instead of reimplementing transport behavior independently.
 
 This makes draft visibility, scheduled publication, audit records, and destructive-operation safeguards consistent whether a person uses the dashboard or an agent uses MCP.
 
@@ -27,4 +27,4 @@ Authorization is repeated next to every server mutation and private API operatio
 
 ## Own the runtime
 
-The web app and worker run against your Postgres database. Redis powers scheduled publishing by default. Content remains exportable and public pages remain readable without client-side JavaScript.
+The web app and worker run against your Postgres database. Interruptible Effect schedules trigger background work, while atomic Postgres transactions coordinate concurrent worker replicas. Content remains exportable and public pages remain readable without client-side JavaScript.

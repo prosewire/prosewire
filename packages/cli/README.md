@@ -15,3 +15,4 @@ prosewire archive 00000000-0000-4000-8000-000000000000 --yes
 ```
 
 API keys are only required for management commands. Archive requires explicit `--yes` confirmation.
+The executable is defined with Effect CLI and uses typed, interruptible command handlers.

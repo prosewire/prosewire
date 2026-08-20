@@ -1,6 +1,6 @@
 ---
 title: Self-host with Docker Compose
-description: Run the web app, worker, migrations, Postgres, and Redis as one portable stack.
+description: Run the web app, worker, migrations, and Postgres as one portable stack.
 section: Operate
 order: 6
 ---
@@ -14,7 +14,7 @@ cp .env.example .env
 # Edit .env
 ```
 
-Postgres and Redis are private to the Compose network. Only the web port is published. The migration service is a one-shot container and must complete before the web or worker starts.
+Postgres is private to the Compose network. Only the web port is published. The migration service is a one-shot container and must complete before the web or worker starts.
 
 ## Start and bootstrap
 
@@ -43,14 +43,14 @@ Keep the web, worker, and migration commands on the same image version. Do not r
 
 ## Back up and restore
 
-Back up the Postgres database with your normal managed-service snapshot or `pg_dump` workflow. Redis contains queue coordination, not the canonical content record. Test restoring Postgres into a separate environment and verify posts, authors, redirects, memberships, and audit entries.
+Back up the Postgres database with your normal managed-service snapshot or `pg_dump` workflow. Test restoring Postgres into a separate environment and verify posts, authors, redirects, memberships, and audit entries.
 
 ## Production checklist
 
 - Terminate HTTPS at a trusted reverse proxy or load balancer
-- Keep Postgres and Redis off the public internet
+- Keep Postgres off the public internet
 - Use a long, unique Better Auth secret and stable server-action encryption key
 - Configure SMTP and test an invitation before onboarding the team
 - Pin an immutable image version instead of `latest`
-- Run at least one worker replica; multiple replicas coordinate through Redis and transaction locks
+- Run at least one worker replica; multiple replicas coordinate through atomic Postgres updates and transactions
 - Verify a database restore and content export before launch

@@ -1,70 +1,54 @@
-import { EventEmitter } from "node:events";
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Fiber } from "effect";
-
+import { Duration, Effect, Fiber, Ref, Schedule } from "effect";
+import { TestClock } from "effect/testing";
 import {
-  connectionFromUrl,
-  analyticsRetentionJobTemplate,
-  publishingJobTemplate,
-  type ErrorEmitter,
-  waitForEmitterError,
+  analyticsRetentionInterval,
+  publishingInterval,
+  repeatScheduled,
 } from "./worker-runtime.ts";
 
-describe("worker runtime boundaries", () => {
-  it.effect("turns queue error events into typed Effect failures", () =>
+describe("Effect worker schedules", () => {
+  it("uses the established publishing and retention intervals", () => {
+    expect(Duration.toMillis(publishingInterval)).toBe(30_000);
+    expect(Duration.toMillis(analyticsRetentionInterval)).toBe(86_400_000);
+  });
+
+  it.effect("runs immediately and repeats without real sleeps", () =>
     Effect.gen(function* () {
-      const emitter = new EventEmitter();
-      const fiber = yield* Effect.forkChild(
-        waitForEmitterError(emitter as ErrorEmitter, "queue"),
-      );
+      const count = yield* Ref.make(0);
+      const fiber = yield* repeatScheduled(
+        "test",
+        Ref.update(count, (value) => value + 1),
+        Schedule.spaced(publishingInterval),
+      ).pipe(Effect.forkChild);
+
       yield* Effect.yieldNow;
-
-      const cause = new Error("redis disconnected");
-      emitter.emit("error", cause);
-      const error = yield* Effect.flip(Fiber.join(fiber));
-
-      expect(error._tag).toBe("WorkerRuntimeError");
-      expect(error.operation).toBe("queue error event");
-      expect(error.cause).toBe(cause);
-      expect(() => emitter.emit("error", new Error("second error"))).not.toThrow();
-      emitter.removeAllListeners("error");
+      expect(yield* Ref.get(count)).toBe(1);
+      yield* TestClock.adjust(publishingInterval);
+      yield* Effect.yieldNow;
+      expect(yield* Ref.get(count)).toBe(2);
+      yield* Fiber.interrupt(fiber);
     }),
   );
 
-  it("preserves authentication, database, and TLS Redis URL options", () => {
-    expect(
-      connectionFromUrl(new URL("rediss://worker:p%40ss@redis.example:7443/3")),
-    ).toEqual({
-      host: "redis.example",
-      port: 7443,
-      username: "worker",
-      password: "p@ss",
-      db: 3,
-      tls: {},
-    });
-  });
+  it.effect("logs a failed cycle and continues with the next one", () =>
+    Effect.gen(function* () {
+      const attempts = yield* Ref.make(0);
+      const fiber = yield* repeatScheduled(
+        "recovering",
+        Ref.updateAndGet(attempts, (value) => value + 1).pipe(
+          Effect.flatMap((attempt) =>
+            attempt === 1 ? Effect.fail("first failure") : Effect.void,
+          ),
+        ),
+        Schedule.spaced(publishingInterval),
+      ).pipe(Effect.forkChild);
 
-  it("bounds publishing retries and retained job history", () => {
-    expect(publishingJobTemplate()).toEqual({
-      name: "publish-scheduled",
-      data: {},
-      opts: {
-        attempts: 3,
-        backoff: { type: "exponential", delay: 5_000 },
-        removeOnComplete: { age: 86_400, count: 100 },
-        removeOnFail: { age: 604_800, count: 1_000 },
-      },
-    });
-  });
-
-  it("uses the same bounded policy for analytics retention", () => {
-    expect(analyticsRetentionJobTemplate()).toMatchObject({
-      name: "prune-analytics",
-      opts: {
-        attempts: 3,
-        removeOnComplete: { age: 86_400, count: 100 },
-        removeOnFail: { age: 604_800, count: 1_000 },
-      },
-    });
-  });
+      yield* Effect.yieldNow;
+      yield* TestClock.adjust(publishingInterval);
+      yield* Effect.yieldNow;
+      expect(yield* Ref.get(attempts)).toBe(2);
+      yield* Fiber.interrupt(fiber);
+    }),
+  );
 });

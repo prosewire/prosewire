@@ -27,19 +27,3 @@ export function openDb(databaseUrl: string): DbResource {
     },
   };
 }
-
-let cachedResource: DbResource | undefined;
-
-export function getDb(): Db {
-  if (cachedResource) return cachedResource.client;
-  const url = process.env["DATABASE_URL"];
-  if (!url) throw new Error("DATABASE_URL is not set");
-  cachedResource = openDb(url);
-  return cachedResource.client;
-}
-
-export async function closeDb(): Promise<void> {
-  const resource = cachedResource;
-  cachedResource = undefined;
-  await resource?.close();
-}

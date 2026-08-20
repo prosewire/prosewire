@@ -5,9 +5,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { Client as McpClient } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
-import { createProsewireMcpServer } from "@prosewire/mcp/server";
 import { createClient } from "@prosewire/sdk";
 import { acceptance } from "./fixtures.ts";
 
@@ -18,6 +17,7 @@ const resolvedRepositoryRoot = [process.cwd(), path.resolve(process.cwd(), "../.
 if (!resolvedRepositoryRoot) throw new Error("Could not resolve the repository root");
 const repositoryRoot: string = resolvedRepositoryRoot;
 const cliPath = path.join(repositoryRoot, "packages/cli/dist/index.mjs");
+const mcpPath = path.join(repositoryRoot, "packages/mcp/dist/index.mjs");
 let cliCreatedPostId: string | undefined;
 
 interface PublicList {
@@ -281,17 +281,29 @@ test.describe.serial("Postgres-backed cross-surface content matrix", () => {
   test("MCP exposes real SDK reads and archives a Postgres-backed post", async () => {
     const postId = cliCreatedPostId;
     if (!postId) throw new Error("CLI acceptance post was not created");
-    const server = createProsewireMcpServer(
-      createClient({ baseUrl, apiKey: acceptance.apiKey }),
-      "acceptance",
-    );
     const client = new McpClient({ name: "acceptance", version: "1.0.0" });
-    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-    await server.connect(serverTransport);
-    await client.connect(clientTransport);
+    const inheritedEnvironment = Object.fromEntries(
+      Object.entries(process.env).filter(
+        (entry): entry is [string, string] => entry[1] !== undefined,
+      ),
+    );
+    const transport = new StdioClientTransport({
+      command: process.execPath,
+      args: [mcpPath],
+      cwd: repositoryRoot,
+      env: {
+        ...inheritedEnvironment,
+        PROSEWIRE_API_URL: baseUrl,
+        PROSEWIRE_API_KEY: acceptance.apiKey,
+      },
+      stderr: "pipe",
+    });
+    await client.connect(transport);
     try {
       expect(toolJson(await client.callTool({ name: "publication_get", arguments: {} })))
-        .toEqual([expect.objectContaining({ slug: acceptance.blog.slug })]);
+        .toEqual({
+          publications: [expect.objectContaining({ slug: acceptance.blog.slug })],
+        });
       const posts = toolJson(
         await client.callTool({
           name: "posts_list",
@@ -314,7 +326,7 @@ test.describe.serial("Postgres-backed cross-surface content matrix", () => {
       }).posts.get({ params: { id: postId } });
       expect(archived.status).toBe("archived");
     } finally {
-      await Promise.all([client.close(), server.close()]);
+      await client.close();
     }
   });
 

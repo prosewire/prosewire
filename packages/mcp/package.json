@@ -35,9 +35,9 @@
     "access": "public"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@effect/platform-node-shared": "4.0.0-rc.110",
     "@prosewire/sdk": "workspace:^",
-    "zod": "^4.4.3"
+    "effect": "4.0.0-rc.110"
   },
   "devDependencies": {
     "@prosewire/config": "workspace:*",

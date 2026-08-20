@@ -1,4 +1,10 @@
-import { ORPCError } from "@orpc/server";
+import {
+  ApiAccessDenied,
+  ApiAuthenticationFailed,
+  ApiInputRejected,
+  ApiPostNotFound,
+  ApiUnavailable,
+} from "@prosewire/contract";
 import { Effect, Result, Schema } from "effect";
 import { ApiAccess, type Scope } from "./api-access.ts";
 import { ApiContent, type PostListInput } from "./api-content.ts";
@@ -13,24 +19,24 @@ import {
   Publishing,
 } from "./publishing.ts";
 
-function toORPCError(error: unknown): ORPCError<string, unknown> {
+function toApiError(error: unknown) {
   if (error instanceof ApiAccess.AuthenticationFailed) {
-    return new ORPCError("UNAUTHORIZED", { message: error.message });
+    return new ApiAuthenticationFailed({ message: error.message });
   }
   if (
     error instanceof ApiAccess.ScopeDenied ||
     error instanceof ApiAccess.BlogDenied
   ) {
-    return new ORPCError("FORBIDDEN", { message: error.message });
+    return new ApiAccessDenied({ message: error.message });
   }
   if (error instanceof PostErrors.PostNotFound) {
-    return new ORPCError("NOT_FOUND", { message: error.message });
+    return new ApiPostNotFound({ message: error.message });
   }
   if (error instanceof PostErrors.InvalidPost) {
-    return new ORPCError("BAD_REQUEST", { message: error.message });
+    return new ApiInputRejected({ message: error.message });
   }
   if (error instanceof DatabaseError || error instanceof ExternalServiceError) {
-    return new ORPCError("INTERNAL_SERVER_ERROR", { message: error.message });
+    return new ApiUnavailable({ message: error.message });
   }
   throw error;
 }
@@ -40,7 +46,7 @@ async function runApi<A, E>(
   effect: Effect.Effect<A, E, AppServices>,
 ): Promise<A> {
   const result = await runAppEffect(Effect.result(effect), request.signal);
-  if (Result.isFailure(result)) throw toORPCError(result.failure);
+  if (Result.isFailure(result)) throw toApiError(result.failure);
   return result.success;
 }
 
