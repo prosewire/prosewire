@@ -58,7 +58,7 @@ function SubmitButton({ value, children, secondary = false }: { value: string; c
   );
 }
 
-export function Editor({ post, authors, categories, saved }: { post: EditorPost; authors: Option[]; categories: Option[]; saved: boolean }) {
+export function Editor({ post, authors, categories, saved, error }: { post: EditorPost; authors: Option[]; categories: Option[]; saved: boolean; error: string | undefined }) {
   const [title, setTitle] = useState(post.title);
   const [slug, setSlug] = useState(post.slug);
   const [markdown, setMarkdown] = useState(post.contentMarkdown);
@@ -77,10 +77,20 @@ export function Editor({ post, authors, categories, saved }: { post: EditorPost;
   }, [saved]);
 
   useEffect(() => {
+    if (error) toast.error("Post was not saved", { description: error });
+  }, [error]);
+
+  useEffect(() => {
     if (tab !== "preview") return;
-    let active = true;
-    void renderMarkdown(markdown).then((html) => { if (active) setPreviewHtml(html); });
-    return () => { active = false; };
+    let cancelled = false;
+    void renderMarkdown(markdown)
+      .then((html) => {
+        if (!cancelled) setPreviewHtml(html);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
   }, [markdown, tab]);
 
   function wrap(before: string, after = before, placeholder = "text") {

@@ -3,7 +3,42 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
-import { Pool } from "pg";
+import { Client, Pool } from "pg";
+
+const bootstrapLockId = 4_921_850_732;
+
+export interface AdvisoryLockClient {
+  readonly connect: () => Promise<unknown>;
+  readonly query: (
+    text: string,
+    values?: Array<unknown>,
+  ) => Promise<unknown>;
+  readonly end: () => Promise<void>;
+}
+
+export async function withDatabaseAdvisoryLock<A>(
+  databaseUrl: string,
+  evaluate: () => Promise<A>,
+  open: (connectionString: string) => AdvisoryLockClient = (connectionString) =>
+    new Client({ connectionString }),
+): Promise<A> {
+  const client = open(databaseUrl);
+  let locked = false;
+  try {
+    await client.connect();
+    await client.query("select pg_advisory_lock($1)", [bootstrapLockId]);
+    locked = true;
+    return await evaluate();
+  } finally {
+    try {
+      if (locked) {
+        await client.query("select pg_advisory_unlock($1)", [bootstrapLockId]);
+      }
+    } finally {
+      await client.end();
+    }
+  }
+}
 
 export async function runMigrations(databaseUrl: string, migrationsFolder?: string): Promise<void> {
   const pool = new Pool({ connectionString: databaseUrl });

@@ -5,7 +5,10 @@ import { router } from "@/server/router";
 const handler = new OpenAPIHandler(router, { plugins: [new ZodSmartCoercionPlugin()] });
 
 async function handle(request: Request): Promise<Response> {
-  const { response } = await handler.handle(request, { prefix: "/api/v1", context: { request } });
+  const { response } = await handler.handle(request, {
+    prefix: "/api/v1",
+    context: { request },
+  });
   return response ?? new Response("Not Found", { status: 404 });
 }
 

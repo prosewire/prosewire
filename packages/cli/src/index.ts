@@ -23,7 +23,7 @@ program
   .action(async (options: { blog: string; search?: string }) => {
     const root = program.opts<{ url: string }>();
     const client = createPublicClient({ baseUrl: root.url, blog: options.blog });
-    output(await client.listPosts({ search: options.search }));
+    output(await client.listPosts(options.search === undefined ? {} : { search: options.search }));
   });
 
 program

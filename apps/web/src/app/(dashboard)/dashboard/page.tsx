@@ -2,18 +2,15 @@ import { ArrowRight, CalendarClock, Eye, FileText, PenLine, Users2 } from "lucid
 import Link from "next/link";
 import { Sparkline } from "@/components/sparkline";
 import { StatusBadge } from "@/components/ui";
-import { getDashboardMetrics, getDashboardPosts, getDefaultBlog, getViewSeries } from "@/server/data";
+import { loadDashboardOverview } from "@/server/page-entrypoints";
+import { dashboardData } from "../dashboard-result";
 
 export const metadata = { title: "Overview" };
 
 export default async function DashboardPage() {
-  const blog = await getDefaultBlog();
-  if (!blog) return null;
-  const [metrics, posts, series] = await Promise.all([
-    getDashboardMetrics(blog.id),
-    getDashboardPosts(blog.id),
-    getViewSeries(blog.id),
-  ]);
+  const { blog, metrics, posts, series } = dashboardData(
+    await loadDashboardOverview(),
+  );
   const recent = posts.slice(0, 5);
   return (
     <main className="mx-auto max-w-[1400px] px-4 py-6 sm:px-7 lg:px-9 lg:py-8">

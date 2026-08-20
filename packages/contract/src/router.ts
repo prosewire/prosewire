@@ -14,7 +14,7 @@ const postId = z.object({ params: z.object({ id: z.string().uuid() }) });
 export const contract = {
   health: oc
     .meta(mcpMeta({ expose: true, riskLevel: "safe" }))
-    .route({ method: "GET", path: "/health", summary: "Liveness probe" })
+    .route({ method: "GET", path: "/health", summary: "Database readiness probe" })
     .output(z.object({ status: z.literal("ok"), version: z.string() })),
   blogs: {
     list: oc

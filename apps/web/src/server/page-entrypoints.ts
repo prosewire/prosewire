@@ -1,0 +1,178 @@
+import { Effect, Option, Result, Schema } from "effect";
+import { requireDashboardSessionEffect } from "@/lib/session";
+import { BlogAccess } from "./authorization.ts";
+import { runAppEffect, type AppServices } from "./app-runtime.ts";
+import { Dashboard } from "./dashboard.ts";
+import { BlogSlug, PostId, UserId } from "./domain.ts";
+import { PublicContent } from "./public-content.ts";
+import { SessionErrors } from "./session-errors.ts";
+
+const currentActor = Effect.fn("PageEntrypoints.currentActor")(function* () {
+  const session = yield* requireDashboardSessionEffect();
+  return { session, actorId: UserId.make(session.user.id) };
+});
+
+const parseBlogSlug = (value: string) =>
+  Schema.decodeUnknownOption(BlogSlug)(value);
+
+export type DashboardPageResult<A> =
+  | { readonly _tag: "Success"; readonly value: A }
+  | { readonly _tag: "Unauthorized" }
+  | { readonly _tag: "Forbidden" };
+
+async function runDashboardPage<A, E extends Error>(
+  effect: Effect.Effect<A, E, AppServices>,
+): Promise<DashboardPageResult<A>> {
+  const result = await runAppEffect(Effect.result(effect));
+  if (Result.isSuccess(result)) {
+    return { _tag: "Success", value: result.success };
+  }
+  if (result.failure instanceof SessionErrors.AuthenticationRequired) {
+    return { _tag: "Unauthorized" };
+  }
+  if (result.failure instanceof BlogAccess.BlogAccessDenied) return { _tag: "Forbidden" };
+  throw result.failure;
+}
+
+export function loadDashboardShell() {
+  return runDashboardPage(
+    Effect.gen(function* () {
+      const { session, actorId } = yield* currentActor();
+      const dashboard = yield* Dashboard.Service;
+      const blog = yield* dashboard.shell(actorId);
+      return { session, blog };
+    }),
+  );
+}
+
+export function loadDashboardAnalytics() {
+  return runDashboardPage(
+    Effect.gen(function* () {
+      const { actorId } = yield* currentActor();
+      const dashboard = yield* Dashboard.Service;
+      return yield* dashboard.analytics(actorId);
+    }),
+  );
+}
+
+export function loadDashboardContentLibrary() {
+  return runDashboardPage(
+    Effect.gen(function* () {
+      const { actorId } = yield* currentActor();
+      const dashboard = yield* Dashboard.Service;
+      return yield* dashboard.contentLibrary(actorId);
+    }),
+  );
+}
+
+export function loadDashboardOverview() {
+  return runDashboardPage(
+    Effect.gen(function* () {
+      const { actorId } = yield* currentActor();
+      const dashboard = yield* Dashboard.Service;
+      return yield* dashboard.overview(actorId);
+    }),
+  );
+}
+
+export function loadDashboardIntegration() {
+  return runDashboardPage(
+    Effect.gen(function* () {
+      const { actorId } = yield* currentActor();
+      const dashboard = yield* Dashboard.Service;
+      return yield* dashboard.integration(actorId);
+    }),
+  );
+}
+
+export function loadDashboardPosts(search?: string) {
+  return runDashboardPage(
+    Effect.gen(function* () {
+      const { actorId } = yield* currentActor();
+      const dashboard = yield* Dashboard.Service;
+      return yield* dashboard.posts(actorId, search);
+    }),
+  );
+}
+
+export function loadDashboardSettings() {
+  return runDashboardPage(
+    Effect.gen(function* () {
+      const { actorId } = yield* currentActor();
+      const dashboard = yield* Dashboard.Service;
+      return yield* dashboard.settings(actorId);
+    }),
+  );
+}
+
+export function loadDashboardTeam() {
+  return runDashboardPage(
+    Effect.gen(function* () {
+      const { actorId } = yield* currentActor();
+      const dashboard = yield* Dashboard.Service;
+      return yield* dashboard.team(actorId);
+    }),
+  );
+}
+
+export function loadNewPost() {
+  return runDashboardPage(
+    Effect.gen(function* () {
+      const { actorId } = yield* currentActor();
+      const dashboard = yield* Dashboard.Service;
+      return yield* dashboard.newPost(actorId);
+    }),
+  );
+}
+
+export function loadEditPost(id: string) {
+  const postId = Schema.decodeUnknownOption(PostId)(id);
+  if (Option.isNone(postId)) {
+    return Promise.resolve<DashboardPageResult<null>>({
+      _tag: "Success",
+      value: null,
+    });
+  }
+  return runDashboardPage(
+    Effect.gen(function* () {
+      const { actorId } = yield* currentActor();
+      const dashboard = yield* Dashboard.Service;
+      return yield* dashboard.editPost(actorId, postId.value);
+    }),
+  );
+}
+
+export function loadPublicBlog(
+  slug: string,
+  options: { readonly search?: string; readonly category?: string } = {},
+) {
+  const parsed = parseBlogSlug(slug);
+  if (Option.isNone(parsed)) return Promise.resolve(null);
+  return runAppEffect(
+    Effect.flatMap(PublicContent.Service, (content) =>
+      content.blog(parsed.value, options),
+    ),
+  );
+}
+
+export function loadPublicPost(blogSlug: string, postSlug: string) {
+  const parsed = parseBlogSlug(blogSlug);
+  if (Option.isNone(parsed)) return Promise.resolve(null);
+  return runAppEffect(
+    Effect.flatMap(PublicContent.Service, (content) =>
+      content.post(parsed.value, postSlug),
+    ),
+  );
+}
+
+export function loadPublicAuthor(blogSlug: string, authorSlug: string) {
+  const parsed = parseBlogSlug(blogSlug);
+  if (Option.isNone(parsed)) return Promise.resolve(null);
+  return runAppEffect(
+    Effect.flatMap(PublicContent.Service, (content) =>
+      content.author(parsed.value, authorSlug),
+    ),
+  );
+}
+
+export * as PageEntrypoints from "./page-entrypoints";

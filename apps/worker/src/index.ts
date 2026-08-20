@@ -1,52 +1,128 @@
 import { Queue, Worker } from "bullmq";
-import { and, eq, isNotNull, lte } from "drizzle-orm";
-import { getDb, schema } from "@prosewire/db";
+import { Effect, Redacted } from "effect";
 
-const redisUrl = new URL(process.env["REDIS_URL"] ?? "redis://localhost:6379");
-const connection = {
-  host: redisUrl.hostname,
-  port: Number(redisUrl.port || "6379"),
-  ...(redisUrl.password ? { password: redisUrl.password } : {}),
-};
+import {
+  disposeWorkerRuntime,
+  runWorkerEffect,
+} from "./app-runtime.ts";
+import { Publishing } from "./publishing.ts";
+import { runUntilShutdown } from "./shutdown.ts";
+import { WorkerConfig } from "./worker-config.ts";
+import {
+  connectionFromUrl,
+  waitForEmitterError,
+  WorkerRuntimeError,
+} from "./worker-runtime.ts";
 
-const queue = new Queue("prosewire-publishing", { connection });
-await queue.upsertJobScheduler(
-  "publish-scheduled-posts",
-  { every: 30_000 },
-  { name: "publish-scheduled", data: {} },
-);
+const queueName = "prosewire-publishing";
+const jobName = "publish-scheduled";
 
-const worker = new Worker(
-  "prosewire-publishing",
-  async (job) => {
-    if (job.name !== "publish-scheduled") return;
-    const now = new Date();
-    const published = await getDb()
-      .update(schema.post)
-      .set({ status: "published", publishedAt: now, updatedAt: now })
-      .where(
-        and(
-          eq(schema.post.status, "scheduled"),
-          isNotNull(schema.post.scheduledAt),
-          lte(schema.post.scheduledAt, now),
-        ),
-      )
-      .returning({ id: schema.post.id, title: schema.post.title });
-    if (published.length) process.stdout.write(`Published ${String(published.length)} scheduled post(s).\n`);
-  },
-  { connection },
-);
+const closeResource = (
+  resource: "queue" | "worker",
+  close: () => Promise<void>,
+): Effect.Effect<void> =>
+  Effect.tryPromise({
+    try: close,
+    catch: (cause) =>
+      new WorkerRuntimeError({
+        operation: `close ${resource}`,
+        cause,
+      }),
+  }).pipe(
+    Effect.tapError((error) => Effect.logError(`Failed to close ${resource}`, error)),
+    Effect.ignore,
+  );
 
-worker.on("failed", (job, error) => {
-  process.stderr.write(`Job ${job?.id ?? "unknown"} failed: ${error.message}\n`);
+const runWorker = Effect.gen(function* () {
+  const config = yield* WorkerConfig;
+  const publishing = yield* Publishing.Service;
+  const connection = yield* Effect.try({
+    try: () => connectionFromUrl(new URL(Redacted.value(config.redisUrl))),
+    catch: (cause) => new WorkerRuntimeError({ operation: "configure redis", cause }),
+  });
+
+  const queue = yield* Effect.acquireRelease(
+    Effect.try({
+      try: () => new Queue(queueName, { connection }),
+      catch: (cause) =>
+        new WorkerRuntimeError({
+          operation: "create publishing queue",
+          cause,
+        }),
+    }),
+    (resource) => closeResource("queue", () => resource.close()),
+  );
+
+  return yield* Effect.raceFirst(
+    waitForEmitterError(queue, "queue"),
+    Effect.gen(function* () {
+      yield* Effect.tryPromise({
+        try: () =>
+          queue.upsertJobScheduler(
+            "publish-scheduled-posts",
+            { every: 30_000 },
+            { name: jobName, data: {} },
+          ),
+        catch: (cause) =>
+          new WorkerRuntimeError({
+            operation: "schedule publishing job",
+            cause,
+          }),
+      });
+
+      const worker = yield* Effect.acquireRelease(
+        Effect.try({
+          try: () =>
+            new Worker(
+              queueName,
+              (job) =>
+                job.name === jobName
+                  ? runWorkerEffect(publishing.publishScheduled())
+                  : Promise.resolve(),
+              { connection },
+            ),
+          catch: (cause) =>
+            new WorkerRuntimeError({
+              operation: "create publishing worker",
+              cause,
+            }),
+        }),
+        (resource) => closeResource("worker", () => resource.close()),
+      );
+
+      worker.on("failed", (job, cause) => {
+        void runWorkerEffect(
+          Effect.logError("Publishing job failed", {
+            jobId: job?.id,
+            cause,
+          }),
+        ).catch(() => undefined);
+      });
+      worker.on("ready", () => {
+        void runWorkerEffect(
+          Effect.logInfo("Publishing worker ready", { queue: queueName }),
+        ).catch(() => undefined);
+      });
+
+      return yield* waitForEmitterError(worker, "worker");
+    }),
+  );
 });
 
-async function shutdown(): Promise<void> {
-  await worker.close();
-  await queue.close();
-  process.exit(0);
-}
+const program = Effect.gen(function* () {
+  yield* runUntilShutdown(runWorker);
+  yield* Effect.logInfo("Publishing worker shutting down");
+});
 
-process.on("SIGINT", () => void shutdown());
-process.on("SIGTERM", () => void shutdown());
-process.stdout.write("Prosewire publishing worker is ready.\n");
+try {
+  await runWorkerEffect(
+    program.pipe(
+      Effect.scoped,
+      Effect.tapCause((cause) =>
+        Effect.logError("Publishing worker stopped unexpectedly", cause),
+      ),
+    ),
+  );
+} finally {
+  await disposeWorkerRuntime();
+}

@@ -11,10 +11,24 @@ export function ReadingProgress({ postId }: { postId: string }) {
     };
     update();
     window.addEventListener("scroll", update, { passive: true });
-    const timer = window.setTimeout(() => {
-      void fetch("/api/events/view", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postId, referrer: document.referrer || "direct" }), keepalive: true });
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => {
+      void fetch("/api/events/view", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          postId,
+          referrer: document.referrer || "direct",
+        }),
+        keepalive: true,
+        signal: controller.signal,
+      }).catch(() => undefined);
     }, 1200);
-    return () => { window.removeEventListener("scroll", update); window.clearTimeout(timer); };
+    return () => {
+      window.removeEventListener("scroll", update);
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
   }, [postId]);
   return <div className="fixed inset-x-0 top-0 z-50 h-0.5 bg-transparent"><div className="h-full bg-[var(--blog-accent)] transition-[width] duration-100" style={{ width: `${progress}%` }} /></div>;
 }

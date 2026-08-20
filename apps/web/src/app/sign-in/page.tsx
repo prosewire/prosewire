@@ -8,8 +8,8 @@ import { signIn } from "@/lib/auth-client";
 
 export default function SignInPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("admin@prosewire.local");
-  const [password, setPassword] = useState("prosewire-local-dev");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -33,21 +33,26 @@ export default function SignInPage() {
           <div className="mb-10 lg:hidden"><Logo className="text-lg" /></div>
           <p className="text-sm font-semibold text-[#ef6848]">Welcome back</p>
           <h2 className="mt-2 text-3xl font-semibold tracking-[-.035em]">Sign in to your publication</h2>
-          <p className="mt-3 text-sm leading-6 text-[#69757a]">The local development account is filled in for you.</p>
+          <p className="mt-3 text-sm leading-6 text-[#69757a]">Use the credentials configured by your administrator.</p>
           <form
             className="mt-8 space-y-5"
             onSubmit={async (event) => {
               event.preventDefault();
               setPending(true);
               setError(null);
-              const result = await signIn.email({ email, password });
-              setPending(false);
-              if (result.error) {
-                setError(result.error.message ?? "Sign in failed");
-                return;
+              try {
+                const result = await signIn.email({ email, password });
+                if (result.error) {
+                  setError(result.error.message ?? "Sign in failed");
+                  return;
+                }
+                router.push("/dashboard");
+                router.refresh();
+              } catch (cause) {
+                setError(cause instanceof Error ? cause.message : "Sign in failed");
+              } finally {
+                setPending(false);
               }
-              router.push("/dashboard");
-              router.refresh();
             }}
           >
             <label className="block text-sm font-medium">Email<input aria-label="Email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-2 h-12 w-full rounded-xl border border-[#d4d7d0] bg-white px-3.5 outline-none transition focus:border-[#ef6848] focus:ring-3 focus:ring-[#ef6848]/10" required /></label>
@@ -57,7 +62,6 @@ export default function SignInPage() {
               {pending ? "Signing in…" : "Continue to dashboard"}<ArrowRight className="size-4" />
             </button>
           </form>
-          <p className="mt-6 rounded-xl border border-[#d9dbd5] bg-white/70 p-3 text-xs leading-5 text-[#687279]">Default: <code>admin@prosewire.local</code> / <code>prosewire-local-dev</code>. Change both values in <code>.env</code> before sharing a deployment.</p>
         </div>
       </section>
     </main>

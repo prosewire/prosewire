@@ -1,9 +1,13 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { hashPassword } from "better-auth/crypto";
 import { eq } from "drizzle-orm";
+import { Clock, Context, Effect, Layer, Option, Redacted } from "effect";
 import { createExcerpt, renderMarkdown } from "@prosewire/core";
-import { schema } from "@prosewire/db";
-import { auth } from "@/lib/auth";
-import { db } from "@/lib/db";
+import * as schema from "@prosewire/db/schema";
+import { WebConfig } from "./config.ts";
+import { Database } from "./database.ts";
+import { promiseEffect } from "./external-effect.ts";
+import { SeedConfig } from "./seed-config.ts";
 
 const samplePosts = [
   {
@@ -103,7 +107,7 @@ The title and description should accurately summarize the article. An SEO score 
     status: "scheduled" as const,
     featured: false,
     publishedAt: null,
-    scheduledAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+    scheduledInDays: 3,
     focusKeyword: "portable content model",
     category: "Engineering",
     content: `## Model meaning before presentation
@@ -137,115 +141,235 @@ Draft, scheduled, published, and archived are distinct states. The primary actio
   },
 ];
 
-export async function seedInitialData(): Promise<void> {
-  let admin = await db().query.user.findFirst();
-  if (!admin) {
-    const email = process.env["ADMIN_EMAIL"] ?? "admin@prosewire.local";
-    const password = process.env["ADMIN_PASSWORD"] ?? "prosewire-local-dev";
-    await auth().api.signUpEmail({ body: { email, password, name: "Prosewire Admin" } });
-    await db().update(schema.user).set({ role: "admin" }).where(eq(schema.user.email, email));
-    admin = await db().query.user.findFirst({ where: eq(schema.user.email, email) });
-  }
-  if (!admin) throw new Error("Unable to create the local admin user");
+export const create = Effect.fn("Seed.create")(function* () {
+  const webConfig = yield* WebConfig;
+  const seedConfig = yield* SeedConfig;
+  const database = yield* Database;
 
-  const existingBlog = await db().query.blog.findFirst();
-  if (existingBlog) return;
-
-  await db().transaction(async (tx) => {
-    const [createdBlog] = await tx
-      .insert(schema.blog)
-      .values({
-        name: "Fieldnotes",
-        slug: process.env["PROSEWIRE_DEFAULT_BLOG"] ?? "fieldnotes",
-        description: "Independent notes on content, product craft, and building for the long term.",
-        locale: "en",
-        accentColor: "#ef6848",
-      })
-      .returning();
-    if (!createdBlog) throw new Error("Unable to seed the demo blog");
-
-    await tx.insert(schema.blogMember).values({ blogId: createdBlog.id, userId: admin.id, role: "owner" });
-
-    const [defaultAuthor] = await tx
-      .insert(schema.author)
-      .values({
-        blogId: createdBlog.id,
-        userId: admin.id,
-        name: "Maya Chen",
-        slug: "maya-chen",
-        bio: "Product writer and systems thinker. Maya documents how small teams build durable publishing operations.",
-        jobTitle: "Editor in residence",
-        credentials: "10 years in editorial product design",
-      })
-      .returning();
-    if (!defaultAuthor) throw new Error("Unable to seed the demo author");
-
-    const categoryRows = await tx
-      .insert(schema.category)
-      .values([
-        { blogId: createdBlog.id, name: "Strategy", slug: "strategy", description: "Content strategy and ownership." },
-        { blogId: createdBlog.id, name: "Engineering", slug: "engineering", description: "Integration and architecture." },
-        { blogId: createdBlog.id, name: "Editorial", slug: "editorial", description: "Writing and review workflows." },
-      ])
-      .returning();
-
-    for (const item of samplePosts) {
-      const [createdPost] = await tx
-        .insert(schema.post)
-        .values({
-          blogId: createdBlog.id,
-          authorId: defaultAuthor.id,
-          title: item.title,
-          slug: item.slug,
-          excerpt: item.excerpt || createExcerpt(item.content),
-          contentMarkdown: item.content,
-          contentHtml: await renderMarkdown(item.content),
-          status: item.status,
-          featured: item.featured,
-          focusKeyword: item.focusKeyword,
-          seoTitle: item.title,
-          seoDescription: item.excerpt,
-          publishedAt: item.publishedAt,
-          scheduledAt: "scheduledAt" in item ? item.scheduledAt : null,
-        })
-        .returning();
-      const selectedCategory = categoryRows.find((row) => row.name === item.category);
-      if (createdPost && selectedCategory) {
-        await tx.insert(schema.postCategory).values({
-          postId: createdPost.id,
-          categoryId: selectedCategory.id,
-        });
-      }
-    }
-
-    await tx.insert(schema.snippet).values({
-      blogId: createdBlog.id,
-      name: "Newsletter callout",
-      key: "newsletter",
-      contentMarkdown: "### Keep the useful ideas coming\n\nOne practical fieldnote, once a month.",
-    });
-
-    const localKey = "pw_local_development_key";
-    await tx.insert(schema.apiKey).values({
-      blogId: createdBlog.id,
-      name: "Local development",
-      prefix: localKey.slice(0, 10),
-      keyHash: createHash("sha256").update(localKey).digest("hex"),
-      scopes: ["content:read", "content:write"],
-    });
-
-    const publishedPosts = await tx.query.post.findMany({
-      where: eq(schema.post.status, "published"),
-    });
-    for (const [postIndex, published] of publishedPosts.entries()) {
-      const views = 11 - postIndex * 2;
-      await tx.insert(schema.postView).values(
-        Array.from({ length: Math.max(3, views) }, (_, index) => ({
-          postId: published.id,
-          referrer: index % 3 === 0 ? "https://www.google.com/" : index % 3 === 1 ? "direct" : "https://www.linkedin.com/",
-          occurredAt: new Date(Date.now() - index * 28 * 60 * 60 * 1000),
-        })),
+  const initialData = Effect.fn("Seed.initialData")(function* () {
+    const now = yield* Clock.currentTimeMillis;
+    let admin = yield* database.execute("seed.findAdmin", (client) =>
+      client.query.user.findFirst({
+        where: eq(schema.user.email, seedConfig.adminEmail),
+      }),
+    );
+    if (!admin) {
+      const userId = randomUUID();
+      const password = yield* promiseEffect(
+        "better-auth",
+        "hashAdminPassword",
+        () => hashPassword(Redacted.value(seedConfig.adminPassword)),
+      );
+      admin = yield* database.execute("seed.createAdmin", (client) =>
+        client.transaction(async (tx) => {
+          const [created] = await tx
+            .insert(schema.user)
+            .values({
+              id: userId,
+              email: seedConfig.adminEmail,
+              name: "Prosewire Admin",
+              role: "admin",
+            })
+            .returning();
+          if (!created) throw new Error("Unable to create the admin user");
+          await tx.insert(schema.account).values({
+            id: randomUUID(),
+            userId,
+            accountId: userId,
+            providerId: "credential",
+            password,
+          });
+          return created;
+        }),
       );
     }
+    if (!admin) throw new Error("Unable to create the local admin user");
+    const existingAdminId = admin.id;
+    if (admin.role !== "admin") {
+      const [promoted] = yield* database.execute("seed.promoteAdmin", (client) =>
+        client
+          .update(schema.user)
+          .set({ role: "admin", updatedAt: new Date(now) })
+          .where(eq(schema.user.id, existingAdminId))
+          .returning(),
+      );
+      if (promoted) admin = promoted;
+    }
+    const adminId = admin.id;
+
+    const existingBlog = yield* database.execute("seed.findBlog", (client) =>
+      client.query.blog.findFirst({
+        where: eq(schema.blog.slug, webConfig.defaultBlog),
+      }),
+    );
+    if (existingBlog) {
+      yield* database.execute("seed.ensureAdminMembership", (client) =>
+        client
+          .insert(schema.blogMember)
+          .values({ blogId: existingBlog.id, userId: adminId, role: "owner" })
+          .onConflictDoUpdate({
+            target: [schema.blogMember.blogId, schema.blogMember.userId],
+            set: { role: "owner" },
+          }),
+      );
+      return;
+    }
+
+    const preparedPosts = yield* Effect.forEach(
+      samplePosts,
+      (item) =>
+        promiseEffect("markdown", `seedPost.${item.slug}`, () =>
+          renderMarkdown(item.content),
+        ).pipe(Effect.map((contentHtml) => ({ item, contentHtml }))),
+      { concurrency: "unbounded" },
+    );
+
+    yield* database.execute("seed.createInitialData", (client) =>
+      client.transaction(async (tx) => {
+        const [createdBlog] = await tx
+          .insert(schema.blog)
+          .values({
+            name: "Fieldnotes",
+            slug: webConfig.defaultBlog,
+            description:
+              "Independent notes on content, product craft, and building for the long term.",
+            locale: "en",
+            accentColor: "#ef6848",
+          })
+          .returning();
+        if (!createdBlog) throw new Error("Unable to seed the demo blog");
+
+        await tx.insert(schema.blogMember).values({
+          blogId: createdBlog.id,
+          userId: adminId,
+          role: "owner",
+        });
+
+        const [defaultAuthor] = await tx
+          .insert(schema.author)
+          .values({
+            blogId: createdBlog.id,
+            userId: adminId,
+            name: "Maya Chen",
+            slug: "maya-chen",
+            bio: "Product writer and systems thinker. Maya documents how small teams build durable publishing operations.",
+            jobTitle: "Editor in residence",
+            credentials: "10 years in editorial product design",
+          })
+          .returning();
+        if (!defaultAuthor) throw new Error("Unable to seed the demo author");
+
+        const categoryRows = await tx
+          .insert(schema.category)
+          .values([
+            {
+              blogId: createdBlog.id,
+              name: "Strategy",
+              slug: "strategy",
+              description: "Content strategy and ownership.",
+            },
+            {
+              blogId: createdBlog.id,
+              name: "Engineering",
+              slug: "engineering",
+              description: "Integration and architecture.",
+            },
+            {
+              blogId: createdBlog.id,
+              name: "Editorial",
+              slug: "editorial",
+              description: "Writing and review workflows.",
+            },
+          ])
+          .returning();
+
+        for (const { item, contentHtml } of preparedPosts) {
+          const [createdPost] = await tx
+            .insert(schema.post)
+            .values({
+              blogId: createdBlog.id,
+              authorId: defaultAuthor.id,
+              title: item.title,
+              slug: item.slug,
+              excerpt: item.excerpt || createExcerpt(item.content),
+              contentMarkdown: item.content,
+              contentHtml,
+              status: item.status,
+              featured: item.featured,
+              focusKeyword: item.focusKeyword,
+              seoTitle: item.title,
+              seoDescription: item.excerpt,
+              publishedAt: item.publishedAt,
+              scheduledAt:
+                "scheduledInDays" in item
+                  ? new Date(
+                      now + item.scheduledInDays * 24 * 60 * 60 * 1000,
+                    )
+                  : null,
+            })
+            .returning();
+          const selectedCategory = categoryRows.find(
+            (row) => row.name === item.category,
+          );
+          if (createdPost && selectedCategory) {
+            await tx.insert(schema.postCategory).values({
+              postId: createdPost.id,
+              categoryId: selectedCategory.id,
+            });
+          }
+        }
+
+        await tx.insert(schema.snippet).values({
+          blogId: createdBlog.id,
+          name: "Newsletter callout",
+          key: "newsletter",
+          contentMarkdown:
+            "### Keep the useful ideas coming\n\nOne practical fieldnote, once a month.",
+        });
+
+        const configuredApiKey = Option.getOrUndefined(seedConfig.seedApiKey);
+        if (configuredApiKey) {
+          const token = Redacted.value(configuredApiKey);
+          await tx.insert(schema.apiKey).values({
+            blogId: createdBlog.id,
+            name: "Provisioned API key",
+            prefix: token.slice(0, 10),
+            keyHash: createHash("sha256").update(token).digest("hex"),
+            scopes: ["content:read", "content:write"],
+          });
+        }
+
+        const publishedPosts = await tx.query.post.findMany({
+          where: eq(schema.post.status, "published"),
+        });
+        for (const [postIndex, published] of publishedPosts.entries()) {
+          const views = 11 - postIndex * 2;
+          await tx.insert(schema.postView).values(
+            Array.from({ length: Math.max(3, views) }, (_, index) => ({
+              postId: published.id,
+              referrer:
+                index % 3 === 0
+                  ? "https://www.google.com/"
+                  : index % 3 === 1
+                    ? "direct"
+                    : "https://www.linkedin.com/",
+              occurredAt: new Date(now - index * 28 * 60 * 60 * 1000),
+            })),
+          );
+        }
+      }),
+    );
   });
-}
+
+  return { initialData };
+});
+
+export type Interface = Effect.Success<ReturnType<typeof create>>;
+
+export class Service extends Context.Service<Service, Interface>()(
+  "@prosewire/web/Seed",
+) {}
+
+export const layer = Layer.effect(Service, create().pipe(Effect.map(Service.of)));
+
+export * as Seed from "./seed";

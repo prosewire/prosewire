@@ -22,13 +22,14 @@
     "db:migrate": "pnpm --filter @prosewire/db migrate",
     "db:push": "pnpm --filter @prosewire/db push",
     "db:studio": "pnpm --filter @prosewire/db studio",
-    "prepare": "lefthook install || true",
+    "prepare": "(lefthook install || true) && effect-language-service patch",
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "turbo run build --filter=@prosewire/sdk --filter=@prosewire/cli --filter=@prosewire/mcp && changeset publish"
   },
   "devDependencies": {
     "@changesets/cli": "^2.31.0",
+    "@effect/language-service": "^0.87.2",
     "@vitest/coverage-v8": "^4.1.5",
     "dotenv-cli": "^11.0.0",
     "eslint": "^9.39.4",

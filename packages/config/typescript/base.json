@@ -7,6 +7,7 @@
     "moduleResolution": "Bundler",
     "moduleDetection": "force",
     "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
     "resolveJsonModule": true,
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
@@ -17,11 +18,14 @@
     "noImplicitOverride": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
     "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": false,
+    "exactOptionalPropertyTypes": true,
     "useUnknownInCatchVariables": true,
     "skipLibCheck": true,
-    "incremental": true
+    "incremental": true,
+    "sourceMap": true,
+    "plugins": [{ "name": "@effect/language-service" }]
   },
   "exclude": ["node_modules", "dist", ".turbo", ".next", "build"]
 }

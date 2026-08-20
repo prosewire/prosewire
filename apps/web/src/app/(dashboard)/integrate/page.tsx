@@ -1,6 +1,7 @@
 import { Braces, Code2, ExternalLink, KeyRound, PackageOpen, TerminalSquare } from "lucide-react";
 import { CopyButton } from "@/components/copy-button";
-import { getDefaultBlog } from "@/server/data";
+import { loadDashboardIntegration } from "@/server/page-entrypoints";
+import { dashboardData } from "../dashboard-result";
 
 export const metadata = { title: "Integrate" };
 
@@ -9,9 +10,7 @@ function CodeBlock({ children }: { children: string }) {
 }
 
 export default async function IntegratePage() {
-  const blog = await getDefaultBlog();
-  if (!blog) return null;
-  const origin = process.env["PROSEWIRE_PUBLIC_URL"] ?? "http://localhost:3000";
+  const { blog, origin } = dashboardData(await loadDashboardIntegration());
   const embed = `<div data-prosewire="${blog.slug}"></div>\n<script async src="${origin}/embed.js" data-blog="${blog.slug}"></script>`;
   const sdk = `import { createPublicClient } from "@prosewire/sdk";\n\nconst blog = createPublicClient({\n  baseUrl: "${origin}",\n  blog: "${blog.slug}",\n});\n\nconst posts = await blog.listPosts();`;
   return (
@@ -23,7 +22,7 @@ export default async function IntegratePage() {
         <section className="card p-5"><PackageOpen className="size-4.5 text-[#ef6848]" /><h2 className="mt-4 text-sm font-semibold">Rendered API</h2><p className="mt-2 text-xs leading-5 text-[#7a8489]">Ready-to-place blog indexes and article bodies.</p><CodeBlock>{`GET ${origin}/api/rendered/${blog.slug}/`}</CodeBlock></section>
       </div>
       <section className="card mt-4 p-5 sm:p-6"><div className="flex items-center justify-between"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-[#eef0ec] text-[#59666b]"><TerminalSquare className="size-4.5" /></span><div><h2 className="text-sm font-semibold">TypeScript SDK</h2><p className="mt-1 text-xs text-[#7a8489]">Typed public and private clients.</p></div></div><span className="rounded-lg bg-[#f0f1ed] px-2 py-1 font-mono text-[10px]">@prosewire/sdk</span></div><CodeBlock>{sdk}</CodeBlock></section>
-      <section className="mt-4 grid gap-4 md:grid-cols-2"><div className="card p-5"><KeyRound className="size-4.5 text-[#ef6848]" /><h2 className="mt-4 text-sm font-semibold">Local API key</h2><p className="mt-2 text-xs leading-5 text-[#7a8489]">Use <code className="rounded bg-[#eeefeb] px-1">pw_local_development_key</code> locally. Only its SHA-256 hash is stored.</p></div><a href={`/b/${blog.slug}`} target="_blank" rel="noreferrer" className="card flex items-center justify-between p-5 transition hover:-translate-y-px"><div><ExternalLink className="size-4.5 text-[#ef6848]" /><h2 className="mt-4 text-sm font-semibold">Open the native reader</h2><p className="mt-2 text-xs text-[#7a8489]">Preview the full server-rendered blog.</p></div><span className="text-xl text-[#adb3b5]">→</span></a></section>
+      <section className="mt-4 grid gap-4 md:grid-cols-2"><div className="card p-5"><KeyRound className="size-4.5 text-[#ef6848]" /><h2 className="mt-4 text-sm font-semibold">Scoped API keys</h2><p className="mt-2 text-xs leading-5 text-[#7a8489]">Provision a unique key through your deployment configuration. Keys are stored as SHA-256 hashes and enforce separate read and write scopes.</p></div><a href={`/b/${blog.slug}`} target="_blank" rel="noreferrer" className="card flex items-center justify-between p-5 transition hover:-translate-y-px"><div><ExternalLink className="size-4.5 text-[#ef6848]" /><h2 className="mt-4 text-sm font-semibold">Open the native reader</h2><p className="mt-2 text-xs text-[#7a8489]">Preview the full server-rendered blog.</p></div><span className="text-xl text-[#adb3b5]">→</span></a></section>
     </main>
   );
 }

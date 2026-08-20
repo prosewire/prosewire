@@ -1,20 +1,12 @@
 import { Braces, Folder, Quote, UserRound } from "lucide-react";
-import { db } from "@/lib/db";
-import { schema } from "@prosewire/db";
-import { eq } from "drizzle-orm";
-import { getAuthors, getCategories, getDefaultBlog } from "@/server/data";
+import { loadDashboardContentLibrary } from "@/server/page-entrypoints";
+import { dashboardData } from "../dashboard-result";
 
 export const metadata = { title: "Content library" };
 
 export default async function ContentPage() {
-  const blog = await getDefaultBlog();
-  if (!blog) return null;
-  const [authors, categories, snippets, redirects] = await Promise.all([
-    getAuthors(blog.id),
-    getCategories(blog.id),
-    db().query.snippet.findMany({ where: eq(schema.snippet.blogId, blog.id) }),
-    db().query.redirect.findMany({ where: eq(schema.redirect.blogId, blog.id) }),
-  ]);
+  const { authors, categories, snippets, redirects } =
+    dashboardData(await loadDashboardContentLibrary());
   return (
     <main className="mx-auto max-w-[1200px] px-4 py-6 sm:px-7 lg:px-9 lg:py-8">
       <p className="text-xs font-semibold text-[#ef6848]">Reusable content</p><h1 className="mt-1 text-3xl font-semibold tracking-[-.04em]">Content library</h1><p className="mt-2 text-sm text-[#6e787d]">Keep people, taxonomy, snippets, and URL history organized.</p>

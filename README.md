@@ -63,6 +63,7 @@ Requires Node.js 24+, pnpm 11+, and Docker.
 git clone https://github.com/prosewire/prosewire.git
 cd prosewire
 cp .env.example .env
+# Replace the BETTER_AUTH_SECRET and ADMIN_PASSWORD placeholders in .env.
 pnpm install
 docker compose up -d postgres redis
 pnpm dev
@@ -70,20 +71,12 @@ pnpm dev
 
 Open <http://localhost:3000>. The first boot runs the committed Drizzle migrations and seeds a local workspace.
 
-Local dashboard credentials:
+The first boot creates the administrator from `ADMIN_EMAIL` and `ADMIN_PASSWORD`.
+Both secrets are required and insecure placeholder values are rejected at startup.
 
-```text
-admin@prosewire.local
-prosewire-local-dev
-```
-
-Local API key:
-
-```text
-pw_local_development_key
-```
-
-Change these values before sharing a deployment.
+To provision an initial API key, set `PROSEWIRE_SEED_API_KEY` to a unique value
+of at least 24 characters before the first boot. The stored key is hashed and
+receives explicit `content:read` and `content:write` scopes.
 
 ## Integrate
 

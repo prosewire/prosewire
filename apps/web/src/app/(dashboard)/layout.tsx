@@ -1,13 +1,12 @@
 import { DashboardSidebar } from "@/components/dashboard-sidebar";
 import { MobileHeader } from "@/components/mobile-header";
-import { requireDashboardSession } from "@/lib/session";
-import { getDefaultBlog } from "@/server/data";
+import { loadDashboardShell } from "@/server/page-entrypoints";
+import { dashboardData } from "./dashboard-result";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const [session, blog] = await Promise.all([requireDashboardSession(), getDefaultBlog()]);
-  if (!blog) throw new Error("No blog is configured");
+  const { session, blog } = dashboardData(await loadDashboardShell());
   return (
     <div className="min-h-screen bg-[#f4f3ed]">
       <DashboardSidebar userName={session.user.name} blogName={blog.name} />

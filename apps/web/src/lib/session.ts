@@ -1,14 +1,48 @@
-import { cache } from "react";
 import { headers } from "next/headers";
-import { redirect } from "next/navigation";
-import { auth } from "./auth.ts";
+import { Effect } from "effect";
+import { getAuth } from "./auth.ts";
+import { promiseEffect } from "@/server/external-effect";
+import { SessionErrors } from "@/server/session-errors";
 
-export const getDashboardSession = cache(async () =>
-  auth().api.getSession({ headers: await headers() }),
+export const getDashboardSessionEffect = Effect.fn("WebSession.get")(function* () {
+  const requestHeaders = yield* promiseEffect("next", "headers", headers);
+  return yield* getSessionWithHeadersEffect(requestHeaders);
+});
+
+export const getSessionWithHeadersEffect = Effect.fn("WebSession.getWithHeaders")(
+  function* (requestHeaders: Headers) {
+    const auth = yield* getAuth();
+    return yield* promiseEffect("better-auth", "getSession", () =>
+      auth.api.getSession({ headers: requestHeaders }),
+    );
+  },
 );
 
-export async function requireDashboardSession() {
-  const session = await getDashboardSession();
-  if (!session) redirect("/sign-in");
-  return session;
-}
+const requireSession = <A>(
+  session: A | null,
+  disabledAt: Date | null | undefined,
+): Effect.Effect<A, SessionErrors.AuthenticationRequired> => {
+  if (!session) {
+    return Effect.fail(
+      new SessionErrors.AuthenticationRequired({ reason: "missing-session" }),
+    );
+  }
+  if (disabledAt) {
+    return Effect.fail(
+      new SessionErrors.AuthenticationRequired({ reason: "disabled-account" }),
+    );
+  }
+  return Effect.succeed(session);
+};
+
+export const requireDashboardSessionEffect = Effect.fn("WebSession.require")(function* () {
+  const session = yield* getDashboardSessionEffect();
+  return yield* requireSession(session, session?.user.disabledAt);
+});
+
+export const requireSessionWithHeadersEffect = Effect.fn("WebSession.requireWithHeaders")(
+  function* (requestHeaders: Headers) {
+    const session = yield* getSessionWithHeadersEffect(requestHeaders);
+    return yield* requireSession(session, session?.user.disabledAt);
+  },
+);

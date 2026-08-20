@@ -26,7 +26,7 @@ interface PostRow {
     jobTitle: string | null;
     credentials: string | null;
   };
-  categories: Array<{
+  categories: ReadonlyArray<{
     category: { id: string; name: string; slug: string; description: string | null };
   }>;
 }
