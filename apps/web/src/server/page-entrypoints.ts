@@ -1,15 +1,39 @@
 import { Effect, Option, Result, Schema } from "effect";
+import { cookies } from "next/headers";
 import { requireDashboardSessionEffect } from "@/lib/session";
 import { BlogAccess } from "./authorization.ts";
 import { runAppEffect, type AppServices } from "./app-runtime.ts";
 import { Dashboard } from "./dashboard.ts";
-import { BlogSlug, PostId, UserId } from "./domain.ts";
+import {
+  BlogId,
+  BlogSlug,
+  OrganizationId,
+  PostId,
+  UserId,
+} from "./domain.ts";
+import { promiseEffect } from "./external-effect.ts";
 import { PublicContent } from "./public-content.ts";
 import { SessionErrors } from "./session-errors.ts";
 
 const currentActor = Effect.fn("PageEntrypoints.currentActor")(function* () {
   const session = yield* requireDashboardSessionEffect();
-  return { session, actorId: UserId.make(session.user.id) };
+  const cookieStore = yield* promiseEffect("next", "cookies", cookies);
+  const organizationId = Schema.decodeUnknownOption(OrganizationId)(
+    session.session.activeOrganizationId,
+  );
+  const blogId = Schema.decodeUnknownOption(BlogId)(
+    cookieStore.get("prosewire-publication")?.value,
+  );
+  return {
+    session,
+    actorId: UserId.make(session.user.id),
+    selection: {
+      ...(Option.isSome(organizationId)
+        ? { organizationId: organizationId.value }
+        : {}),
+      ...(Option.isSome(blogId) ? { blogId: blogId.value } : {}),
+    },
+  };
 });
 
 const parseBlogSlug = (value: string) =>
@@ -18,7 +42,8 @@ const parseBlogSlug = (value: string) =>
 export type DashboardPageResult<A> =
   | { readonly _tag: "Success"; readonly value: A }
   | { readonly _tag: "Unauthorized" }
-  | { readonly _tag: "Forbidden" };
+  | { readonly _tag: "Forbidden" }
+  | { readonly _tag: "NeedsOnboarding" };
 
 async function runDashboardPage<A, E extends Error>(
   effect: Effect.Effect<A, E, AppServices>,
@@ -30,17 +55,28 @@ async function runDashboardPage<A, E extends Error>(
   if (result.failure instanceof SessionErrors.AuthenticationRequired) {
     return { _tag: "Unauthorized" };
   }
-  if (result.failure instanceof BlogAccess.BlogAccessDenied) return { _tag: "Forbidden" };
+  if (
+    result.failure instanceof BlogAccess.BlogAccessDenied ||
+    result.failure instanceof BlogAccess.WorkspaceAccessDenied
+  ) {
+    return { _tag: "Forbidden" };
+  }
+  if (
+    result.failure instanceof BlogAccess.NoWorkspaceAvailable ||
+    result.failure instanceof BlogAccess.NoPublicationAvailable
+  ) {
+    return { _tag: "NeedsOnboarding" };
+  }
   throw result.failure;
 }
 
 export function loadDashboardShell() {
   return runDashboardPage(
     Effect.gen(function* () {
-      const { session, actorId } = yield* currentActor();
+      const { session, actorId, selection } = yield* currentActor();
       const dashboard = yield* Dashboard.Service;
-      const blog = yield* dashboard.shell(actorId);
-      return { session, blog };
+      const context = yield* dashboard.shell(actorId, selection);
+      return { session, context, blog: context.publication };
     }),
   );
 }
@@ -48,9 +84,9 @@ export function loadDashboardShell() {
 export function loadDashboardAnalytics() {
   return runDashboardPage(
     Effect.gen(function* () {
-      const { actorId } = yield* currentActor();
+      const { actorId, selection } = yield* currentActor();
       const dashboard = yield* Dashboard.Service;
-      return yield* dashboard.analytics(actorId);
+      return yield* dashboard.analytics(actorId, selection);
     }),
   );
 }
@@ -58,9 +94,9 @@ export function loadDashboardAnalytics() {
 export function loadDashboardContentLibrary() {
   return runDashboardPage(
     Effect.gen(function* () {
-      const { actorId } = yield* currentActor();
+      const { actorId, selection } = yield* currentActor();
       const dashboard = yield* Dashboard.Service;
-      return yield* dashboard.contentLibrary(actorId);
+      return yield* dashboard.contentLibrary(actorId, selection);
     }),
   );
 }
@@ -68,9 +104,9 @@ export function loadDashboardContentLibrary() {
 export function loadDashboardOverview() {
   return runDashboardPage(
     Effect.gen(function* () {
-      const { actorId } = yield* currentActor();
+      const { actorId, selection } = yield* currentActor();
       const dashboard = yield* Dashboard.Service;
-      return yield* dashboard.overview(actorId);
+      return yield* dashboard.overview(actorId, selection);
     }),
   );
 }
@@ -78,9 +114,9 @@ export function loadDashboardOverview() {
 export function loadDashboardIntegration() {
   return runDashboardPage(
     Effect.gen(function* () {
-      const { actorId } = yield* currentActor();
+      const { actorId, selection } = yield* currentActor();
       const dashboard = yield* Dashboard.Service;
-      return yield* dashboard.integration(actorId);
+      return yield* dashboard.integration(actorId, selection);
     }),
   );
 }
@@ -88,9 +124,9 @@ export function loadDashboardIntegration() {
 export function loadDashboardPosts(search?: string) {
   return runDashboardPage(
     Effect.gen(function* () {
-      const { actorId } = yield* currentActor();
+      const { actorId, selection } = yield* currentActor();
       const dashboard = yield* Dashboard.Service;
-      return yield* dashboard.posts(actorId, search);
+      return yield* dashboard.posts(actorId, selection, search);
     }),
   );
 }
@@ -98,9 +134,9 @@ export function loadDashboardPosts(search?: string) {
 export function loadDashboardSettings() {
   return runDashboardPage(
     Effect.gen(function* () {
-      const { actorId } = yield* currentActor();
+      const { actorId, selection } = yield* currentActor();
       const dashboard = yield* Dashboard.Service;
-      return yield* dashboard.settings(actorId);
+      return yield* dashboard.settings(actorId, selection);
     }),
   );
 }
@@ -108,9 +144,19 @@ export function loadDashboardSettings() {
 export function loadDashboardTeam() {
   return runDashboardPage(
     Effect.gen(function* () {
-      const { actorId } = yield* currentActor();
+      const { actorId, selection } = yield* currentActor();
       const dashboard = yield* Dashboard.Service;
-      return yield* dashboard.team(actorId);
+      return yield* dashboard.team(actorId, selection);
+    }),
+  );
+}
+
+export function loadDashboardAudit() {
+  return runDashboardPage(
+    Effect.gen(function* () {
+      const { actorId, selection } = yield* currentActor();
+      const dashboard = yield* Dashboard.Service;
+      return yield* dashboard.audit(actorId, selection);
     }),
   );
 }
@@ -118,9 +164,9 @@ export function loadDashboardTeam() {
 export function loadNewPost() {
   return runDashboardPage(
     Effect.gen(function* () {
-      const { actorId } = yield* currentActor();
+      const { actorId, selection } = yield* currentActor();
       const dashboard = yield* Dashboard.Service;
-      return yield* dashboard.newPost(actorId);
+      return yield* dashboard.newPost(actorId, selection);
     }),
   );
 }
@@ -135,9 +181,9 @@ export function loadEditPost(id: string) {
   }
   return runDashboardPage(
     Effect.gen(function* () {
-      const { actorId } = yield* currentActor();
+      const { actorId, selection } = yield* currentActor();
       const dashboard = yield* Dashboard.Service;
-      return yield* dashboard.editPost(actorId, postId.value);
+      return yield* dashboard.editPost(actorId, selection, postId.value);
     }),
   );
 }

@@ -8,17 +8,22 @@ import { ContentQueries } from "./content-queries.ts";
 import { Dashboard } from "./dashboard.ts";
 import { Database } from "./database.ts";
 import { PostExport } from "./post-export.ts";
+import { PlatformCrypto } from "./platform-crypto.ts";
 import { PublicContent } from "./public-content.ts";
 import { Publishing } from "./publishing.ts";
+import { TransactionalEmail } from "./transactional-email.ts";
+import { WorkspaceManagement } from "./workspace-management.ts";
 import { processSingleton } from "./process-singleton.ts";
 
 const databaseLayer = Database.layer.pipe(
   Layer.provideMerge(WebConfig.layer),
 );
 
-const infrastructureLayer = Auth.layer.pipe(
-  Layer.provideMerge(databaseLayer),
-);
+const infrastructureLayer = Layer.mergeAll(
+  Auth.layer,
+  TransactionalEmail.layer,
+  PlatformCrypto.layer,
+).pipe(Layer.provideMerge(databaseLayer));
 
 const domainLayer = Layer.mergeAll(
   ContentQueries.layer,
@@ -32,6 +37,7 @@ const applicationLayer = Layer.mergeAll(
   PostExport.layer,
   PublicContent.layer,
   Publishing.layer,
+  WorkspaceManagement.layer,
 ).pipe(Layer.provideMerge(domainLayer));
 
 export const appRuntime = processSingleton(
@@ -50,7 +56,9 @@ export type AppServices =
   | Dashboard.Service
   | PostExport.Service
   | PublicContent.Service
-  | Publishing.Service;
+  | Publishing.Service
+  | TransactionalEmail.Service
+  | WorkspaceManagement.Service;
 
 export function runAppEffect<A, E>(
   effect: Effect.Effect<A, E, AppServices>,

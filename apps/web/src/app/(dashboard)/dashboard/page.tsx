@@ -1,5 +1,6 @@
 import { ArrowRight, CalendarClock, Eye, FileText, PenLine, Users2 } from "lucide-react";
 import Link from "next/link";
+import { canUpdatePost, hasPermission } from "@prosewire/core";
 import { Sparkline } from "@/components/sparkline";
 import { StatusBadge } from "@/components/ui";
 import { loadDashboardOverview } from "@/server/page-entrypoints";
@@ -8,9 +9,16 @@ import { dashboardData } from "../dashboard-result";
 export const metadata = { title: "Overview" };
 
 export default async function DashboardPage() {
-  const { blog, metrics, posts, series } = dashboardData(
+  const { blog, metrics, posts, series, context } = dashboardData(
     await loadDashboardOverview(),
   );
+  const canEdit = (post: (typeof posts)[number]) =>
+    canUpdatePost(context.role, post.createdById, context.userId) &&
+    (post.status === "draft" ||
+      ((post.status === "scheduled" || post.status === "published") &&
+        hasPermission(context.role, "content:publish")) ||
+      (post.status === "archived" &&
+        hasPermission(context.role, "content:archive")));
   const recent = posts.slice(0, 5);
   return (
     <main className="mx-auto max-w-[1400px] px-4 py-6 sm:px-7 lg:px-9 lg:py-8">
@@ -22,7 +30,7 @@ export default async function DashboardPage() {
         </div>
         <div className="flex gap-2">
           <Link href={`/b/${blog.slug}`} target="_blank" className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#d5d8d1] bg-white px-4 text-sm font-semibold shadow-sm">View blog <ArrowRight className="size-3.5" /></Link>
-          <Link href="/posts/new" className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#ef6848] px-4 text-sm font-semibold text-white shadow-sm"><PenLine className="size-3.5" />New post</Link>
+          {hasPermission(context.role, "content:create") ? <Link href="/posts/new" className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#ef6848] px-4 text-sm font-semibold text-white shadow-sm"><PenLine className="size-3.5" />New post</Link> : null}
         </div>
       </header>
 
@@ -48,13 +56,14 @@ export default async function DashboardPage() {
             <Link href="/posts" className="text-xs font-semibold text-[#ef6848]">See all posts</Link>
           </div>
           <div className="divide-y divide-[#ecece8]">
-            {recent.map((post) => (
-              <Link key={post.id} href={`/posts/${post.id}/edit`} className="grid gap-3 px-5 py-4 transition hover:bg-[#fafaf7] sm:grid-cols-[1fr_auto_auto] sm:items-center">
+            {recent.map((post) => {
+              const content = <>
                 <div className="min-w-0"><p className="truncate text-sm font-semibold">{post.title}</p><p className="mt-1 truncate text-[11px] text-[#8a9397]">{post.author.name} · Updated {post.updatedAt.toLocaleDateString("en", { month: "short", day: "numeric" })}</p></div>
                 <span className="text-xs tabular-nums text-[#7c868a]">{post.views.length} views</span>
                 <StatusBadge status={post.status} />
-              </Link>
-            ))}
+              </>;
+              return canEdit(post) ? <Link key={post.id} href={`/posts/${post.id}/edit`} className="grid gap-3 px-5 py-4 transition hover:bg-[#fafaf7] sm:grid-cols-[1fr_auto_auto] sm:items-center">{content}</Link> : <div key={post.id} className="grid gap-3 px-5 py-4 sm:grid-cols-[1fr_auto_auto] sm:items-center">{content}</div>;
+            })}
           </div>
         </article>
 

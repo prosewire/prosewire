@@ -1,8 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { forbidden, redirect } from "next/navigation";
-import { BlogAccessDenied } from "./authorization.ts";
+import {
+  BlogAccessDenied,
+  WorkspaceAccessDenied,
+} from "./authorization.ts";
 import { actionErrorRedirect } from "./action-errors.ts";
 import {
   bulkArchive as runBulkArchive,
@@ -10,6 +14,22 @@ import {
   type SavePostBoundaryInput,
   updateBlogSettings as runUpdateBlogSettings,
 } from "./mutation-entrypoints.ts";
+import {
+  acceptInvitation as runAcceptInvitation,
+  cancelInvitation as runCancelInvitation,
+  createApiKey as runCreateApiKey,
+  createPublication as runCreatePublication,
+  createWorkspace as runCreateWorkspace,
+  inviteMember as runInviteMember,
+  removeMember as runRemoveMember,
+  revokeApiKey as runRevokeApiKey,
+  switchPublication as runSwitchPublication,
+  switchWorkspace as runSwitchWorkspace,
+  updateMemberRole as runUpdateMemberRole,
+  updateWorkspace as runUpdateWorkspace,
+} from "./workspace-entrypoints.ts";
+
+const publicationCookie = "prosewire-publication";
 
 function text(formData: FormData, name: string): string {
   const value = formData.get(name);
@@ -20,6 +40,33 @@ function nullableText(formData: FormData, name: string): string | null {
   return text(formData, name) || null;
 }
 
+function internalPath(value: string, fallback: string): string {
+  return value.startsWith("/") && !value.startsWith("//") ? value : fallback;
+}
+
+async function setPublicationCookie(blogId: string): Promise<void> {
+  (await cookies()).set(publicationCookie, blogId, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env["NODE_ENV"] === "production",
+    path: "/",
+  });
+}
+
+async function authorizedMutation<A>(operation: Promise<A>): Promise<A> {
+  try {
+    return await operation;
+  } catch (error) {
+    if (
+      error instanceof BlogAccessDenied ||
+      error instanceof WorkspaceAccessDenied
+    ) {
+      forbidden();
+    }
+    throw error;
+  }
+}
+
 function taggedError(error: unknown): ({ readonly _tag: string } & Error) | undefined {
   return error instanceof Error && "_tag" in error
     ? (error as { readonly _tag: string } & Error)
@@ -27,7 +74,12 @@ function taggedError(error: unknown): ({ readonly _tag: string } & Error) | unde
 }
 
 function redirectActionError(error: unknown, fallbackPath: string): never {
-  if (error instanceof BlogAccessDenied) forbidden();
+  if (
+    error instanceof BlogAccessDenied ||
+    error instanceof WorkspaceAccessDenied
+  ) {
+    forbidden();
+  }
   const tagged = taggedError(error);
   const destination = tagged
     ? actionErrorRedirect(tagged, fallbackPath)
@@ -72,7 +124,7 @@ export async function savePost(formData: FormData): Promise<void> {
   }
   revalidatePath("/dashboard");
   revalidatePath("/posts");
-  revalidatePath(`/b/${result.defaultBlog}`);
+  revalidatePath(`/b/${result.blogSlug}`);
   redirect(`/posts/${result.savedId}/edit?saved=1`);
 }
 
@@ -95,9 +147,9 @@ export async function bulkArchivePosts(formData: FormData): Promise<void> {
 }
 
 export async function updateBlogSettings(formData: FormData): Promise<void> {
-  let defaultBlog: string;
+  let blogSlug: string;
   try {
-    defaultBlog = await runUpdateBlogSettings({
+    blogSlug = await runUpdateBlogSettings({
       blogId: text(formData, "id"),
       name: text(formData, "name"),
       description: text(formData, "description"),
@@ -110,6 +162,138 @@ export async function updateBlogSettings(formData: FormData): Promise<void> {
     redirectActionError(error, "/settings");
   }
   revalidatePath("/settings");
-  revalidatePath(`/b/${defaultBlog}`);
+  revalidatePath(`/b/${blogSlug}`);
   redirect("/settings?saved=1");
+}
+
+export async function createWorkspace(formData: FormData): Promise<void> {
+  const result = await runCreateWorkspace({
+    workspaceName: text(formData, "workspaceName"),
+    workspaceSlug: text(formData, "workspaceSlug"),
+    publicationName: text(formData, "publicationName"),
+    publicationSlug: text(formData, "publicationSlug"),
+  });
+  await setPublicationCookie(result.blogId);
+  revalidatePath("/dashboard", "layout");
+  redirect("/dashboard");
+}
+
+export async function createPublication(formData: FormData): Promise<void> {
+  const blogId = await authorizedMutation(runCreatePublication({
+    organizationId: text(formData, "organizationId"),
+    name: text(formData, "name"),
+    slug: text(formData, "slug"),
+  }));
+  await setPublicationCookie(blogId);
+  revalidatePath("/dashboard", "layout");
+  redirect("/dashboard");
+}
+
+export async function updateWorkspace(formData: FormData): Promise<void> {
+  await authorizedMutation(runUpdateWorkspace({
+    organizationId: text(formData, "organizationId"),
+    name: text(formData, "name"),
+  }));
+  revalidatePath("/dashboard", "layout");
+  redirect("/settings?workspaceSaved=1");
+}
+
+export async function switchWorkspace(formData: FormData): Promise<void> {
+  const blogId = await authorizedMutation(
+    runSwitchWorkspace(text(formData, "organizationId")),
+  );
+  const cookieStore = await cookies();
+  if (blogId) {
+    await setPublicationCookie(blogId);
+  } else {
+    cookieStore.delete(publicationCookie);
+  }
+  revalidatePath("/dashboard", "layout");
+  redirect("/dashboard");
+}
+
+export async function switchPublication(formData: FormData): Promise<void> {
+  const authorization = await authorizedMutation(
+    runSwitchPublication(text(formData, "publicationId")),
+  );
+  await setPublicationCookie(authorization.blog.id);
+  revalidatePath("/dashboard", "layout");
+  redirect(internalPath(text(formData, "returnTo"), "/dashboard"));
+}
+
+export async function inviteMember(formData: FormData): Promise<void> {
+  await authorizedMutation(runInviteMember({
+    organizationId: text(formData, "organizationId"),
+    email: text(formData, "email"),
+    role: text(formData, "role"),
+  }));
+  revalidatePath("/team");
+  redirect("/team?invited=1");
+}
+
+export async function updateMemberRole(formData: FormData): Promise<void> {
+  await authorizedMutation(runUpdateMemberRole({
+    organizationId: text(formData, "organizationId"),
+    memberId: text(formData, "memberId"),
+    role: text(formData, "role"),
+  }));
+  revalidatePath("/team");
+}
+
+export async function removeMember(formData: FormData): Promise<void> {
+  await authorizedMutation(runRemoveMember({
+    organizationId: text(formData, "organizationId"),
+    memberId: text(formData, "memberId"),
+  }));
+  revalidatePath("/team");
+}
+
+export async function cancelInvitation(formData: FormData): Promise<void> {
+  await authorizedMutation(runCancelInvitation({
+    organizationId: text(formData, "organizationId"),
+    invitationId: text(formData, "invitationId"),
+  }));
+  revalidatePath("/team");
+}
+
+export async function acceptInvitation(formData: FormData): Promise<void> {
+  const blogId = await runAcceptInvitation(text(formData, "invitationId"));
+  if (blogId) await setPublicationCookie(blogId);
+  revalidatePath("/dashboard", "layout");
+  redirect(blogId ? "/dashboard" : "/onboarding");
+}
+
+export type ApiKeyActionState = { apiKey?: string; error?: string };
+
+export async function createApiKey(
+  _state: ApiKeyActionState,
+  formData: FormData,
+): Promise<ApiKeyActionState> {
+  try {
+    const apiKey = await runCreateApiKey({
+      blogId: text(formData, "blogId"),
+      name: text(formData, "name"),
+      allowWrite: formData.get("write") === "on",
+    });
+    revalidatePath("/integrate");
+    return { apiKey };
+  } catch (error) {
+    if (
+      error instanceof BlogAccessDenied ||
+      error instanceof WorkspaceAccessDenied
+    ) {
+      forbidden();
+    }
+    return {
+      error: error instanceof Error ? error.message : "Unable to create API key",
+    };
+  }
+}
+
+export async function revokeApiKey(formData: FormData): Promise<void> {
+  await authorizedMutation(runRevokeApiKey({
+    blogId: text(formData, "blogId"),
+    apiKeyId: text(formData, "apiKeyId"),
+  }));
+  revalidatePath("/integrate");
 }

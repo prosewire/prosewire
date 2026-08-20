@@ -1,34 +1,56 @@
 ---
 title: Self-host with Docker Compose
-description: Run the web app, worker, Postgres, and Redis as one portable stack.
+description: Run the web app, worker, migrations, Postgres, and Redis as one portable stack.
 section: Operate
 order: 6
 ---
 
 ## Prepare configuration
 
-Copy the example environment file and replace the development secrets before exposing the deployment.
+Copy the example environment file. Set a URL-safe database password, a random authentication secret, the external HTTPS origin, and SMTP credentials before exposing the service.
 
 ```shell
 cp .env.example .env
-# Edit database, auth, and public URL values
+# Edit .env
 ```
 
-## Start the stack
+Postgres and Redis are private to the Compose network. Only the web port is published. The migration service is a one-shot container and must complete before the web or worker starts.
+
+## Start and bootstrap
 
 ```shell
-docker compose up -d
+docker compose up -d --build
 docker compose ps
-docker compose logs -f web worker
+docker compose logs -f migrate web worker
 ```
 
-Keep the web and worker services on the same release version. The web process handles dashboard and reading traffic; the worker handles scheduled publication.
+Set `PROSEWIRE_ALLOW_SIGN_UP=true` for the first start, visit the public URL, create the first account and workspace, then set it to `false` and recreate the web container:
+
+```shell
+docker compose up -d --force-recreate web
+```
+
+Production startup never creates the development admin, local API key, or sample posts.
+
+## Upgrade safely
+
+1. Back up Postgres.
+2. Check out the intended immutable release tag and build its image.
+3. Run `docker compose up -d --build`. The migration container finishes before application replicas move to the new schema.
+4. Check `/api/health`, worker logs, sign-in, one authenticated export, and a scheduled post.
+
+Keep the web, worker, and migration commands on the same image version. Do not run different schema generations at the same time.
+
+## Back up and restore
+
+Back up the Postgres database with your normal managed-service snapshot or `pg_dump` workflow. Redis contains queue coordination, not the canonical content record. Test restoring Postgres into a separate environment and verify posts, authors, redirects, memberships, and audit entries.
 
 ## Production checklist
 
-- Use a long, unique authentication secret
-- Put the web service behind HTTPS
-- Back up Postgres on a tested schedule
-- Persist Redis when scheduled work must survive restarts
-- Pin a released image version instead of a moving tag
-- Verify an export and restore before launch
+- Terminate HTTPS at a trusted reverse proxy or load balancer
+- Keep Postgres and Redis off the public internet
+- Use a long, unique Better Auth secret and stable server-action encryption key
+- Configure SMTP and test an invitation before onboarding the team
+- Pin an immutable image version instead of `latest`
+- Run at least one worker replica; multiple replicas coordinate through Redis and transaction locks
+- Verify a database restore and content export before launch

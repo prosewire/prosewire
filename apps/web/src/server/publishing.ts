@@ -6,15 +6,15 @@ import * as schema from "@prosewire/db/schema";
 import { ApiContent } from "./api-content.ts";
 import { BlogAccess } from "./authorization.ts";
 import { BlogErrors } from "./blog-errors.ts";
-import { WebConfig } from "./config.ts";
 import { Database, DatabaseError } from "./database.ts";
 import {
   type ApiKeyId,
   AuthorId,
   BlogId,
   CategoryId,
+  OrganizationId,
   PostId,
-  type UserId,
+  UserId,
 } from "./domain.ts";
 import { promiseEffect } from "./external-effect.ts";
 import { PostErrors } from "./post-errors.ts";
@@ -117,7 +117,6 @@ export class ApiUpdatePostInput extends Schema.Class<ApiUpdatePostInput>(
 
 export const create = Effect.fn("Publishing.create")(function* () {
   const database = yield* Database;
-  const config = yield* WebConfig;
   const access = yield* BlogAccess.Service;
   const apiContent = yield* ApiContent.Service;
 
@@ -134,11 +133,61 @@ export const create = Effect.fn("Publishing.create")(function* () {
       ),
     );
 
+  const getOrganizationId = Effect.fn("Publishing.getOrganizationId")(
+    function* (blogId: BlogId) {
+      const row = yield* database.execute("blog.findOrganization", (client) =>
+        client.query.blog.findFirst({ where: eq(schema.blog.id, blogId) }),
+      );
+      if (!row) return yield* new BlogErrors.BlogNotFound({ blogId });
+      return OrganizationId.make(row.organizationId);
+    },
+  );
+
   const savePost = Effect.fn("Publishing.savePost")(function* (
     input: SavePostInput,
     actorId: UserId,
   ) {
-    yield* access.requirePostWrite(input.blogId, actorId);
+    const existingForAuthorization = input.id
+      ? yield* database.execute("post.findForAuthorization", (client) =>
+          client.query.post.findFirst({
+            where: and(
+              eq(schema.post.id, input.id as PostId),
+              eq(schema.post.blogId, input.blogId),
+            ),
+          }),
+        )
+      : undefined;
+    if (input.id && !existingForAuthorization) {
+      return yield* new PostErrors.PostNotFound({ postId: input.id });
+    }
+    const authorization = existingForAuthorization
+      ? yield* access.requirePostUpdate(
+          input.blogId,
+          actorId,
+          existingForAuthorization.createdById
+            ? UserId.make(existingForAuthorization.createdById)
+            : null,
+        )
+      : yield* access.requirePostCreate(input.blogId, actorId);
+    if (existingForAuthorization?.status === "archived") {
+      yield* access.requireArchive(
+        input.blogId,
+        actorId,
+        existingForAuthorization.createdById
+          ? UserId.make(existingForAuthorization.createdById)
+          : null,
+      );
+    }
+    if (
+      input.requestedStatus === "scheduled" ||
+      input.requestedStatus === "published" ||
+      (existingForAuthorization !== undefined &&
+        existingForAuthorization.status !== input.requestedStatus &&
+        (existingForAuthorization.status === "scheduled" ||
+          existingForAuthorization.status === "published"))
+    ) {
+      yield* access.requirePublish(input.blogId, actorId);
+    }
     if (!input.title.trim()) {
       return yield* new PostErrors.InvalidPost({ message: "Title is required" });
     }
@@ -170,6 +219,7 @@ export const create = Effect.fn("Publishing.create")(function* () {
       canonicalUrl: input.canonicalUrl,
       scheduledAt: status === "scheduled" ? scheduledAt : null,
       archivedAt: null,
+      updatedById: actorId,
       updatedAt: now,
     } satisfies Partial<typeof schema.post.$inferInsert>;
 
@@ -277,6 +327,7 @@ export const create = Effect.fn("Publishing.create")(function* () {
                 ...values,
                 blogId: input.blogId,
                 authorId: input.authorId,
+                createdById: actorId,
                 publishedAt: status === "published" ? now : null,
               })
               .returning({ id: schema.post.id });
@@ -305,6 +356,7 @@ export const create = Effect.fn("Publishing.create")(function* () {
             });
           }
           await tx.insert(schema.auditLog).values({
+            organizationId: authorization.workspace.id,
             blogId: input.blogId,
             actorId,
             action: input.id ? "post.updated" : "post.created",
@@ -315,15 +367,36 @@ export const create = Effect.fn("Publishing.create")(function* () {
           return Result.succeed(resolvedId);
         }),
     );
-    return { savedId, defaultBlog: config.defaultBlog };
+    return { savedId, blogSlug: authorization.blog.slug };
   });
 
   const bulkArchive = Effect.fn("Publishing.bulkArchive")(function* (
     input: BulkArchiveInput,
     actorId: UserId,
   ) {
-    yield* access.requirePostWrite(input.blogId, actorId);
     if (input.postIds.length === 0) return false;
+    const candidatesForAuthorization = yield* database.execute(
+      "post.listForArchiveAuthorization",
+      (client) =>
+        client.query.post.findMany({
+          where: and(
+            inArray(schema.post.id, input.postIds),
+            eq(schema.post.blogId, input.blogId),
+          ),
+        }),
+    );
+    const authorizations = yield* Effect.forEach(
+      candidatesForAuthorization,
+      (candidate) =>
+        access.requireArchive(
+          input.blogId,
+          actorId,
+          candidate.createdById ? UserId.make(candidate.createdById) : null,
+        ),
+      { concurrency: "unbounded" },
+    );
+    const authorization = authorizations[0] ??
+      (yield* access.requireRead(input.blogId, actorId));
     const now = new Date(yield* Clock.currentTimeMillis);
     const archivedCount = yield* database.execute(
       "post.bulkArchive",
@@ -365,12 +438,18 @@ export const create = Effect.fn("Publishing.create")(function* () {
 
           const archived = await tx
             .update(schema.post)
-            .set({ status: "archived", archivedAt: now, updatedAt: now })
+            .set({
+              status: "archived",
+              archivedAt: now,
+              updatedById: actorId,
+              updatedAt: now,
+            })
             .where(inArray(schema.post.id, candidateIds))
             .returning({ id: schema.post.id });
           if (archived.length > 0) {
             await tx.insert(schema.auditLog).values(
               archived.map(({ id }) => ({
+                organizationId: authorization.workspace.id,
                 blogId: input.blogId,
                 actorId,
                 action: "post.archived",
@@ -387,7 +466,10 @@ export const create = Effect.fn("Publishing.create")(function* () {
 
   const updateBlogSettings = Effect.fn("Publishing.updateBlogSettings")(
     function* (input: UpdateBlogSettingsInput, actorId: UserId) {
-      yield* access.requireAdmin(input.blogId, actorId);
+      const authorization = yield* access.requirePublicationUpdate(
+        input.blogId,
+        actorId,
+      );
       const now = new Date(yield* Clock.currentTimeMillis);
       const values = {
         name: input.name,
@@ -413,6 +495,7 @@ export const create = Effect.fn("Publishing.create")(function* () {
               );
             }
             await tx.insert(schema.auditLog).values({
+              organizationId: authorization.workspace.id,
               blogId: input.blogId,
               actorId,
               action: "blog.settings_updated",
@@ -423,7 +506,7 @@ export const create = Effect.fn("Publishing.create")(function* () {
             return Result.succeed(updated.id);
           }),
       );
-      return config.defaultBlog;
+      return authorization.blog.slug;
     },
   );
 
@@ -436,6 +519,7 @@ export const create = Effect.fn("Publishing.create")(function* () {
         message: "Scheduled posts require a schedule time",
       });
     }
+    const organizationId = yield* getOrganizationId(actor.blogId);
     const now = new Date(yield* Clock.currentTimeMillis);
     const contentHtml = yield* promiseEffect("markdown", "renderApiPost", () =>
       renderMarkdown(input.contentMarkdown),
@@ -522,6 +606,7 @@ export const create = Effect.fn("Publishing.create")(function* () {
           );
         }
         await tx.insert(schema.auditLog).values({
+          organizationId,
           blogId: actor.blogId,
           action: "post.created",
           entityType: "post",
@@ -545,6 +630,7 @@ export const create = Effect.fn("Publishing.create")(function* () {
     patch: ApiUpdatePostInput,
     actor: ApiActor,
   ) {
+    const organizationId = yield* getOrganizationId(actor.blogId);
     const contentMarkdown = patch.contentMarkdown;
     const contentHtml =
       contentMarkdown === undefined
@@ -705,6 +791,7 @@ export const create = Effect.fn("Publishing.create")(function* () {
           }
         }
         await tx.insert(schema.auditLog).values({
+          organizationId,
           blogId: actor.blogId,
           action: "post.updated",
           entityType: "post",
@@ -722,6 +809,7 @@ export const create = Effect.fn("Publishing.create")(function* () {
     postId: PostId,
     actor: ApiActor,
   ) {
+    const organizationId = yield* getOrganizationId(actor.blogId);
     const now = new Date(yield* Clock.currentTimeMillis);
     yield* executeResult<string, PostErrors.PostNotFound>(
       "post.archiveApi",
@@ -757,6 +845,7 @@ export const create = Effect.fn("Publishing.create")(function* () {
             .set({ status: "archived", archivedAt: now, updatedAt: now })
             .where(eq(schema.post.id, existing.id));
           await tx.insert(schema.auditLog).values({
+            organizationId,
             blogId: actor.blogId,
             action: "post.archived",
             entityType: "post",

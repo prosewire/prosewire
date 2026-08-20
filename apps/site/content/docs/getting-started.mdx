@@ -23,7 +23,7 @@ git clone https://github.com/prosewire/prosewire.git
 cd prosewire
 cp .env.example .env
 pnpm install
-docker compose up -d postgres redis
+pnpm dev:services
 pnpm dev
 ```
 
@@ -44,3 +44,5 @@ Password: prosewire-local-dev
 2. Add a title and body. The slug and reading time update automatically.
 3. Review the content checks, then publish immediately or schedule a future time.
 4. Open the Fieldnotes blog to verify the public, server-rendered article.
+
+Use the workspace and publication selectors in the sidebar to move between tenants. Development seeds one owner and one publication; additional publications can be created in **Settings**.

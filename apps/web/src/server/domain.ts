@@ -21,6 +21,27 @@ export const UserId = Schema.String.check(Schema.isMinLength(1)).pipe(
 );
 export type UserId = typeof UserId.Type;
 
+export const OrganizationId = Schema.String.check(Schema.isMinLength(1)).pipe(
+  Schema.brand("@prosewire/OrganizationId"),
+);
+export type OrganizationId = typeof OrganizationId.Type;
+
+export const OrganizationSlug = Schema.String.check(
+  Schema.isMinLength(1),
+  Schema.isMaxLength(200),
+).pipe(Schema.brand("@prosewire/OrganizationSlug"));
+export type OrganizationSlug = typeof OrganizationSlug.Type;
+
+export const MemberId = Schema.String.check(Schema.isMinLength(1)).pipe(
+  Schema.brand("@prosewire/MemberId"),
+);
+export type MemberId = typeof MemberId.Type;
+
+export const InvitationId = Schema.String.check(Schema.isMinLength(1)).pipe(
+  Schema.brand("@prosewire/InvitationId"),
+);
+export type InvitationId = typeof InvitationId.Type;
+
 export const AuthorId = Schema.String.check(Schema.isUUID()).pipe(
   Schema.brand("@prosewire/AuthorId"),
 );
@@ -35,6 +56,11 @@ export const ApiKeyId = Schema.String.check(Schema.isUUID()).pipe(
   Schema.brand("@prosewire/ApiKeyId"),
 );
 export type ApiKeyId = typeof ApiKeyId.Type;
+
+export const AuditLogId = Schema.String.check(Schema.isUUID()).pipe(
+  Schema.brand("@prosewire/AuditLogId"),
+);
+export type AuditLogId = typeof AuditLogId.Type;
 
 export const PostRevisionId = Schema.String.check(Schema.isUUID()).pipe(
   Schema.brand("@prosewire/PostRevisionId"),

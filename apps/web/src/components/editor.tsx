@@ -58,7 +58,7 @@ function SubmitButton({ value, children, secondary = false }: { value: string; c
   );
 }
 
-export function Editor({ post, authors, categories, saved, error }: { post: EditorPost; authors: Option[]; categories: Option[]; saved: boolean; error: string | undefined }) {
+export function Editor({ post, authors, categories, saved, error, canPublish }: { post: EditorPost; authors: Option[]; categories: Option[]; saved: boolean; error: string | undefined; canPublish: boolean }) {
   const [title, setTitle] = useState(post.title);
   const [slug, setSlug] = useState(post.slug);
   const [markdown, setMarkdown] = useState(post.contentMarkdown);
@@ -120,8 +120,8 @@ export function Editor({ post, authors, categories, saved, error }: { post: Edit
         </div>
         <div className="flex items-center gap-2">
           <SubmitButton value="draft" secondary><Save className="size-3.5" />Save draft</SubmitButton>
-          <SubmitButton value="scheduled" secondary><CalendarClock className="size-3.5" />Schedule</SubmitButton>
-          <SubmitButton value="published"><Check className="size-3.5" />{post.status === "published" ? "Publish changes" : "Publish"}</SubmitButton>
+          {canPublish ? <SubmitButton value="scheduled" secondary><CalendarClock className="size-3.5" />Schedule</SubmitButton> : null}
+          {canPublish ? <SubmitButton value="published"><Check className="size-3.5" />{post.status === "published" ? "Publish changes" : "Publish"}</SubmitButton> : null}
         </div>
       </header>
 

@@ -34,23 +34,25 @@ export function createPublicClient(
 ): PublicContentClient {
   const request = options.fetch ?? fetch;
   const base = options.baseUrl.replace(/\/$/, "");
+  const blog = encodeURIComponent(options.blog);
   return {
     async listPosts(input = {}) {
       const query = new URLSearchParams();
       if (input.search) query.set("search", input.search);
       if (input.category) query.set("category", input.category);
       if (input.limit) query.set("limit", String(input.limit));
-      const response = await request(`${base}/api/public/${options.blog}/posts?${query.toString()}`);
+      const response = await request(`${base}/api/public/${blog}/posts?${query.toString()}`);
       if (!response.ok) throw new Error(`Prosewire request failed (${String(response.status)})`);
       return response.json();
     },
     async getPost(slug) {
-      const response = await request(`${base}/api/public/${options.blog}/posts/${slug}`);
+      const response = await request(`${base}/api/public/${blog}/posts/${encodeURIComponent(slug)}`);
       if (!response.ok) throw new Error(`Prosewire request failed (${String(response.status)})`);
       return response.json();
     },
     async getRendered(path = "") {
-      const response = await request(`${base}/api/rendered/${options.blog}/${path.replace(/^\//, "")}`);
+      const encodedPath = path.replace(/^\//, "").split("/").filter(Boolean).map(encodeURIComponent).join("/");
+      const response = await request(`${base}/api/rendered/${blog}/${encodedPath}`);
       if (!response.ok) throw new Error(`Prosewire request failed (${String(response.status)})`);
       return response.text();
     },

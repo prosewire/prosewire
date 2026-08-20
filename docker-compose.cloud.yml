@@ -1,0 +1,32 @@
+name: prosewire-cloud
+
+x-app: &app
+  image: ${PROSEWIRE_IMAGE:-ghcr.io/prosewire/prosewire:latest}
+  env_file: .env
+  restart: unless-stopped
+
+services:
+  migrate:
+    <<: *app
+    command: ["node", "apps/worker/dist/migrate.mjs"]
+    restart: "no"
+
+  web:
+    <<: *app
+    ports:
+      - "3000:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  worker:
+    <<: *app
+    command: ["node", "apps/worker/dist/index.mjs"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully

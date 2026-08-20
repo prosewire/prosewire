@@ -1,5 +1,8 @@
 import { Braces, Code2, ExternalLink, KeyRound, PackageOpen, TerminalSquare } from "lucide-react";
 import { CopyButton } from "@/components/copy-button";
+import { ApiKeyForm } from "@/components/api-key-form";
+import { hasPermission } from "@prosewire/core";
+import { revokeApiKey } from "@/server/actions";
 import { loadDashboardIntegration } from "@/server/page-entrypoints";
 import { dashboardData } from "../dashboard-result";
 
@@ -10,7 +13,7 @@ function CodeBlock({ children }: { children: string }) {
 }
 
 export default async function IntegratePage() {
-  const { blog, origin } = dashboardData(await loadDashboardIntegration());
+  const { blog, origin, apiKeys, context } = dashboardData(await loadDashboardIntegration());
   const embed = `<div data-prosewire="${blog.slug}"></div>\n<script async src="${origin}/embed.js" data-blog="${blog.slug}"></script>`;
   const sdk = `import { createPublicClient } from "@prosewire/sdk";\n\nconst blog = createPublicClient({\n  baseUrl: "${origin}",\n  blog: "${blog.slug}",\n});\n\nconst posts = await blog.listPosts();`;
   return (
@@ -22,7 +25,8 @@ export default async function IntegratePage() {
         <section className="card p-5"><PackageOpen className="size-4.5 text-[#ef6848]" /><h2 className="mt-4 text-sm font-semibold">Rendered API</h2><p className="mt-2 text-xs leading-5 text-[#7a8489]">Ready-to-place blog indexes and article bodies.</p><CodeBlock>{`GET ${origin}/api/rendered/${blog.slug}/`}</CodeBlock></section>
       </div>
       <section className="card mt-4 p-5 sm:p-6"><div className="flex items-center justify-between"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-[#eef0ec] text-[#59666b]"><TerminalSquare className="size-4.5" /></span><div><h2 className="text-sm font-semibold">TypeScript SDK</h2><p className="mt-1 text-xs text-[#7a8489]">Typed public and private clients.</p></div></div><span className="rounded-lg bg-[#f0f1ed] px-2 py-1 font-mono text-[10px]">@prosewire/sdk</span></div><CodeBlock>{sdk}</CodeBlock></section>
-      <section className="mt-4 grid gap-4 md:grid-cols-2"><div className="card p-5"><KeyRound className="size-4.5 text-[#ef6848]" /><h2 className="mt-4 text-sm font-semibold">Scoped API keys</h2><p className="mt-2 text-xs leading-5 text-[#7a8489]">Provision a unique key through your deployment configuration. Keys are stored as SHA-256 hashes and enforce separate read and write scopes.</p></div><a href={`/b/${blog.slug}`} target="_blank" rel="noreferrer" className="card flex items-center justify-between p-5 transition hover:-translate-y-px"><div><ExternalLink className="size-4.5 text-[#ef6848]" /><h2 className="mt-4 text-sm font-semibold">Open the native reader</h2><p className="mt-2 text-xs text-[#7a8489]">Preview the full server-rendered blog.</p></div><span className="text-xl text-[#adb3b5]">→</span></a></section>
+      <section className="card mt-4 p-5"><KeyRound className="size-4.5 text-[#ef6848]" /><h2 className="mt-4 text-sm font-semibold">Scoped API keys</h2><p className="mt-2 text-xs leading-5 text-[#7a8489]">Keys belong to this publication, are stored as SHA-256 hashes, and enforce separate read and write scopes.</p>{hasPermission(context.role, "integrations:manage") ? <div className="mt-5"><ApiKeyForm blogId={blog.id} /></div> : null}<div className="mt-5 divide-y divide-[#ecece8]">{apiKeys.map((key) => <div key={key.id} className="flex items-center justify-between py-3"><div><p className="text-xs font-semibold">{key.name}</p><p className="mt-1 font-mono text-[10px] text-[#8a9397]">{key.prefix}… · {key.scopes.join(", ")}</p></div>{hasPermission(context.role, "integrations:manage") ? <form action={revokeApiKey}><input type="hidden" name="blogId" value={blog.id} /><input type="hidden" name="apiKeyId" value={key.id} /><button className="text-xs font-semibold text-red-700">Revoke</button></form> : null}</div>)}</div></section>
+      <a href={`/b/${blog.slug}`} target="_blank" rel="noreferrer" className="card mt-4 flex items-center justify-between p-5 transition hover:-translate-y-px"><div><ExternalLink className="size-4.5 text-[#ef6848]" /><h2 className="mt-4 text-sm font-semibold">Open the native reader</h2><p className="mt-2 text-xs text-[#7a8489]">Preview the full server-rendered blog.</p></div><span className="text-xl text-[#adb3b5]">→</span></a>
     </main>
   );
 }

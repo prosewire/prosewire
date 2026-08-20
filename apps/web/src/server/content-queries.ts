@@ -11,10 +11,13 @@ import {
   sql,
 } from "drizzle-orm";
 import { Clock, Context, Effect, Layer } from "effect";
+import { isTeamRole } from "@prosewire/core";
 import * as schema from "@prosewire/db/schema";
-import { WebConfig } from "./config.ts";
 import {
+  ApiKeySummary,
+  AuditEntry,
   TeamMember,
+  WorkspaceInvitation,
   toAuthor,
   toBlog,
   toCategory,
@@ -25,7 +28,17 @@ import {
   toSnippet,
 } from "./content-models.ts";
 import { Database } from "./database.ts";
-import { UserId, type BlogId, type BlogSlug, type PostId } from "./domain.ts";
+import {
+  ApiKeyId,
+  AuditLogId,
+  BlogId,
+  InvitationId,
+  MemberId,
+  OrganizationId,
+  UserId,
+  type BlogSlug,
+  type PostId,
+} from "./domain.ts";
 
 export interface PublicPostOptions {
   readonly search?: string;
@@ -35,19 +48,7 @@ export interface PublicPostOptions {
 
 export const create = Effect.fn("ContentQueries.create")(function* () {
   const database = yield* Database;
-  const config = yield* WebConfig;
   const execute = database.execute;
-
-  const getDefaultBlog = Effect.fn("ContentQueries.getDefaultBlog")(function* () {
-    const preferred = yield* execute("blog.findDefaultBySlug", (client) =>
-      client.query.blog.findFirst({ where: eq(schema.blog.slug, config.defaultBlog) }),
-    );
-    if (preferred) return toBlog(preferred);
-    const fallback = yield* execute("blog.findDefault", (client) =>
-      client.query.blog.findFirst(),
-    );
-    return fallback ? toBlog(fallback) : undefined;
-  });
 
   const getAuthors = Effect.fn("ContentQueries.getAuthors")(function* (
     blogId: BlogId,
@@ -193,35 +194,126 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
     },
   );
 
-  const getTeam = Effect.fn("ContentQueries.getTeam")(function* (blogId: BlogId) {
+  const getTeam = Effect.fn("ContentQueries.getTeam")(function* (
+    organizationId: OrganizationId,
+    blogId: BlogId,
+  ) {
     const { authors, members } = yield* Effect.all(
       {
         authors: getAuthors(blogId),
         members: execute("member.list", (client) =>
           client
             .select({
-              id: schema.user.id,
+              id: schema.member.id,
+              userId: schema.user.id,
               name: schema.user.name,
               email: schema.user.email,
-              role: schema.blogMember.role,
+              role: schema.member.role,
             })
-            .from(schema.blogMember)
-            .innerJoin(schema.user, eq(schema.blogMember.userId, schema.user.id))
-            .where(eq(schema.blogMember.blogId, blogId)),
+            .from(schema.member)
+            .innerJoin(schema.user, eq(schema.member.userId, schema.user.id))
+            .where(eq(schema.member.organizationId, organizationId))
+            .orderBy(asc(schema.member.createdAt)),
         ),
       },
       { concurrency: "unbounded" },
     );
     return {
       authors,
-      members: members.map(
-        (member) =>
+      members: members.flatMap((member) => {
+        const role = member.role === "member" ? "viewer" : member.role;
+        return isTeamRole(role)
+          ? [
           new TeamMember({
             ...member,
-            id: UserId.make(member.id),
+                id: MemberId.make(member.id),
+                userId: UserId.make(member.userId),
+                role,
           }),
-      ),
+            ]
+          : [];
+      }),
     };
+  });
+
+  const getPendingInvitations = Effect.fn(
+    "ContentQueries.getPendingInvitations",
+  )(function* (organizationId: OrganizationId) {
+    const invitations = yield* execute("invitation.list", (client) =>
+      client.query.invitation.findMany({
+        where: and(
+          eq(schema.invitation.organizationId, organizationId),
+          eq(schema.invitation.status, "pending"),
+        ),
+        orderBy: [asc(schema.invitation.createdAt)],
+      }),
+    );
+    return invitations.flatMap((invitation) => {
+      const role = invitation.role === "member" ? "viewer" : invitation.role;
+      return isTeamRole(role)
+        ? [
+            new WorkspaceInvitation({
+              ...invitation,
+              id: InvitationId.make(invitation.id),
+              organizationId: OrganizationId.make(invitation.organizationId),
+              inviterId: UserId.make(invitation.inviterId),
+              role,
+            }),
+          ]
+        : [];
+    });
+  });
+
+  const getApiKeys = Effect.fn("ContentQueries.getApiKeys")(function* (
+    blogId: BlogId,
+  ) {
+    const rows = yield* execute("apiKey.list", (client) =>
+      client.query.apiKey.findMany({
+        where: eq(schema.apiKey.blogId, blogId),
+        orderBy: [desc(schema.apiKey.createdAt)],
+      }),
+    );
+    return rows.map(
+      (row) =>
+        new ApiKeySummary({
+          ...row,
+          id: ApiKeyId.make(row.id),
+          blogId: BlogId.make(row.blogId),
+        }),
+    );
+  });
+
+  const getAuditLog = Effect.fn("ContentQueries.getAuditLog")(function* (
+    organizationId: OrganizationId,
+  ) {
+    const rows = yield* execute("auditLog.list", (client) =>
+      client
+        .select({
+          audit: schema.auditLog,
+          actorName: schema.user.name,
+          actorEmail: schema.user.email,
+          publicationName: schema.blog.name,
+        })
+        .from(schema.auditLog)
+        .leftJoin(schema.user, eq(schema.auditLog.actorId, schema.user.id))
+        .leftJoin(schema.blog, eq(schema.auditLog.blogId, schema.blog.id))
+        .where(eq(schema.auditLog.organizationId, organizationId))
+        .orderBy(desc(schema.auditLog.createdAt))
+        .limit(100),
+    );
+    return rows.map(
+      ({ audit, actorName, actorEmail, publicationName }) =>
+        new AuditEntry({
+          ...audit,
+          id: AuditLogId.make(audit.id),
+          organizationId,
+          blogId: audit.blogId ? BlogId.make(audit.blogId) : null,
+          actorId: audit.actorId ? UserId.make(audit.actorId) : null,
+          actorName,
+          actorEmail,
+          publicationName,
+        }),
+    );
   });
 
   const getPublicBlog = Effect.fn("ContentQueries.getPublicBlog")(function* (
@@ -309,7 +401,6 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
   });
 
   return {
-    getDefaultBlog,
     getAuthors,
     getCategories,
     getDashboardPosts,
@@ -318,6 +409,9 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
     getViewSeries,
     getContentLibrary,
     getTeam,
+    getPendingInvitations,
+    getApiKeys,
+    getAuditLog,
     getPublicBlog,
     getPublicAuthor,
     getPublicPosts,

@@ -1,6 +1,7 @@
 export async function register(): Promise<void> {
   if (process.env["NEXT_RUNTIME"] !== "nodejs") return;
   if (process.env["NEXT_PHASE"] === "phase-production-build") return;
+  if (process.env["NODE_ENV"] === "production") return;
   const { registerNode } = await import("./instrumentation-node.ts");
   await registerNode();
 }

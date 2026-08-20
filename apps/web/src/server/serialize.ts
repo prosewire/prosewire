@@ -1,5 +1,31 @@
 import { readingMinutes, type PublicPost } from "@prosewire/core";
 
+interface PublicBlogRow {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  locale: string;
+  accentColor: string;
+  publicUrl: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export function serializePublicBlog(blog: PublicBlogRow) {
+  return {
+    id: blog.id,
+    name: blog.name,
+    slug: blog.slug,
+    description: blog.description,
+    locale: blog.locale,
+    accentColor: blog.accentColor,
+    publicUrl: blog.publicUrl,
+    createdAt: blog.createdAt.toISOString(),
+    updatedAt: blog.updatedAt.toISOString(),
+  };
+}
+
 interface PostRow {
   id: string;
   slug: string;

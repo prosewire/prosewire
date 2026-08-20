@@ -95,6 +95,17 @@ describe("publishScheduledPosts", () => {
     ]);
     const tx = {
       update: () => updateBuilder,
+      select: () => ({
+        from: () => ({
+          where: () =>
+            Promise.resolve([
+              {
+                id: "22222222-2222-4222-8222-222222222222",
+                organizationId: "workspace-1",
+              },
+            ]),
+        }),
+      }),
       insert: () => ({
         values: (values: ReadonlyArray<Record<string, unknown>>) => {
           audits = values;
@@ -119,6 +130,7 @@ describe("publishScheduledPosts", () => {
       ]);
       expect(audits).toEqual([
         expect.objectContaining({
+          organizationId: "workspace-1",
           blogId: "22222222-2222-4222-8222-222222222222",
           action: "post.published_scheduled",
           entityId: "11111111-1111-4111-8111-111111111111",
@@ -141,6 +153,17 @@ describe("publishScheduledPosts", () => {
     ]);
     const tx = {
       update: () => updateBuilder,
+      select: () => ({
+        from: () => ({
+          where: () =>
+            Promise.resolve([
+              {
+                id: "22222222-2222-4222-8222-222222222222",
+                organizationId: "workspace-1",
+              },
+            ]),
+        }),
+      }),
       insert: () => ({ values: () => Promise.reject(new Error("audit unavailable")) }),
     };
     const db = {

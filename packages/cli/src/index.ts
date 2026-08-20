@@ -18,9 +18,10 @@ function output(value: unknown): void {
 program
   .command("posts")
   .description("List posts")
-  .option("--blog <slug>", "Blog slug", "fieldnotes")
+  .option("--blog <slug>", "Publication slug", process.env["PROSEWIRE_BLOG"])
   .option("--search <query>", "Search published content")
   .action(async (options: { blog: string; search?: string }) => {
+    if (!options.blog) throw new Error("--blog or PROSEWIRE_BLOG is required");
     const root = program.opts<{ url: string }>();
     const client = createPublicClient({ baseUrl: root.url, blog: options.blog });
     output(await client.listPosts(options.search === undefined ? {} : { search: options.search }));
@@ -29,8 +30,9 @@ program
 program
   .command("get <slug>")
   .description("Get one published post")
-  .option("--blog <slug>", "Blog slug", "fieldnotes")
+  .option("--blog <slug>", "Publication slug", process.env["PROSEWIRE_BLOG"])
   .action(async (slug: string, options: { blog: string }) => {
+    if (!options.blog) throw new Error("--blog or PROSEWIRE_BLOG is required");
     const root = program.opts<{ url: string }>();
     const client = createPublicClient({ baseUrl: root.url, blog: options.blog });
     output(await client.getPost(slug));
