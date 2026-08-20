@@ -36,4 +36,24 @@ export const ApiKeyId = Schema.String.check(Schema.isUUID()).pipe(
 );
 export type ApiKeyId = typeof ApiKeyId.Type;
 
+export const PostRevisionId = Schema.String.check(Schema.isUUID()).pipe(
+  Schema.brand("@prosewire/PostRevisionId"),
+);
+export type PostRevisionId = typeof PostRevisionId.Type;
+
+export const RedirectId = Schema.String.check(Schema.isUUID()).pipe(
+  Schema.brand("@prosewire/RedirectId"),
+);
+export type RedirectId = typeof RedirectId.Type;
+
+export const SnippetId = Schema.String.check(Schema.isUUID()).pipe(
+  Schema.brand("@prosewire/SnippetId"),
+);
+export type SnippetId = typeof SnippetId.Type;
+
+export const PostViewId = Schema.String.check(Schema.isUUID()).pipe(
+  Schema.brand("@prosewire/PostViewId"),
+);
+export type PostViewId = typeof PostViewId.Type;
+
 export * as Domain from "./domain";

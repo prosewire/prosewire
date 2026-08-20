@@ -1,7 +1,7 @@
 import { Context, Effect, Layer, Schema } from "effect";
 import { BlogAccess } from "./authorization.ts";
 import { ContentQueries } from "./content-queries.ts";
-import { BlogId, BlogSlug, UserId } from "./domain.ts";
+import { BlogSlug, UserId } from "./domain.ts";
 
 export class BlogNotFound extends Schema.TaggedError<BlogNotFound>()(
   "BlogNotFound",
@@ -44,7 +44,7 @@ export const create = Effect.fn("PostExport.create")(function* () {
     csv: Effect.fn("PostExport.csv")(function* (input: Input) {
       const blog = yield* content.getPublicBlog(input.blogSlug);
       if (!blog) return yield* new BlogNotFound({ slug: input.blogSlug });
-      const blogId = BlogId.make(blog.id);
+      const blogId = blog.id;
       yield* access.requireRead(blogId, input.actorId);
       const posts = yield* content.getDashboardPosts(blogId);
       const header = [

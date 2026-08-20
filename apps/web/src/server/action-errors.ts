@@ -7,6 +7,7 @@ export type ActionBoundaryError =
   | PostErrors.InvalidPost
   | PostErrors.PostNotFound
   | BlogErrors.BlogNotFound
+  | BlogErrors.InvalidBlogSettings
   | ({ readonly _tag: string } & Error);
 
 export function actionErrorRedirect(
@@ -17,8 +18,9 @@ export function actionErrorRedirect(
     case "AuthenticationRequired":
       return "/sign-in";
     case "InvalidPost":
+    case "InvalidBlogSettings":
       return `${fallbackPath}?error=${encodeURIComponent(
-        (error as PostErrors.InvalidPost).message,
+        error.message,
       )}`;
     case "PostNotFound":
     case "BlogNotFound":

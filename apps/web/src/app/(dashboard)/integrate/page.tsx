@@ -1,6 +1,7 @@
 import { Braces, Code2, ExternalLink, KeyRound, PackageOpen, TerminalSquare } from "lucide-react";
 import { CopyButton } from "@/components/copy-button";
 import { loadDashboardIntegration } from "@/server/page-entrypoints";
+import { dashboardData } from "../dashboard-result";
 
 export const metadata = { title: "Integrate" };
 
@@ -9,7 +10,7 @@ function CodeBlock({ children }: { children: string }) {
 }
 
 export default async function IntegratePage() {
-  const { blog, origin } = await loadDashboardIntegration();
+  const { blog, origin } = dashboardData(await loadDashboardIntegration());
   const embed = `<div data-prosewire="${blog.slug}"></div>\n<script async src="${origin}/embed.js" data-blog="${blog.slug}"></script>`;
   const sdk = `import { createPublicClient } from "@prosewire/sdk";\n\nconst blog = createPublicClient({\n  baseUrl: "${origin}",\n  blog: "${blog.slug}",\n});\n\nconst posts = await blog.listPosts();`;
   return (

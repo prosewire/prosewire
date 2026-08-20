@@ -10,17 +10,15 @@ import { Database } from "./database.ts";
 import { PostExport } from "./post-export.ts";
 import { PublicContent } from "./public-content.ts";
 import { Publishing } from "./publishing.ts";
-import { Seed } from "./seed.ts";
-import { SeedConfig } from "./seed-config.ts";
+import { processSingleton } from "./process-singleton.ts";
 
 const databaseLayer = Database.layer.pipe(
   Layer.provideMerge(WebConfig.layer),
 );
 
-const infrastructureLayer = Layer.mergeAll(
-  Auth.layer,
-  SeedConfig.layer,
-).pipe(Layer.provideMerge(databaseLayer));
+const infrastructureLayer = Auth.layer.pipe(
+  Layer.provideMerge(databaseLayer),
+);
 
 const domainLayer = Layer.mergeAll(
   ContentQueries.layer,
@@ -34,16 +32,17 @@ const applicationLayer = Layer.mergeAll(
   PostExport.layer,
   PublicContent.layer,
   Publishing.layer,
-  Seed.layer,
 ).pipe(Layer.provideMerge(domainLayer));
 
-export const appRuntime = ManagedRuntime.make(applicationLayer);
+export const appRuntime = processSingleton(
+  "@prosewire/web/AppRuntime/v1",
+  () => ManagedRuntime.make(applicationLayer),
+);
 
 export type AppServices =
   | Auth
   | Database
   | WebConfig
-  | SeedConfig
   | ContentQueries.Service
   | BlogAccess.Service
   | ApiAccess.Service
@@ -51,8 +50,7 @@ export type AppServices =
   | Dashboard.Service
   | PostExport.Service
   | PublicContent.Service
-  | Publishing.Service
-  | Seed.Service;
+  | Publishing.Service;
 
 export function runAppEffect<A, E>(
   effect: Effect.Effect<A, E, AppServices>,
@@ -60,7 +58,5 @@ export function runAppEffect<A, E>(
 ): Promise<A> {
   return appRuntime.runPromise(effect, { signal });
 }
-
-export const disposeAppRuntime = (): Promise<void> => appRuntime.dispose();
 
 export * as AppRuntime from "./app-runtime";

@@ -102,6 +102,9 @@ Available topics include `quick-start`, `project-setup`, `tsconfig`, `basics`, `
 - Next.js framework files under `apps/web/src/app`, React components, and files with `"use server"` must not import `effect`, construct Effects, provide Layers, or interpret Effect failures. They parse framework inputs, call Promise-returning entrypoints, and translate results into redirects, revalidation, or responses.
 - Keep `Request`, `Response`, `Headers`, `FormData`, Next.js navigation/cache APIs, BullMQ jobs, and other transport types in boundary adapters. Domain and application services accept branded domain values and return transport-neutral models.
 - Create one long-lived managed runtime per process in a dedicated runtime module. Build and provide the complete Layer graph once. Never create a runtime, open a database, or assemble Layers per request, route, service method, or job.
+- In framework builds, a module-level singleton is not enough: server bundlers can evaluate the runtime module in multiple chunks. Store process-owned runtimes in a `globalThis` registry keyed with `Symbol.for`, and inspect the production bundle when changing runtime wiring.
+- Keep migrations and seed work in a short-lived bootstrap runtime outside the request Layer graph. Serialize multi-instance bootstrap with a database-backed lock, and dispose the bootstrap runtime after it completes.
+- Do not install competing `SIGINT` or `SIGTERM` handlers inside framework-owned processes. Let the framework own graceful shutdown unless it exposes an explicit lifecycle hook that can dispose the runtime without racing shutdown.
 - Application code depends on capabilities, not a generic database helper. Database clients and generic `execute` methods are infrastructure details used only inside service implementations. Never restore catch-all modules such as `server/data.ts` or `server/effect.ts`.
 
 ### Services and models

@@ -1,21 +1,16 @@
 import { ORPCError } from "@orpc/server";
-import { Effect, Result } from "effect";
+import { Effect, Result, Schema } from "effect";
 import { ApiAccess, type Scope } from "./api-access.ts";
 import { ApiContent, type PostListInput } from "./api-content.ts";
 import { runAppEffect, type AppServices } from "./app-runtime.ts";
 import { DatabaseError } from "./database.ts";
-import {
-  AuthorId,
-  BlogId,
-  CategoryId,
-  PostId,
-} from "./domain.ts";
+import { BlogId, PostId } from "./domain.ts";
 import { ExternalServiceError } from "./external-effect.ts";
 import { PostErrors } from "./post-errors.ts";
 import {
+  ApiCreatePostInput,
+  ApiUpdatePostInput,
   Publishing,
-  type ApiCreatePostInput,
-  type ApiUpdatePostInput,
 } from "./publishing.ts";
 
 function toORPCError(error: unknown): ORPCError<string, unknown> {
@@ -52,6 +47,29 @@ async function runApi<A, E>(
 function bearerToken(request: Request): string | undefined {
   return request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
 }
+
+const invalidInput = (message: string) =>
+  new PostErrors.InvalidPost({ message });
+
+const decodePostId = (value: unknown) =>
+  Schema.decodeUnknownEffect(PostId)(value).pipe(
+    Effect.mapError(() => invalidInput("Invalid post id")),
+  );
+
+const decodeBlogId = (value: unknown) =>
+  Schema.decodeUnknownEffect(BlogId)(value).pipe(
+    Effect.mapError(() => invalidInput("Invalid blog id")),
+  );
+
+const decodeCreateInput = (value: unknown) =>
+  Schema.decodeUnknownEffect(ApiCreatePostInput)(value).pipe(
+    Effect.mapError(() => invalidInput("Invalid post input")),
+  );
+
+const decodeUpdateInput = (value: unknown) =>
+  Schema.decodeUnknownEffect(ApiUpdatePostInput)(value).pipe(
+    Effect.mapError(() => invalidInput("Invalid post update")),
+  );
 
 const principal = Effect.fn("ApiEntrypoints.principal")(function* (
   request: Request,
@@ -99,7 +117,8 @@ export function getPost(request: Request, id: string) {
     Effect.gen(function* () {
       const actor = yield* principal(request, "content:read");
       const content = yield* ApiContent.Service;
-      return yield* content.getPost(actor.blogId, PostId.make(id));
+      const postId = yield* decodePostId(id);
+      return yield* content.getPost(actor.blogId, postId);
     }),
   );
 }
@@ -124,48 +143,17 @@ export interface CreatePostBoundaryInput {
   readonly categoryIds: ReadonlyArray<string>;
 }
 
-function createInput(input: CreatePostBoundaryInput): ApiCreatePostInput {
-  return {
-    authorId: AuthorId.make(input.authorId),
-    title: input.title,
-    slug: input.slug,
-    ...(input.excerpt === undefined ? {} : { excerpt: input.excerpt }),
-    contentMarkdown: input.contentMarkdown,
-    ...(input.coverImageUrl === undefined
-      ? {}
-      : { coverImageUrl: input.coverImageUrl }),
-    ...(input.coverImageAlt === undefined
-      ? {}
-      : { coverImageAlt: input.coverImageAlt }),
-    status: input.status,
-    locale: input.locale,
-    featured: input.featured,
-    ...(input.seoTitle === undefined ? {} : { seoTitle: input.seoTitle }),
-    ...(input.seoDescription === undefined
-      ? {}
-      : { seoDescription: input.seoDescription }),
-    ...(input.focusKeyword === undefined
-      ? {}
-      : { focusKeyword: input.focusKeyword }),
-    ...(input.canonicalUrl === undefined
-      ? {}
-      : { canonicalUrl: input.canonicalUrl }),
-    ...(input.scheduledAt === undefined
-      ? {}
-      : { scheduledAt: input.scheduledAt }),
-    categoryIds: input.categoryIds.map((id) => CategoryId.make(id)),
-  };
-}
-
 export function createPost(request: Request, input: CreatePostBoundaryInput) {
   return runApi(
     request,
     Effect.gen(function* () {
       const actor = yield* principal(request, "content:write");
       const access = yield* ApiAccess.Service;
-      yield* access.requireBlog(actor, BlogId.make(input.blogId));
+      const blogId = yield* decodeBlogId(input.blogId);
+      const command = yield* decodeCreateInput(input);
+      yield* access.requireBlog(actor, blogId);
       const publishing = yield* Publishing.Service;
-      return yield* publishing.createApiPost(createInput(input), actor);
+      return yield* publishing.createApiPost(command, actor);
     }),
   );
 }
@@ -194,47 +182,6 @@ export interface UpdatePostBoundaryInput {
   readonly categoryIds?: ReadonlyArray<string> | undefined;
 }
 
-function updateInput(input: UpdatePostBoundaryInput): ApiUpdatePostInput {
-  return {
-    ...(input.authorId === undefined
-      ? {}
-      : { authorId: AuthorId.make(input.authorId) }),
-    ...(input.title === undefined ? {} : { title: input.title }),
-    ...(input.slug === undefined ? {} : { slug: input.slug }),
-    ...(input.excerpt === undefined ? {} : { excerpt: input.excerpt }),
-    ...(input.contentMarkdown === undefined
-      ? {}
-      : { contentMarkdown: input.contentMarkdown }),
-    ...(input.coverImageUrl === undefined
-      ? {}
-      : { coverImageUrl: input.coverImageUrl }),
-    ...(input.coverImageAlt === undefined
-      ? {}
-      : { coverImageAlt: input.coverImageAlt }),
-    ...(input.status === undefined ? {} : { status: input.status }),
-    ...(input.locale === undefined ? {} : { locale: input.locale }),
-    ...(input.featured === undefined ? {} : { featured: input.featured }),
-    ...(input.seoTitle === undefined ? {} : { seoTitle: input.seoTitle }),
-    ...(input.seoDescription === undefined
-      ? {}
-      : { seoDescription: input.seoDescription }),
-    ...(input.focusKeyword === undefined
-      ? {}
-      : { focusKeyword: input.focusKeyword }),
-    ...(input.canonicalUrl === undefined
-      ? {}
-      : { canonicalUrl: input.canonicalUrl }),
-    ...(input.scheduledAt === undefined
-      ? {}
-      : { scheduledAt: input.scheduledAt }),
-    ...(input.categoryIds === undefined
-      ? {}
-      : {
-          categoryIds: input.categoryIds.map((id) => CategoryId.make(id)),
-        }),
-  };
-}
-
 export function updatePost(
   request: Request,
   id: string,
@@ -245,9 +192,11 @@ export function updatePost(
     Effect.gen(function* () {
       const actor = yield* principal(request, "content:write");
       const publishing = yield* Publishing.Service;
+      const postId = yield* decodePostId(id);
+      const command = yield* decodeUpdateInput(input);
       return yield* publishing.updateApiPost(
-        PostId.make(id),
-        updateInput(input),
+        postId,
+        command,
         actor,
       );
     }),
@@ -260,7 +209,8 @@ export function archivePost(request: Request, id: string) {
     Effect.gen(function* () {
       const actor = yield* principal(request, "content:write");
       const publishing = yield* Publishing.Service;
-      return yield* publishing.archiveApiPost(PostId.make(id), actor);
+      const postId = yield* decodePostId(id);
+      return yield* publishing.archiveApiPost(postId, actor);
     }),
   );
 }

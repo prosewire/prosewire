@@ -1,10 +1,11 @@
 import { ShieldCheck, UserPlus, Users2 } from "lucide-react";
 import { loadDashboardTeam } from "@/server/page-entrypoints";
+import { dashboardData } from "../dashboard-result";
 
 export const metadata = { title: "Authors & team" };
 
 export default async function TeamPage() {
-  const { authors, members } = await loadDashboardTeam();
+  const { authors, members } = dashboardData(await loadDashboardTeam());
   return (
     <main className="mx-auto max-w-[1100px] px-4 py-6 sm:px-7 lg:px-9 lg:py-8">
       <header className="flex items-end justify-between"><div><p className="text-xs font-semibold text-[#ef6848]">People</p><h1 className="mt-1 text-3xl font-semibold tracking-[-.04em]">Authors & team</h1><p className="mt-2 text-sm text-[#6e787d]">Separate dashboard access from public author identity.</p></div><button className="hidden h-10 items-center gap-2 rounded-xl bg-[#172329] px-4 text-sm font-semibold text-white sm:inline-flex"><UserPlus className="size-3.5" />Invite member</button></header>

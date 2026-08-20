@@ -1,11 +1,13 @@
 import { CheckCircle2, CircleAlert, Database, Palette, ShieldCheck } from "lucide-react";
 import { updateBlogSettings } from "@/server/actions";
 import { loadDashboardSettings } from "@/server/page-entrypoints";
+import { dashboardData } from "../dashboard-result";
 
 export const metadata = { title: "Settings" };
 
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ saved?: string; error?: string }> }) {
-  const [query, blog] = await Promise.all([searchParams, loadDashboardSettings()]);
+  const [query, result] = await Promise.all([searchParams, loadDashboardSettings()]);
+  const blog = dashboardData(result);
   const { error, saved } = query;
   return (
     <main className="mx-auto max-w-[1000px] px-4 py-6 sm:px-7 lg:px-9 lg:py-8">

@@ -1,7 +1,7 @@
 import { Effect, Option, Result, Schema } from "effect";
 import { requireDashboardSessionEffect } from "@/lib/session";
 import { BlogAccess } from "./authorization.ts";
-import { runAppEffect } from "./app-runtime.ts";
+import { runAppEffect, type AppServices } from "./app-runtime.ts";
 import { Dashboard } from "./dashboard.ts";
 import { BlogSlug, PostId, UserId } from "./domain.ts";
 import { PublicContent } from "./public-content.ts";
@@ -15,27 +15,18 @@ const currentActor = Effect.fn("PageEntrypoints.currentActor")(function* () {
 const parseBlogSlug = (value: string) =>
   Schema.decodeUnknownOption(BlogSlug)(value);
 
-export type DashboardShellResult =
-  | {
-      readonly _tag: "Success";
-      readonly session: Effect.Success<ReturnType<typeof requireDashboardSessionEffect>>;
-      readonly blog: Awaited<ReturnType<typeof loadDashboardSettings>>;
-    }
+export type DashboardPageResult<A> =
+  | { readonly _tag: "Success"; readonly value: A }
   | { readonly _tag: "Unauthorized" }
   | { readonly _tag: "Forbidden" };
 
-export async function loadDashboardShell(): Promise<DashboardShellResult> {
-  const result = await runAppEffect(
-    Effect.result(
-      Effect.gen(function* () {
-        const { session, actorId } = yield* currentActor();
-        const dashboard = yield* Dashboard.Service;
-        const blog = yield* dashboard.shell(actorId);
-        return { session, blog };
-      }),
-    ),
-  );
-  if (Result.isSuccess(result)) return { _tag: "Success", ...result.success };
+async function runDashboardPage<A, E extends Error>(
+  effect: Effect.Effect<A, E, AppServices>,
+): Promise<DashboardPageResult<A>> {
+  const result = await runAppEffect(Effect.result(effect));
+  if (Result.isSuccess(result)) {
+    return { _tag: "Success", value: result.success };
+  }
   if (result.failure instanceof SessionErrors.AuthenticationRequired) {
     return { _tag: "Unauthorized" };
   }
@@ -43,8 +34,19 @@ export async function loadDashboardShell(): Promise<DashboardShellResult> {
   throw result.failure;
 }
 
+export function loadDashboardShell() {
+  return runDashboardPage(
+    Effect.gen(function* () {
+      const { session, actorId } = yield* currentActor();
+      const dashboard = yield* Dashboard.Service;
+      const blog = yield* dashboard.shell(actorId);
+      return { session, blog };
+    }),
+  );
+}
+
 export function loadDashboardAnalytics() {
-  return runAppEffect(
+  return runDashboardPage(
     Effect.gen(function* () {
       const { actorId } = yield* currentActor();
       const dashboard = yield* Dashboard.Service;
@@ -54,7 +56,7 @@ export function loadDashboardAnalytics() {
 }
 
 export function loadDashboardContentLibrary() {
-  return runAppEffect(
+  return runDashboardPage(
     Effect.gen(function* () {
       const { actorId } = yield* currentActor();
       const dashboard = yield* Dashboard.Service;
@@ -64,7 +66,7 @@ export function loadDashboardContentLibrary() {
 }
 
 export function loadDashboardOverview() {
-  return runAppEffect(
+  return runDashboardPage(
     Effect.gen(function* () {
       const { actorId } = yield* currentActor();
       const dashboard = yield* Dashboard.Service;
@@ -74,7 +76,7 @@ export function loadDashboardOverview() {
 }
 
 export function loadDashboardIntegration() {
-  return runAppEffect(
+  return runDashboardPage(
     Effect.gen(function* () {
       const { actorId } = yield* currentActor();
       const dashboard = yield* Dashboard.Service;
@@ -84,7 +86,7 @@ export function loadDashboardIntegration() {
 }
 
 export function loadDashboardPosts(search?: string) {
-  return runAppEffect(
+  return runDashboardPage(
     Effect.gen(function* () {
       const { actorId } = yield* currentActor();
       const dashboard = yield* Dashboard.Service;
@@ -94,7 +96,7 @@ export function loadDashboardPosts(search?: string) {
 }
 
 export function loadDashboardSettings() {
-  return runAppEffect(
+  return runDashboardPage(
     Effect.gen(function* () {
       const { actorId } = yield* currentActor();
       const dashboard = yield* Dashboard.Service;
@@ -104,7 +106,7 @@ export function loadDashboardSettings() {
 }
 
 export function loadDashboardTeam() {
-  return runAppEffect(
+  return runDashboardPage(
     Effect.gen(function* () {
       const { actorId } = yield* currentActor();
       const dashboard = yield* Dashboard.Service;
@@ -114,7 +116,7 @@ export function loadDashboardTeam() {
 }
 
 export function loadNewPost() {
-  return runAppEffect(
+  return runDashboardPage(
     Effect.gen(function* () {
       const { actorId } = yield* currentActor();
       const dashboard = yield* Dashboard.Service;
@@ -124,11 +126,18 @@ export function loadNewPost() {
 }
 
 export function loadEditPost(id: string) {
-  return runAppEffect(
+  const postId = Schema.decodeUnknownOption(PostId)(id);
+  if (Option.isNone(postId)) {
+    return Promise.resolve<DashboardPageResult<null>>({
+      _tag: "Success",
+      value: null,
+    });
+  }
+  return runDashboardPage(
     Effect.gen(function* () {
       const { actorId } = yield* currentActor();
       const dashboard = yield* Dashboard.Service;
-      return yield* dashboard.editPost(actorId, PostId.make(id));
+      return yield* dashboard.editPost(actorId, postId.value);
     }),
   );
 }

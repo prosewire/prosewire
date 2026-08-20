@@ -3,11 +3,14 @@ import Link from "next/link";
 import { Sparkline } from "@/components/sparkline";
 import { StatusBadge } from "@/components/ui";
 import { loadDashboardOverview } from "@/server/page-entrypoints";
+import { dashboardData } from "../dashboard-result";
 
 export const metadata = { title: "Overview" };
 
 export default async function DashboardPage() {
-  const { blog, metrics, posts, series } = await loadDashboardOverview();
+  const { blog, metrics, posts, series } = dashboardData(
+    await loadDashboardOverview(),
+  );
   const recent = posts.slice(0, 5);
   return (
     <main className="mx-auto max-w-[1400px] px-4 py-6 sm:px-7 lg:px-9 lg:py-8">

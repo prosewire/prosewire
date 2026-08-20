@@ -10,6 +10,11 @@ export class BlogNotFound extends Schema.TaggedError<BlogNotFound>()(
   }
 }
 
-export type Error = BlogNotFound;
+export class InvalidBlogSettings extends Schema.TaggedError<InvalidBlogSettings>()(
+  "InvalidBlogSettings",
+  { message: Schema.String },
+) {}
+
+export type Error = BlogNotFound | InvalidBlogSettings;
 
 export * as BlogErrors from "./blog-errors";

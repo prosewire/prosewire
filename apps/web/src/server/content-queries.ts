@@ -13,8 +13,19 @@ import {
 import { Clock, Context, Effect, Layer } from "effect";
 import * as schema from "@prosewire/db/schema";
 import { WebConfig } from "./config.ts";
+import {
+  TeamMember,
+  toAuthor,
+  toBlog,
+  toCategory,
+  toDashboardPost,
+  toDashboardPostDetail,
+  toPublicPost,
+  toRedirect,
+  toSnippet,
+} from "./content-models.ts";
 import { Database } from "./database.ts";
-import type { BlogId, BlogSlug, PostId } from "./domain.ts";
+import { UserId, type BlogId, type BlogSlug, type PostId } from "./domain.ts";
 
 export interface PublicPostOptions {
   readonly search?: string;
@@ -31,39 +42,42 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
     const preferred = yield* execute("blog.findDefaultBySlug", (client) =>
       client.query.blog.findFirst({ where: eq(schema.blog.slug, config.defaultBlog) }),
     );
-    if (preferred) return preferred;
-    return yield* execute("blog.findDefault", (client) =>
+    if (preferred) return toBlog(preferred);
+    const fallback = yield* execute("blog.findDefault", (client) =>
       client.query.blog.findFirst(),
     );
+    return fallback ? toBlog(fallback) : undefined;
   });
 
   const getAuthors = Effect.fn("ContentQueries.getAuthors")(function* (
     blogId: BlogId,
   ) {
-    return yield* execute("author.list", (client) =>
+    const rows = yield* execute("author.list", (client) =>
       client.query.author.findMany({
         where: eq(schema.author.blogId, blogId),
         orderBy: [asc(schema.author.name)],
       }),
     );
+    return rows.map(toAuthor);
   });
 
   const getCategories = Effect.fn("ContentQueries.getCategories")(function* (
     blogId: BlogId,
   ) {
-    return yield* execute("category.list", (client) =>
+    const rows = yield* execute("category.list", (client) =>
       client.query.category.findMany({
         where: eq(schema.category.blogId, blogId),
         orderBy: [asc(schema.category.name)],
       }),
     );
+    return rows.map(toCategory);
   });
 
   const getDashboardPosts = Effect.fn("ContentQueries.getDashboardPosts")(function* (
     blogId: BlogId,
     search?: string,
   ) {
-    return yield* execute("post.listDashboard", (client) =>
+    const rows = yield* execute("post.listDashboard", (client) =>
       client.query.post.findMany({
         where: search?.trim()
           ? and(
@@ -82,12 +96,13 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
         orderBy: [desc(schema.post.updatedAt)],
       }),
     );
+    return rows.map(toDashboardPost);
   });
 
   const getDashboardPost = Effect.fn("ContentQueries.getDashboardPost")(function* (
     id: PostId,
   ) {
-    return yield* execute("post.getDashboard", (client) =>
+    const row = yield* execute("post.getDashboard", (client) =>
       client.query.post.findFirst({
         where: eq(schema.post.id, id),
         with: {
@@ -97,6 +112,7 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
         },
       }),
     );
+    return row ? toDashboardPostDetail(row) : undefined;
   });
 
   const getDashboardMetrics = Effect.fn("ContentQueries.getDashboardMetrics")(
@@ -165,12 +181,12 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
             client.query.snippet.findMany({
               where: eq(schema.snippet.blogId, blogId),
             }),
-          ),
+          ).pipe(Effect.map((rows) => rows.map(toSnippet))),
           redirects: execute("redirect.list", (client) =>
             client.query.redirect.findMany({
               where: eq(schema.redirect.blogId, blogId),
             }),
-          ),
+          ).pipe(Effect.map((rows) => rows.map(toRedirect))),
         },
         { concurrency: "unbounded" },
       );
@@ -196,22 +212,32 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
       },
       { concurrency: "unbounded" },
     );
-    return { authors, members };
+    return {
+      authors,
+      members: members.map(
+        (member) =>
+          new TeamMember({
+            ...member,
+            id: UserId.make(member.id),
+          }),
+      ),
+    };
   });
 
   const getPublicBlog = Effect.fn("ContentQueries.getPublicBlog")(function* (
     slug: BlogSlug,
   ) {
-    return yield* execute("blog.getPublic", (client) =>
+    const row = yield* execute("blog.getPublic", (client) =>
       client.query.blog.findFirst({ where: eq(schema.blog.slug, slug) }),
     );
+    return row ? toBlog(row) : undefined;
   });
 
   const getPublicAuthor = Effect.fn("ContentQueries.getPublicAuthor")(function* (
     blogId: BlogId,
     slug: string,
   ) {
-    return yield* execute("author.getPublic", (client) =>
+    const row = yield* execute("author.getPublic", (client) =>
       client.query.author.findFirst({
         where: and(
           eq(schema.author.blogId, blogId),
@@ -219,6 +245,7 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
         ),
       }),
     );
+    return row ? toAuthor(row) : undefined;
   });
 
   const getPublicPosts = Effect.fn("ContentQueries.getPublicPosts")(function* (
@@ -245,8 +272,9 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
         limit: options.limit ?? 50,
       }),
     );
-    if (!options.category) return rows;
-    return rows.filter((row) =>
+    const posts = rows.map(toPublicPost);
+    if (!options.category) return posts;
+    return posts.filter((row) =>
       row.categories.some((entry) => entry.category.slug === options.category),
     );
   });
@@ -256,7 +284,7 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
     slug: string,
   ) {
     const now = new Date(yield* Clock.currentTimeMillis);
-    return yield* execute("post.getPublic", (client) =>
+    const row = yield* execute("post.getPublic", (client) =>
       client.query.post.findFirst({
         where: and(
           eq(schema.post.blogId, blogId),
@@ -268,6 +296,7 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
         with: { author: true, categories: { with: { category: true } } },
       }),
     );
+    return row ? toPublicPost(row) : undefined;
   });
 
   const recordPostView = Effect.fn("ContentQueries.recordPostView")(function* (

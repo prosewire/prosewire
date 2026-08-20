@@ -3,12 +3,13 @@ import Link from "next/link";
 import { StatusBadge } from "@/components/ui";
 import { bulkArchivePosts } from "@/server/actions";
 import { loadDashboardPosts } from "@/server/page-entrypoints";
+import { dashboardData } from "../dashboard-result";
 
 export const metadata = { title: "Posts" };
 
 export default async function PostsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const { q } = await searchParams;
-  const { blog, posts } = await loadDashboardPosts(q);
+  const { blog, posts } = dashboardData(await loadDashboardPosts(q));
   return (
     <main className="mx-auto max-w-[1400px] px-4 py-6 sm:px-7 lg:px-9 lg:py-8">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">

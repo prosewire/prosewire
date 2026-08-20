@@ -3,19 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { forbidden, redirect } from "next/navigation";
 import { BlogAccessDenied } from "./authorization.ts";
-import {
-  AuthorId,
-  BlogId,
-  CategoryId,
-  PostId,
-} from "./domain.ts";
 import { actionErrorRedirect } from "./action-errors.ts";
 import {
   bulkArchive as runBulkArchive,
   savePost as runSavePost,
+  type SavePostBoundaryInput,
   updateBlogSettings as runUpdateBlogSettings,
 } from "./mutation-entrypoints.ts";
-import type { SavePostInput } from "./publishing.ts";
 
 function text(formData: FormData, name: string): string {
   const value = formData.get(name);
@@ -42,26 +36,20 @@ function redirectActionError(error: unknown, fallbackPath: string): never {
   throw error;
 }
 
-function savePostInput(formData: FormData): SavePostInput {
+function savePostInput(formData: FormData): SavePostBoundaryInput {
   const id = text(formData, "id");
   const categoryId = text(formData, "categoryId");
   const scheduledAtValue = text(formData, "scheduledAt");
-  const parsedScheduledAt = scheduledAtValue ? new Date(scheduledAtValue) : null;
-  const requestedStatus = text(formData, "status");
-  const status: SavePostInput["requestedStatus"] =
-    requestedStatus === "published" || requestedStatus === "scheduled"
-      ? requestedStatus
-      : "draft";
   return {
-    ...(id ? { id: PostId.make(id) } : {}),
-    blogId: BlogId.make(text(formData, "blogId")),
-    authorId: AuthorId.make(text(formData, "authorId")),
-    ...(categoryId ? { categoryId: CategoryId.make(categoryId) } : {}),
+    ...(id ? { id } : {}),
+    blogId: text(formData, "blogId"),
+    authorId: text(formData, "authorId"),
+    ...(categoryId ? { categoryId } : {}),
     title: text(formData, "title"),
     requestedSlug: text(formData, "slug"),
     excerpt: text(formData, "excerpt"),
     contentMarkdown: text(formData, "contentMarkdown"),
-    requestedStatus: status,
+    requestedStatus: text(formData, "status"),
     featured: formData.get("featured") === "on",
     locale: text(formData, "locale") || "en",
     coverImageUrl: nullableText(formData, "coverImageUrl"),
@@ -70,10 +58,7 @@ function savePostInput(formData: FormData): SavePostInput {
     seoDescription: nullableText(formData, "seoDescription"),
     focusKeyword: nullableText(formData, "focusKeyword"),
     canonicalUrl: nullableText(formData, "canonicalUrl"),
-    scheduledAt:
-      parsedScheduledAt && !Number.isNaN(parsedScheduledAt.getTime())
-        ? parsedScheduledAt
-        : null,
+    scheduledAt: scheduledAtValue || null,
   };
 }
 
@@ -95,12 +80,11 @@ export async function bulkArchivePosts(formData: FormData): Promise<void> {
   let changed: boolean;
   try {
     changed = await runBulkArchive({
-      blogId: BlogId.make(text(formData, "blogId")),
+      blogId: text(formData, "blogId"),
       postIds: formData
         .getAll("postId")
         .map(String)
-        .filter(Boolean)
-        .map((id) => PostId.make(id)),
+        .filter(Boolean),
     });
   } catch (error) {
     redirectActionError(error, "/posts");
@@ -114,7 +98,7 @@ export async function updateBlogSettings(formData: FormData): Promise<void> {
   let defaultBlog: string;
   try {
     defaultBlog = await runUpdateBlogSettings({
-      blogId: BlogId.make(text(formData, "id")),
+      blogId: text(formData, "id"),
       name: text(formData, "name"),
       description: text(formData, "description"),
       locale: text(formData, "locale") || "en",

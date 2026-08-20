@@ -1,8 +1,7 @@
 import { Effect, Redacted, Schema } from "effect";
-import { runMigrations } from "@prosewire/db";
-import { disposeAppRuntime, runAppEffect } from "./server/app-runtime.ts";
+import { runMigrations, withDatabaseAdvisoryLock } from "@prosewire/db";
+import { makeBootstrapRuntime } from "./server/bootstrap-runtime.ts";
 import { WebConfig } from "./server/config.ts";
-import { installRuntimeCleanup } from "./server/runtime-cleanup.ts";
 import { Seed } from "./server/seed.ts";
 
 class InstrumentationError extends Schema.TaggedError<InstrumentationError>()(
@@ -22,33 +21,22 @@ const attempt = <A>(
     catch: (cause) => new InstrumentationError({ operation, cause }),
   }).pipe(Effect.withSpan(`instrumentation.${operation}`));
 
-const registerNodeEffect = Effect.fn("WebInstrumentation.registerNode")(function* () {
+const bootstrapEffect = Effect.fn("WebInstrumentation.bootstrap")(function* () {
   const config = yield* WebConfig;
   yield* attempt("migrate", () => runMigrations(Redacted.value(config.databaseUrl)));
   const seed = yield* Seed.Service;
   yield* seed.initialData();
 });
 
-let cleanupRegistered = false;
-
-function registerRuntimeCleanup(): void {
-  if (cleanupRegistered) return;
-  cleanupRegistered = true;
-  installRuntimeCleanup(
-    process,
-    disposeAppRuntime,
-    (message, error) => {
-      process.stderr.write(`${message}: ${String(error)}\n`);
-    },
-  );
-}
-
 export async function registerNode(): Promise<void> {
-  registerRuntimeCleanup();
+  const runtime = makeBootstrapRuntime();
   try {
-    await runAppEffect(registerNodeEffect());
-  } catch (error) {
-    await disposeAppRuntime();
-    throw error;
+    const config = await runtime.runPromise(WebConfig);
+    await withDatabaseAdvisoryLock(
+      Redacted.value(config.databaseUrl),
+      () => runtime.runPromise(bootstrapEffect()),
+    );
+  } finally {
+    await runtime.dispose();
   }
 }

@@ -1,5 +1,5 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
-import { Clock, Context, Effect, Layer, Result } from "effect";
+import { Clock, Context, Effect, Layer, Result, Schema } from "effect";
 import { createExcerpt, renderMarkdown, slugify } from "@prosewire/core";
 import type { Db } from "@prosewire/db/client";
 import * as schema from "@prosewire/db/schema";
@@ -10,93 +10,110 @@ import { WebConfig } from "./config.ts";
 import { Database, DatabaseError } from "./database.ts";
 import {
   type ApiKeyId,
-  type AuthorId,
-  type BlogId,
-  type CategoryId,
+  AuthorId,
+  BlogId,
+  CategoryId,
   PostId,
   type UserId,
 } from "./domain.ts";
 import { promiseEffect } from "./external-effect.ts";
 import { PostErrors } from "./post-errors.ts";
 
-export interface SavePostInput {
-  readonly id?: PostId;
-  readonly blogId: BlogId;
-  readonly authorId: AuthorId;
-  readonly categoryId?: CategoryId;
-  readonly title: string;
-  readonly requestedSlug: string;
-  readonly excerpt: string;
-  readonly contentMarkdown: string;
-  readonly requestedStatus: "draft" | "scheduled" | "published";
-  readonly featured: boolean;
-  readonly locale: string;
-  readonly coverImageUrl: string | null;
-  readonly coverImageAlt: string | null;
-  readonly seoTitle: string | null;
-  readonly seoDescription: string | null;
-  readonly focusKeyword: string | null;
-  readonly canonicalUrl: string | null;
-  readonly scheduledAt: Date | null;
-}
+export class SavePostInput extends Schema.Class<SavePostInput>(
+  "Publishing.SavePostInput",
+)({
+  id: Schema.optional(PostId),
+  blogId: BlogId,
+  authorId: AuthorId,
+  categoryId: Schema.optional(CategoryId),
+  title: Schema.String,
+  requestedSlug: Schema.String,
+  excerpt: Schema.String,
+  contentMarkdown: Schema.String,
+  requestedStatus: Schema.Literals(["draft", "scheduled", "published"]),
+  featured: Schema.Boolean,
+  locale: Schema.String,
+  coverImageUrl: Schema.NullOr(Schema.String),
+  coverImageAlt: Schema.NullOr(Schema.String),
+  seoTitle: Schema.NullOr(Schema.String),
+  seoDescription: Schema.NullOr(Schema.String),
+  focusKeyword: Schema.NullOr(Schema.String),
+  canonicalUrl: Schema.NullOr(Schema.String),
+  scheduledAt: Schema.NullOr(Schema.DateFromString),
+}) {}
 
-export interface BulkArchiveInput {
-  readonly blogId: BlogId;
-  readonly postIds: ReadonlyArray<PostId>;
-}
+export class BulkArchiveInput extends Schema.Class<BulkArchiveInput>(
+  "Publishing.BulkArchiveInput",
+)({
+  blogId: BlogId,
+  postIds: Schema.Array(PostId),
+}) {}
 
-export interface UpdateBlogSettingsInput {
-  readonly blogId: BlogId;
-  readonly name: string;
-  readonly description: string;
-  readonly locale: string;
-  readonly accentColor: string;
-  readonly publicUrl: string | null;
-  readonly customCss: string;
-}
+export class UpdateBlogSettingsInput extends Schema.Class<UpdateBlogSettingsInput>(
+  "Publishing.UpdateBlogSettingsInput",
+)({
+  blogId: BlogId,
+  name: Schema.String,
+  description: Schema.String,
+  locale: Schema.String,
+  accentColor: Schema.String,
+  publicUrl: Schema.NullOr(Schema.String),
+  customCss: Schema.String,
+}) {}
 
 export interface ApiActor {
   readonly blogId: BlogId;
   readonly keyId: ApiKeyId;
 }
 
-export interface ApiCreatePostInput {
-  readonly authorId: AuthorId;
-  readonly title: string;
-  readonly slug: string;
-  readonly excerpt?: string;
-  readonly contentMarkdown: string;
-  readonly coverImageUrl?: string | null;
-  readonly coverImageAlt?: string | null;
-  readonly status: "draft" | "scheduled" | "published" | "archived";
-  readonly locale: string;
-  readonly featured: boolean;
-  readonly seoTitle?: string | null;
-  readonly seoDescription?: string | null;
-  readonly focusKeyword?: string | null;
-  readonly canonicalUrl?: string | null;
-  readonly scheduledAt?: string | null;
-  readonly categoryIds: ReadonlyArray<CategoryId>;
-}
+const PostStatus = Schema.Literals([
+  "draft",
+  "scheduled",
+  "published",
+  "archived",
+]);
 
-export interface ApiUpdatePostInput {
-  readonly authorId?: AuthorId;
-  readonly title?: string;
-  readonly slug?: string;
-  readonly excerpt?: string;
-  readonly contentMarkdown?: string;
-  readonly coverImageUrl?: string | null;
-  readonly coverImageAlt?: string | null;
-  readonly status?: "draft" | "scheduled" | "published" | "archived";
-  readonly locale?: string;
-  readonly featured?: boolean;
-  readonly seoTitle?: string | null;
-  readonly seoDescription?: string | null;
-  readonly focusKeyword?: string | null;
-  readonly canonicalUrl?: string | null;
-  readonly scheduledAt?: string | null;
-  readonly categoryIds?: ReadonlyArray<CategoryId>;
-}
+export class ApiCreatePostInput extends Schema.Class<ApiCreatePostInput>(
+  "Publishing.ApiCreatePostInput",
+)({
+  authorId: AuthorId,
+  title: Schema.String,
+  slug: Schema.String,
+  excerpt: Schema.optional(Schema.String),
+  contentMarkdown: Schema.String,
+  coverImageUrl: Schema.optional(Schema.NullOr(Schema.String)),
+  coverImageAlt: Schema.optional(Schema.NullOr(Schema.String)),
+  status: PostStatus,
+  locale: Schema.String,
+  featured: Schema.Boolean,
+  seoTitle: Schema.optional(Schema.NullOr(Schema.String)),
+  seoDescription: Schema.optional(Schema.NullOr(Schema.String)),
+  focusKeyword: Schema.optional(Schema.NullOr(Schema.String)),
+  canonicalUrl: Schema.optional(Schema.NullOr(Schema.String)),
+  scheduledAt: Schema.optional(Schema.NullOr(Schema.DateFromString)),
+  categoryIds: Schema.Array(CategoryId),
+}) {}
+
+export class ApiUpdatePostInput extends Schema.Class<ApiUpdatePostInput>(
+  "Publishing.ApiUpdatePostInput",
+)({
+  authorId: Schema.optional(AuthorId),
+  title: Schema.optional(Schema.String),
+  slug: Schema.optional(Schema.String),
+  excerpt: Schema.optional(Schema.String),
+  contentMarkdown: Schema.optional(Schema.String),
+  coverImageUrl: Schema.optional(Schema.NullOr(Schema.String)),
+  coverImageAlt: Schema.optional(Schema.NullOr(Schema.String)),
+  status: Schema.optional(PostStatus),
+  locale: Schema.optional(Schema.String),
+  featured: Schema.optional(Schema.Boolean),
+  seoTitle: Schema.optional(Schema.NullOr(Schema.String)),
+  seoDescription: Schema.optional(Schema.NullOr(Schema.String)),
+  focusKeyword: Schema.optional(Schema.NullOr(Schema.String)),
+  canonicalUrl: Schema.optional(Schema.NullOr(Schema.String)),
+  scheduledAt: Schema.optional(Schema.NullOr(Schema.DateFromString)),
+  categoryIds: Schema.optional(Schema.Array(CategoryId)),
+}) {}
 
 export const create = Effect.fn("Publishing.create")(function* () {
   const database = yield* Database;
@@ -152,7 +169,6 @@ export const create = Effect.fn("Publishing.create")(function* () {
       focusKeyword: input.focusKeyword,
       canonicalUrl: input.canonicalUrl,
       scheduledAt: status === "scheduled" ? scheduledAt : null,
-      publishedAt: status === "published" ? now : null,
       archivedAt: null,
       updatedAt: now,
     } satisfies Partial<typeof schema.post.$inferInsert>;
@@ -238,7 +254,13 @@ export const create = Effect.fn("Publishing.create")(function* () {
             }
             await tx
               .update(schema.post)
-              .set(values)
+              .set({
+                ...values,
+                publishedAt:
+                  status === "published"
+                    ? (existing.publishedAt ?? now)
+                    : null,
+              })
               .where(
                 and(
                   eq(schema.post.id, input.id),
@@ -251,7 +273,12 @@ export const create = Effect.fn("Publishing.create")(function* () {
           } else {
             const [created] = await tx
               .insert(schema.post)
-              .values({ ...values, blogId: input.blogId, authorId: input.authorId })
+              .values({
+                ...values,
+                blogId: input.blogId,
+                authorId: input.authorId,
+                publishedAt: status === "published" ? now : null,
+              })
               .returning({ id: schema.post.id });
             if (!created) {
               return Result.fail(
@@ -302,15 +329,44 @@ export const create = Effect.fn("Publishing.create")(function* () {
       "post.bulkArchive",
       (client) =>
         client.transaction(async (tx) => {
+          const candidates = (
+            await tx
+              .select()
+              .from(schema.post)
+              .where(
+                and(
+                  inArray(schema.post.id, input.postIds),
+                  eq(schema.post.blogId, input.blogId),
+                ),
+              )
+              .for("update")
+          ).filter((post) => post.status !== "archived");
+          if (candidates.length === 0) return 0;
+
+          const candidateIds = candidates.map(({ id }) => id);
+          const revisions = await tx.query.postRevision.findMany({
+            where: inArray(schema.postRevision.postId, candidateIds),
+            orderBy: [desc(schema.postRevision.version)],
+          });
+          const latestVersion = new Map<string, number>();
+          for (const revision of revisions) {
+            if (!latestVersion.has(revision.postId)) {
+              latestVersion.set(revision.postId, revision.version);
+            }
+          }
+          await tx.insert(schema.postRevision).values(
+            candidates.map((post) => ({
+              postId: post.id,
+              editorId: actorId,
+              version: (latestVersion.get(post.id) ?? 0) + 1,
+              snapshot: post,
+            })),
+          );
+
           const archived = await tx
             .update(schema.post)
             .set({ status: "archived", archivedAt: now, updatedAt: now })
-            .where(
-              and(
-                inArray(schema.post.id, input.postIds),
-                eq(schema.post.blogId, input.blogId),
-              ),
-            )
+            .where(inArray(schema.post.id, candidateIds))
             .returning({ id: schema.post.id });
           if (archived.length > 0) {
             await tx.insert(schema.auditLog).values(
@@ -375,6 +431,11 @@ export const create = Effect.fn("Publishing.create")(function* () {
     input: ApiCreatePostInput,
     actor: ApiActor,
   ) {
+    if (input.status === "scheduled" && !input.scheduledAt) {
+      return yield* new PostErrors.InvalidPost({
+        message: "Scheduled posts require a schedule time",
+      });
+    }
     const now = new Date(yield* Clock.currentTimeMillis);
     const contentHtml = yield* promiseEffect("markdown", "renderApiPost", () =>
       renderMarkdown(input.contentMarkdown),
@@ -438,8 +499,10 @@ export const create = Effect.fn("Publishing.create")(function* () {
             seoDescription: input.seoDescription ?? null,
             focusKeyword: input.focusKeyword ?? null,
             canonicalUrl: input.canonicalUrl ?? null,
-            scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : null,
+            scheduledAt:
+              input.status === "scheduled" ? (input.scheduledAt ?? null) : null,
             publishedAt: input.status === "published" ? now : null,
+            archivedAt: input.status === "archived" ? now : null,
           })
           .returning({ id: schema.post.id });
         if (!created) {
@@ -510,6 +573,18 @@ export const create = Effect.fn("Publishing.create")(function* () {
           .for("update");
         if (!existing) {
           return Result.fail(new PostErrors.PostNotFound({ postId }));
+        }
+        const nextStatus = patch.status ?? existing.status;
+        const nextScheduledAt =
+          patch.scheduledAt === undefined
+            ? existing.scheduledAt
+            : patch.scheduledAt;
+        if (nextStatus === "scheduled" && !nextScheduledAt) {
+          return Result.fail(
+            new PostErrors.InvalidPost({
+              message: "Scheduled posts require a schedule time",
+            }),
+          );
         }
         if (patch.authorId) {
           const [author] = await tx
@@ -607,11 +682,10 @@ export const create = Effect.fn("Publishing.create")(function* () {
             ...(patch.canonicalUrl !== undefined
               ? { canonicalUrl: patch.canonicalUrl }
               : {}),
-            ...(patch.scheduledAt !== undefined
+            ...(patch.status !== undefined || patch.scheduledAt !== undefined
               ? {
-                  scheduledAt: patch.scheduledAt
-                    ? new Date(patch.scheduledAt)
-                    : null,
+                  scheduledAt:
+                    nextStatus === "scheduled" ? nextScheduledAt : null,
                 }
               : {}),
             updatedAt: now,
@@ -666,6 +740,18 @@ export const create = Effect.fn("Publishing.create")(function* () {
           if (!existing) {
             return Result.fail(new PostErrors.PostNotFound({ postId }));
           }
+          if (existing.status === "archived") {
+            return Result.succeed(existing.id);
+          }
+          const latest = await tx.query.postRevision.findFirst({
+            where: eq(schema.postRevision.postId, existing.id),
+            orderBy: [desc(schema.postRevision.version)],
+          });
+          await tx.insert(schema.postRevision).values({
+            postId: existing.id,
+            version: (latest?.version ?? 0) + 1,
+            snapshot: existing,
+          });
           await tx
             .update(schema.post)
             .set({ status: "archived", archivedAt: now, updatedAt: now })

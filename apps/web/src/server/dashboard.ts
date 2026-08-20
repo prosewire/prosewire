@@ -3,7 +3,7 @@ import { BlogAccess } from "./authorization.ts";
 import { WebConfig } from "./config.ts";
 import { ContentQueries } from "./content-queries.ts";
 import type { DatabaseError } from "./database.ts";
-import { BlogId, type PostId, type UserId } from "./domain.ts";
+import type { PostId, UserId } from "./domain.ts";
 
 export class NoBlogConfigured extends Schema.TaggedError<NoBlogConfigured>()(
   "NoBlogConfigured",
@@ -24,7 +24,7 @@ export const create = Effect.fn("Dashboard.create")(function* () {
   const authorizedBlog = Effect.fnUntraced(function* (actorId: UserId) {
     const blog = yield* content.getDefaultBlog();
     if (!blog) return yield* new NoBlogConfigured();
-    yield* access.requireRead(BlogId.make(blog.id), actorId);
+    yield* access.requireRead(blog.id, actorId);
     return blog;
   });
 
@@ -34,7 +34,7 @@ export const create = Effect.fn("Dashboard.create")(function* () {
 
   const analytics = Effect.fn("Dashboard.analytics")(function* (actorId: UserId) {
     const blog = yield* authorizedBlog(actorId);
-    const blogId = BlogId.make(blog.id);
+    const blogId = blog.id;
     const data = yield* Effect.all(
       {
         metrics: content.getDashboardMetrics(blogId),
@@ -50,13 +50,13 @@ export const create = Effect.fn("Dashboard.create")(function* () {
     actorId: UserId,
   ) {
     const blog = yield* authorizedBlog(actorId);
-    const library = yield* content.getContentLibrary(BlogId.make(blog.id));
+    const library = yield* content.getContentLibrary(blog.id);
     return { blog, ...library };
   });
 
   const overview = Effect.fn("Dashboard.overview")(function* (actorId: UserId) {
     const blog = yield* authorizedBlog(actorId);
-    const blogId = BlogId.make(blog.id);
+    const blogId = blog.id;
     const { metrics, posts, series } = yield* Effect.all(
       {
         metrics: content.getDashboardMetrics(blogId),
@@ -80,7 +80,7 @@ export const create = Effect.fn("Dashboard.create")(function* () {
     search?: string,
   ) {
     const blog = yield* authorizedBlog(actorId);
-    const rows = yield* content.getDashboardPosts(BlogId.make(blog.id), search);
+    const rows = yield* content.getDashboardPosts(blog.id, search);
     return { blog, posts: rows, q: search };
   });
 
@@ -90,13 +90,13 @@ export const create = Effect.fn("Dashboard.create")(function* () {
 
   const team = Effect.fn("Dashboard.team")(function* (actorId: UserId) {
     const blog = yield* authorizedBlog(actorId);
-    const result = yield* content.getTeam(BlogId.make(blog.id));
+    const result = yield* content.getTeam(blog.id);
     return { blog, ...result };
   });
 
   const newPost = Effect.fn("Dashboard.newPost")(function* (actorId: UserId) {
     const blog = yield* authorizedBlog(actorId);
-    const blogId = BlogId.make(blog.id);
+    const blogId = blog.id;
     const { authors, categories } = yield* Effect.all(
       {
         authors: content.getAuthors(blogId),
@@ -114,7 +114,7 @@ export const create = Effect.fn("Dashboard.create")(function* () {
     const blog = yield* authorizedBlog(actorId);
     const post = yield* content.getDashboardPost(postId);
     if (!post || post.blogId !== blog.id) return null;
-    const blogId = BlogId.make(blog.id);
+    const blogId = blog.id;
     const { authors, categories } = yield* Effect.all(
       {
         authors: content.getAuthors(blogId),
