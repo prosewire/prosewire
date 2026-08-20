@@ -26,11 +26,11 @@
   },
   "devDependencies": {
     "@prosewire/config": "workspace:*",
-    "@types/node": "^24.0.0",
+    "@types/node": "^26.2.0",
     "@types/pg": "^8.20.0",
     "drizzle-kit": "^0.31.10",
-    "eslint": "9.39.4",
-    "typescript": "^6.0.3",
+    "eslint": "10.8.1",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.11"
   }
 }

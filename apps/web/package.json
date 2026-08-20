@@ -39,15 +39,15 @@
     "@prosewire/mcp": "workspace:*",
     "@prosewire/sdk": "workspace:*",
     "@tailwindcss/postcss": "^4.3.1",
-    "@types/node": "^24.0.0",
+    "@types/node": "^26.2.0",
     "@types/nodemailer": "^8.0.1",
     "@types/pg": "^8.20.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
-    "eslint": "9.39.4",
+    "eslint": "10.8.1",
     "pg": "^8.20.0",
     "tailwindcss": "^4.3.1",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.11"
   }
 }
