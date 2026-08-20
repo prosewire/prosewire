@@ -37,7 +37,7 @@ export default async function DashboardPage() {
       <section className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
           { label: "Published posts", value: metrics.published, icon: FileText, note: `${String(metrics.drafts)} drafts in progress` },
-          { label: "Total views", value: metrics.views, icon: Eye, note: "Across seeded local activity" },
+          { label: "Total views", value: metrics.views, icon: Eye, note: "Across published content" },
           { label: "Scheduled", value: metrics.scheduled, icon: CalendarClock, note: "Publishing worker is watching" },
           { label: "Authors", value: metrics.authors, icon: Users2, note: "Unlimited collaborators" },
         ].map((metric) => (
@@ -59,7 +59,7 @@ export default async function DashboardPage() {
             {recent.map((post) => {
               const content = <>
                 <div className="min-w-0"><p className="truncate text-sm font-semibold">{post.title}</p><p className="mt-1 truncate text-[11px] text-[#8a9397]">{post.author.name} · Updated {post.updatedAt.toLocaleDateString("en", { month: "short", day: "numeric" })}</p></div>
-                <span className="text-xs tabular-nums text-[#7c868a]">{post.views.length} views</span>
+                <span className="text-xs tabular-nums text-[#7c868a]">{post.viewCount} views</span>
                 <StatusBadge status={post.status} />
               </>;
               return canEdit(post) ? <Link key={post.id} href={`/posts/${post.id}/edit`} className="grid gap-3 px-5 py-4 transition hover:bg-[#fafaf7] sm:grid-cols-[1fr_auto_auto] sm:items-center">{content}</Link> : <div key={post.id} className="grid gap-3 px-5 py-4 sm:grid-cols-[1fr_auto_auto] sm:items-center">{content}</div>;
@@ -68,7 +68,7 @@ export default async function DashboardPage() {
         </article>
 
         <article className="card p-5">
-          <div className="flex items-start justify-between"><div><h2 className="text-sm font-semibold">Reader activity</h2><p className="mt-1 text-[11px] text-[#8a9397]">Recent local page views</p></div><span className="rounded-lg bg-[#f0f1ed] px-2 py-1 text-[10px] font-semibold text-[#69757a]">14 days</span></div>
+          <div className="flex items-start justify-between"><div><h2 className="text-sm font-semibold">Reader activity</h2><p className="mt-1 text-[11px] text-[#8a9397]">Recent page views</p></div><span className="rounded-lg bg-[#f0f1ed] px-2 py-1 text-[10px] font-semibold text-[#69757a]">14 days</span></div>
           <div className="mt-8 flex items-end justify-between"><div><p className="text-3xl font-semibold tracking-[-.045em]">{metrics.views}</p><p className="mt-1 text-[11px] font-medium text-[#1f6e52]">Content is discoverable</p></div></div>
           <div className="mt-5"><Sparkline values={series.map((item) => item.value)} /></div>
           <div className="mt-6 border-t border-[#ecece8] pt-4">

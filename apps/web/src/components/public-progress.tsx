@@ -13,11 +13,18 @@ export function ReadingProgress({ postId }: { postId: string }) {
     window.addEventListener("scroll", update, { passive: true });
     const controller = new AbortController();
     const timeout = window.setTimeout(() => {
+      const storageKey = `prosewire:view:${postId}`;
+      let eventId = window.sessionStorage.getItem(storageKey);
+      if (!eventId) {
+        eventId = window.crypto.randomUUID();
+        window.sessionStorage.setItem(storageKey, eventId);
+      }
       void fetch("/api/events/view", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           postId,
+          eventId,
           referrer: document.referrer || "direct",
         }),
         keepalive: true,

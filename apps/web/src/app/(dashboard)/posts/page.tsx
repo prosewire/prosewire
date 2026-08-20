@@ -33,7 +33,8 @@ export default async function PostsPage({ searchParams }: { searchParams: Promis
       <form className="mt-7 flex flex-col gap-2 sm:flex-row">
         <label className="relative max-w-md flex-1"><Search className="absolute left-3 top-3 size-4 text-[#9aa1a4]" /><input name="q" defaultValue={q} placeholder="Search titles and summaries…" className="h-10 w-full rounded-xl border border-[#d7d9d3] bg-white pl-9 pr-3 text-sm outline-none focus:border-[#ef6848]" /></label>
         <button className="h-10 rounded-xl border border-[#d7d9d3] bg-white px-4 text-sm font-semibold">Search</button>
-        <a href={`/api/export/${blog.slug}`} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[#d7d9d3] bg-white px-4 text-sm font-semibold"><Download className="size-3.5" />Export CSV</a>
+        <a href={`/api/export/${blog.slug}?format=json`} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[#d7d9d3] bg-white px-4 text-sm font-semibold"><Download className="size-3.5" />Portable export</a>
+        <a href={`/api/export/${blog.slug}`} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[#d7d9d3] bg-white px-4 text-sm font-semibold">CSV</a>
       </form>
 
       <form action={bulkArchivePosts} className="card mt-4 overflow-hidden">
@@ -49,7 +50,7 @@ export default async function PostsPage({ searchParams }: { searchParams: Promis
                   <td className="max-w-lg px-2 py-4">{canEdit(post) ? <Link href={`/posts/${post.id}/edit`} className="block"><p className="truncate text-sm font-semibold">{post.title}</p><p className="mt-1 truncate text-[11px] text-[#8a9397]">/{post.slug}</p></Link> : <div><p className="truncate text-sm font-semibold">{post.title}</p><p className="mt-1 truncate text-[11px] text-[#8a9397]">/{post.slug}</p></div>}</td>
                   <td className="px-4 py-4 text-xs text-[#657077]">{post.author.name}</td>
                   <td className="px-4 py-4"><StatusBadge status={post.status} /></td>
-                  <td className="px-4 py-4 text-xs tabular-nums text-[#657077]">{post.views.length}</td>
+                  <td className="px-4 py-4 text-xs tabular-nums text-[#657077]">{post.viewCount}</td>
                   <td className="px-4 py-4 text-xs text-[#7c868a]">{post.updatedAt.toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" })}</td>
                 </tr>
               ))}

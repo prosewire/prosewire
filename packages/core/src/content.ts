@@ -34,9 +34,33 @@ export function readingMinutes(markdown: string): number {
   return Math.max(1, Math.ceil(words / 225));
 }
 
-export async function renderMarkdown(markdown: string): Promise<string> {
-  const raw = await marked.parse(markdown, { gfm: true, breaks: false });
-  const clean = sanitizeHtml(raw, {
+export interface ContentHeading {
+  readonly level: 2 | 3;
+  readonly label: string;
+  readonly id: string;
+}
+
+function uniqueId(label: string, counts: Map<string, number>): string {
+  const base = slugify(label) || "section";
+  const count = (counts.get(base) ?? 0) + 1;
+  counts.set(base, count);
+  return count === 1 ? base : `${base}-${count}`;
+}
+
+export function contentHeadings(markdown: string): ReadonlyArray<ContentHeading> {
+  const counts = new Map<string, number>();
+  return (markdown.match(/^#{2,3}\s+.+$/gm) ?? []).map((heading) => {
+    const level = heading.startsWith("###") ? 3 : 2;
+    const label = plainText(heading.replace(/^#{2,3}\s+/, ""));
+    return { level, label, id: uniqueId(label, counts) };
+  });
+}
+
+export function sanitizeRenderedHtml(
+  html: string,
+  headings: ReadonlyArray<ContentHeading> = [],
+): string {
+  const clean = sanitizeHtml(html, {
     allowedTags,
     allowedAttributes: {
       ...sanitizeHtml.defaults.allowedAttributes,
@@ -62,10 +86,22 @@ export async function renderMarkdown(markdown: string): Promise<string> {
       }),
     },
   });
-  return clean.replace(/<h([23])>(.*?)<\/h\1>/g, (_match, level: string, inner: string) => {
-    const label = inner.replace(/<[^>]+>/g, "");
-    return `<h${level} id="${slugify(label)}">${inner}</h${level}>`;
-  });
+  const counts = new Map<string, number>();
+  let headingIndex = 0;
+  return clean.replace(
+    /<h([23])(?:\s[^>]*)?>(.*?)<\/h\1>/g,
+    (_match, level: string, inner: string) => {
+      const configuredId = headings[headingIndex]?.id;
+      headingIndex += 1;
+      const label = inner.replace(/<[^>]+>/g, "");
+      return `<h${level} id="${configuredId ?? uniqueId(label, counts)}">${inner}</h${level}>`;
+    },
+  );
+}
+
+export async function renderMarkdown(markdown: string): Promise<string> {
+  const raw = await marked.parse(markdown, { gfm: true, breaks: false });
+  return sanitizeRenderedHtml(raw, contentHeadings(markdown));
 }
 
 export function plainText(markdown: string): string {

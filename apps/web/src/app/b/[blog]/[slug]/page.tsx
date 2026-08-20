@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { ArrowLeft, ArrowRight, CalendarDays, Clock3 } from "lucide-react";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
-import { readingMinutes, slugify } from "@prosewire/core";
+import { contentHeadings, readingMinutes } from "@prosewire/core";
 import { PublicHeader } from "@/components/public-header";
 import { ReadingProgress } from "@/components/public-progress";
 import { loadPublicPost, loadPublicRedirect } from "@/server/page-entrypoints";
@@ -26,7 +26,7 @@ export default async function PublicPostPage({ params }: { params: Promise<{ blo
   }
   const { blog, post, allPosts, publicUrl } = result;
   const related = allPosts.filter((item) => item.id !== post.id && item.categories.some((entry) => post.categories.some((own) => own.categoryId === entry.categoryId))).slice(0, 2);
-  const headings = (post.contentMarkdown.match(/^#{2,3}\s+.+$/gm) ?? []).map((heading) => ({ level: heading.startsWith('###') ? 3 : 2, label: heading.replace(/^#{2,3}\s+/, ''), id: slugify(heading.replace(/^#{2,3}\s+/, '')) }));
+  const headings = contentHeadings(post.contentMarkdown);
   const canonical = post.canonicalUrl ?? (blog.publicUrl ? `${blog.publicUrl}/${post.slug}` : `${publicUrl}/b/${blog.slug}/${post.slug}`);
   const jsonLd = { "@context": "https://schema.org", "@type": "BlogPosting", headline: post.title, description: post.excerpt, datePublished: post.publishedAt?.toISOString(), dateModified: post.updatedAt.toISOString(), mainEntityOfPage: canonical, author: { "@type": "Person", name: post.author.name, description: post.author.bio }, publisher: { "@type": "Organization", name: blog.name } };
   return (
@@ -50,7 +50,7 @@ export default async function PublicPostPage({ params }: { params: Promise<{ blo
           <div><div className="pw-prose" dangerouslySetInnerHTML={{ __html: post.contentHtml }} /><div className="mt-14 rounded-2xl border border-black/10 bg-[#efeee7] p-6"><p className="text-[10px] font-bold uppercase tracking-[.15em] text-[var(--blog-accent)]">About the author</p><div className="mt-4 flex gap-4"><div className="grid size-12 shrink-0 place-items-center rounded-full bg-[#172329] text-sm font-bold text-white">{post.author.name.split(' ').map((part) => part[0]).join('').slice(0, 2)}</div><div><h2 className="text-sm font-semibold">{post.author.name}</h2><p className="mt-1 text-xs font-medium text-[#ef6848]">{post.author.jobTitle}</p><p className="mt-3 text-sm leading-6 text-[#687279]">{post.author.bio}</p><p className="mt-2 text-[10px] text-[#8a9397]">{post.author.credentials}</p></div></div></div></div>
         </div>
       </article>
-      {related.length ? <section className="border-t border-black/10 bg-[#efeee7]"><div className="mx-auto max-w-6xl px-5 py-14"><p className="text-[10px] font-bold uppercase tracking-[.16em] text-[var(--blog-accent)]">Keep reading</p><h2 className="display-font mt-2 text-3xl">Related fieldnotes</h2><div className="mt-7 grid gap-4 md:grid-cols-2">{related.map((item) => <Link key={item.id} href={`/b/${blog.slug}/${item.slug}`} className="group rounded-2xl border border-black/10 bg-white p-6"><h3 className="display-font text-2xl leading-tight">{item.title}</h3><p className="mt-3 text-sm leading-6 text-[#687279]">{item.excerpt}</p><span className="mt-5 inline-flex items-center gap-2 text-xs font-semibold text-[var(--blog-accent)]">Read story <ArrowRight className="size-3.5 transition group-hover:translate-x-1" /></span></Link>)}</div></div></section> : null}
+      {related.length ? <section className="border-t border-black/10 bg-[#efeee7]"><div className="mx-auto max-w-6xl px-5 py-14"><p className="text-[10px] font-bold uppercase tracking-[.16em] text-[var(--blog-accent)]">Keep reading</p><h2 className="display-font mt-2 text-3xl">More from {blog.name}</h2><div className="mt-7 grid gap-4 md:grid-cols-2">{related.map((item) => <Link key={item.id} href={`/b/${blog.slug}/${item.slug}`} className="group rounded-2xl border border-black/10 bg-white p-6"><h3 className="display-font text-2xl leading-tight">{item.title}</h3><p className="mt-3 text-sm leading-6 text-[#687279]">{item.excerpt}</p><span className="mt-5 inline-flex items-center gap-2 text-xs font-semibold text-[var(--blog-accent)]">Read story <ArrowRight className="size-3.5 transition group-hover:translate-x-1" /></span></Link>)}</div></div></section> : null}
     </main>
   );
 }

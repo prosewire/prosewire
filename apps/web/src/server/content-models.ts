@@ -1,4 +1,5 @@
 import { Schema } from "effect";
+import { contentHeadings, sanitizeRenderedHtml } from "@prosewire/core";
 import type * as databaseSchema from "@prosewire/db/schema";
 import {
   ApiKeyId,
@@ -13,7 +14,6 @@ import {
   OrganizationSlug,
   PostId,
   PostRevisionId,
-  PostViewId,
   RedirectId,
   SnippetId,
   UserId,
@@ -109,14 +109,6 @@ export class PostCategory extends Schema.Class<PostCategory>(
   category: Category,
 }) {}
 
-export class PostView extends Schema.Class<PostView>("Content.PostView")({
-  id: PostViewId,
-  postId: PostId,
-  referrer: nullableString,
-  country: nullableString,
-  occurredAt: Schema.Date,
-}) {}
-
 export class PostRevision extends Schema.Class<PostRevision>(
   "Content.PostRevision",
 )({
@@ -160,7 +152,7 @@ export class DashboardPost extends Schema.Class<DashboardPost>(
   ...postFields,
   author: Author,
   categories: Schema.Array(PostCategory),
-  views: Schema.Array(PostView),
+  viewCount: Schema.Number,
 }) {}
 
 export class DashboardPostDetail extends Schema.Class<DashboardPostDetail>(
@@ -240,7 +232,6 @@ type PostRow = typeof databaseSchema.post.$inferSelect;
 type PostCategoryRow = typeof databaseSchema.postCategory.$inferSelect & {
   readonly category: CategoryRow;
 };
-type PostViewRow = typeof databaseSchema.postView.$inferSelect;
 type PostRevisionRow = typeof databaseSchema.postRevision.$inferSelect;
 
 export const toBlog = (row: BlogRow) =>
@@ -282,13 +273,6 @@ const toPostCategory = (row: PostCategoryRow) =>
     category: toCategory(row.category),
   });
 
-const toPostView = (row: PostViewRow) =>
-  new PostView({
-    ...row,
-    id: PostViewId.make(row.id),
-    postId: PostId.make(row.postId),
-  });
-
 const toPostRevision = (row: PostRevisionRow) =>
   new PostRevision({
     ...row,
@@ -310,14 +294,14 @@ export const toDashboardPost = (
   row: PostRow & {
     readonly author: AuthorRow;
     readonly categories: ReadonlyArray<PostCategoryRow>;
-    readonly views: ReadonlyArray<PostViewRow>;
   },
+  viewCount: number,
 ) =>
   new DashboardPost({
     ...postValues(row),
     author: toAuthor(row.author),
     categories: row.categories.map(toPostCategory),
-    views: row.views.map(toPostView),
+    viewCount,
   });
 
 export const toDashboardPostDetail = (
@@ -342,6 +326,10 @@ export const toPublicPost = (
 ) =>
   new PublicPost({
     ...postValues(row),
+    contentHtml: sanitizeRenderedHtml(
+      row.contentHtml,
+      contentHeadings(row.contentMarkdown),
+    ),
     author: toAuthor(row.author),
     categories: row.categories.map(toPostCategory),
   });

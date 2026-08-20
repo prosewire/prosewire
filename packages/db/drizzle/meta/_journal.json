@@ -36,6 +36,20 @@
       "when": 1787197644035,
       "tag": "0004_dear_lizard",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1787206251829,
+      "tag": "0005_groovy_brother_voodoo",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787207345595,
+      "tag": "0006_fixed_doorman",
+      "breakpoints": true
     }
   ]
 }

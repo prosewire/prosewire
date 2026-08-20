@@ -83,6 +83,80 @@ describe("Prosewire CLI", () => {
         "post.json",
       ]),
     ).rejects.toThrow("--key or PROSEWIRE_API_KEY is required");
+
+    await expect(
+      createProgram({ env: {}, readFile: vi.fn() }).parseAsync([
+        "node",
+        "prosewire",
+        "update",
+        "11111111-1111-4111-8111-111111111111",
+        "--data",
+        "post.json",
+      ]),
+    ).rejects.toThrow("--key or PROSEWIRE_API_KEY is required");
+
+    await expect(
+      createProgram({ env: {}, readFile: vi.fn() }).parseAsync([
+        "node",
+        "prosewire",
+        "archive",
+        "11111111-1111-4111-8111-111111111111",
+        "--yes",
+      ]),
+    ).rejects.toThrow("--key or PROSEWIRE_API_KEY is required");
+  });
+
+  it("requires a publication for public reads", async () => {
+    await expect(
+      createProgram({ env: {} }).parseAsync(["node", "prosewire", "posts"]),
+    ).rejects.toThrow("--blog or PROSEWIRE_BLOG is required");
+    await expect(
+      createProgram({ env: {} }).parseAsync([
+        "node",
+        "prosewire",
+        "get",
+        "post",
+      ]),
+    ).rejects.toThrow("--blog or PROSEWIRE_BLOG is required");
+  });
+
+  it("updates and explicitly archives posts through the private API", async () => {
+    const update = vi.fn().mockResolvedValue({ id: "post-id", title: "Updated" });
+    const archive = vi.fn().mockResolvedValue({ ok: true });
+    const createClient = vi.fn(
+      () => ({ posts: { update, archive } }) as unknown as Client,
+    );
+    const output = vi.fn();
+    const readFile = vi.fn().mockResolvedValue('{"title":"Updated"}');
+    const program = createProgram({ createClient, readFile, output, env: {} });
+
+    await program.parseAsync([
+      "node",
+      "prosewire",
+      "--key",
+      "pw_test",
+      "update",
+      "11111111-1111-4111-8111-111111111111",
+      "--data",
+      "changes.json",
+    ]);
+    await program.parseAsync([
+      "node",
+      "prosewire",
+      "--key",
+      "pw_test",
+      "archive",
+      "11111111-1111-4111-8111-111111111111",
+      "--yes",
+    ]);
+
+    expect(update).toHaveBeenCalledWith({
+      params: { id: "11111111-1111-4111-8111-111111111111" },
+      body: { title: "Updated" },
+    });
+    expect(archive).toHaveBeenCalledWith({
+      params: { id: "11111111-1111-4111-8111-111111111111" },
+    });
   });
 
   it("writes JSON to stdout by default", async () => {

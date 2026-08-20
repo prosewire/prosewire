@@ -13,6 +13,7 @@ import {
 } from "./domain.ts";
 import { promiseEffect } from "./external-effect.ts";
 import { PublicContent } from "./public-content.ts";
+import type { PublicPostOptions } from "./content-queries.ts";
 import { SessionErrors } from "./session-errors.ts";
 
 const currentActor = Effect.fn("PageEntrypoints.currentActor")(function* () {
@@ -190,7 +191,7 @@ export function loadEditPost(id: string) {
 
 export function loadPublicBlog(
   slug: string,
-  options: { readonly search?: string; readonly category?: string } = {},
+  options: PublicPostOptions = {},
 ) {
   const parsed = parseBlogSlug(slug);
   if (Option.isNone(parsed)) return Promise.resolve(null);

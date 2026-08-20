@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { analyzeSeo } from "./seo.ts";
-import { createExcerpt, readingMinutes, slugify } from "./content.ts";
+import {
+  contentHeadings,
+  createExcerpt,
+  readingMinutes,
+  renderMarkdown,
+  sanitizeRenderedHtml,
+  slugify,
+} from "./content.ts";
 
 describe("content helpers", () => {
   it("creates stable clean slugs", () => {
@@ -13,6 +20,25 @@ describe("content helpers", () => {
 
   it("never reports a zero-minute article", () => {
     expect(readingMinutes("Tiny post")).toBe(1);
+  });
+
+  it("gives duplicate headings stable unique anchors", async () => {
+    const markdown = "## Repeat\n\n## Repeat\n\n### Repeat\n\n## Fish & Chips\n\n## Hello *world*";
+    expect(contentHeadings(markdown)).toEqual([
+      { level: 2, label: "Repeat", id: "repeat" },
+      { level: 2, label: "Repeat", id: "repeat-2" },
+      { level: 3, label: "Repeat", id: "repeat-3" },
+      { level: 2, label: "Fish & Chips", id: "fish-chips" },
+      { level: 2, label: "Hello world", id: "hello-world" },
+    ]);
+    expect(await renderMarkdown(markdown)).toContain('id="repeat-3"');
+    expect(await renderMarkdown(markdown)).toContain('id="fish-chips"');
+  });
+
+  it("sanitizes previously rendered HTML before public delivery", () => {
+    expect(sanitizeRenderedHtml('<p>Safe</p><script>alert("x")</script>')).toBe(
+      "<p>Safe</p>",
+    );
   });
 });
 

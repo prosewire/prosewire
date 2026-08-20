@@ -15,16 +15,16 @@
     "deploy:dry": "pnpm build && wrangler deploy --dry-run"
   },
   "dependencies": {
-    "@astrojs/markdown-remark": "^7.2.2",
-    "@astrojs/mdx": "^7.0.5",
+    "@astrojs/markdown-remark": "^7.2.3",
+    "@astrojs/mdx": "^7.0.6",
     "@astrojs/react": "^6.0.3",
     "@astrojs/sitemap": "^3.7.3",
     "@tailwindcss/vite": "^4.3.3",
-    "astro": "^7.1.6",
+    "astro": "^7.2.3",
     "fumadocs-core": "^16.14.5",
     "fumadocs-ui": "^16.14.5",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
@@ -33,6 +33,6 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "typescript": "^6.0.3",
-    "wrangler": "^4.118.0"
+    "wrangler": "^4.124.0"
   }
 }

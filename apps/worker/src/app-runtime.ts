@@ -1,19 +1,24 @@
 import { Layer, ManagedRuntime, type Effect } from "effect";
+import { AnalyticsRetention } from "./analytics-retention.ts";
 import { Publishing } from "./publishing.ts";
 import { PublishingRepository } from "./publishing-repository.ts";
 import { ShutdownSignal } from "./shutdown.ts";
 import { WorkerConfig } from "./worker-config.ts";
 
-const repositoryLayer = PublishingRepository.layer.pipe(
-  Layer.provideMerge(WorkerConfig.layer),
-);
+const configLayer = WorkerConfig.layer;
 
-const applicationLayer = Publishing.layer.pipe(
-  Layer.provideMerge(repositoryLayer),
-);
+const repositoryLayer = PublishingRepository.layer.pipe(Layer.provide(configLayer));
 
-const runtimeLayer = ShutdownSignal.layer.pipe(
-  Layer.provideMerge(applicationLayer),
+const retentionLayer = AnalyticsRetention.layer.pipe(Layer.provide(configLayer));
+
+const publishingLayer = Publishing.layer.pipe(Layer.provide(repositoryLayer));
+
+const runtimeLayer = Layer.mergeAll(
+  configLayer,
+  repositoryLayer,
+  retentionLayer,
+  publishingLayer,
+  ShutdownSignal.layer,
 );
 
 export const workerRuntime = ManagedRuntime.make(runtimeLayer);
@@ -22,6 +27,7 @@ export type WorkerServices =
   | WorkerConfig
   | PublishingRepository.Service
   | Publishing.Service
+  | AnalyticsRetention.Service
   | ShutdownSignal;
 
 export function runWorkerEffect<A, E>(

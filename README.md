@@ -51,7 +51,7 @@ The entire stack is portable and Apache-2.0 licensed. Run it locally, self-host 
 - **Discovery** — canonical URLs, automatic slug redirects, search, related posts, table of contents, RSS, XML sitemap, and JSON-LD
 - **Reader experience** — server-rendered blog and author pages, reading progress, view events, and custom CSS
 - **Integration surfaces** — JavaScript embed without an iframe, rendered HTML API, public JSON API, private oRPC/OpenAPI contract, TypeScript SDK, CLI, and MCP server
-- **Operations** — Better Auth sessions, scoped hashed API keys, audit records, CSV export, Postgres 17, Redis/BullMQ scheduling, and Docker Compose
+- **Operations** — Better Auth sessions, scoped hashed API keys, audit records, portable JSON and CSV exports, Postgres 17, Redis/BullMQ scheduling, and Docker Compose
 
 See [the feature coverage map](docs/feature-coverage.md) for detailed behavior and current coverage.
 
@@ -63,7 +63,6 @@ Requires Node.js 24+, pnpm 11+, and Docker.
 git clone https://github.com/prosewire/prosewire.git
 cd prosewire
 cp .env.example .env
-# Replace the BETTER_AUTH_SECRET and ADMIN_PASSWORD placeholders in .env.
 pnpm install
 docker compose up -d postgres redis
 pnpm dev
@@ -72,7 +71,7 @@ pnpm dev
 Open <http://localhost:3000>. The first boot runs the committed Drizzle migrations and seeds a local workspace.
 
 The first boot creates the administrator from `ADMIN_EMAIL` and `ADMIN_PASSWORD`.
-Both secrets are required and insecure placeholder values are rejected at startup.
+The example file contains local-only credentials so the documented sign-in works immediately. Replace the database password, authentication secret, email, and administrator password before using the configuration outside local development.
 
 To provision an initial API key, set `PROSEWIRE_SEED_API_KEY` to a unique value
 of at least 24 characters before the first boot. The stored key is hashed and
@@ -107,7 +106,7 @@ const content = createPublicClient({
   blog: "fieldnotes",
 });
 
-const posts = await content.listPosts({ limit: 10 });
+const posts = await content.listPosts({ page: 1, pageSize: 10 });
 const article = await content.getPost("shipping-with-confidence");
 ```
 
@@ -149,7 +148,7 @@ pnpm build
 4. Add a Changeset when public SDK, CLI, or MCP behavior changes.
 5. Open a pull request.
 
-Read [AGENTS.md](AGENTS.md) before making changes. Releases are never implicit.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md) before making changes. Releases are never implicit.
 
 ## License
 

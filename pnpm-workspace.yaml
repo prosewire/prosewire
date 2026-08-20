@@ -4,6 +4,9 @@ packages:
 
 engineStrict: false
 
+overrides:
+  "esbuild@<=0.24.2": 0.25.0
+
 allowBuilds:
   esbuild: true
   lefthook: true

@@ -17,6 +17,12 @@ order: 7
 
 Prosewire creates revisions before destructive content changes. Slugs are unique within a blog, and when a published slug changes, the old public URL redirects to the new canonical URL.
 
+Revision snapshots retain the editor and version for auditability. A dashboard history-and-restore interface is planned; today, restoring an archived post means changing its status through the editor or management API.
+
+## Portable exports
+
+The posts screen provides a versioned JSON export containing publication metadata, authors, categories, snippets, redirects, full posts, and revision snapshots. CSV remains available for spreadsheet interoperability.
+
 ## Discovery follows publication
 
 Search, RSS, sitemap, related-post, and structured-data surfaces follow the same public visibility rule: content must be published and its publication time must have arrived.

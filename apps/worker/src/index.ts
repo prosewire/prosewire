@@ -1,21 +1,25 @@
 import { Queue, Worker } from "bullmq";
-import { Effect, Redacted } from "effect";
+import { Clock, Effect, Redacted } from "effect";
 
 import {
   disposeWorkerRuntime,
   runWorkerEffect,
 } from "./app-runtime.ts";
 import { Publishing } from "./publishing.ts";
+import { AnalyticsRetention } from "./analytics-retention.ts";
 import { runUntilShutdown } from "./shutdown.ts";
 import { WorkerConfig } from "./worker-config.ts";
 import {
   connectionFromUrl,
+  analyticsRetentionJobTemplate,
+  publishingJobTemplate,
   waitForEmitterError,
   WorkerRuntimeError,
 } from "./worker-runtime.ts";
 
 const queueName = "prosewire-publishing";
 const jobName = "publish-scheduled";
+const analyticsJobName = "prune-analytics";
 
 const closeResource = (
   resource: "queue" | "worker",
@@ -36,6 +40,7 @@ const closeResource = (
 const runWorker = Effect.gen(function* () {
   const config = yield* WorkerConfig;
   const publishing = yield* Publishing.Service;
+  const analyticsRetention = yield* AnalyticsRetention.Service;
   const connection = yield* Effect.try({
     try: () => connectionFromUrl(new URL(Redacted.value(config.redisUrl))),
     catch: (cause) => new WorkerRuntimeError({ operation: "configure redis", cause }),
@@ -57,12 +62,18 @@ const runWorker = Effect.gen(function* () {
     waitForEmitterError(queue, "queue"),
     Effect.gen(function* () {
       yield* Effect.tryPromise({
-        try: () =>
+        try: () => Promise.all([
           queue.upsertJobScheduler(
             "publish-scheduled-posts",
             { every: 30_000 },
-            { name: jobName, data: {} },
+            publishingJobTemplate(),
           ),
+          queue.upsertJobScheduler(
+            "prune-analytics-events",
+            { every: 86_400_000 },
+            analyticsRetentionJobTemplate(),
+          ),
+        ]),
         catch: (cause) =>
           new WorkerRuntimeError({
             operation: "schedule publishing job",
@@ -78,6 +89,16 @@ const runWorker = Effect.gen(function* () {
               (job) =>
                 job.name === jobName
                   ? runWorkerEffect(publishing.publishScheduled())
+                  : job.name === analyticsJobName
+                    ? runWorkerEffect(
+                        Effect.gen(function* () {
+                          const now = new Date(yield* Clock.currentTimeMillis);
+                          const deleted = yield* analyticsRetention.pruneExpired(now);
+                          yield* Effect.logInfo(
+                            `Pruned ${deleted} expired analytics event(s)`,
+                          );
+                        }),
+                      )
                   : Promise.resolve(),
               { connection },
             ),

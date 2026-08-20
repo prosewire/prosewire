@@ -17,6 +17,8 @@ NEXT_PUBLIC_PROSEWIRE_PUBLIC_URL=https://publish.example.com
 
 The public URL must be the external HTTPS origin seen by browsers. The web and worker must use the same Postgres and Redis services.
 
+`PROSEWIRE_ANALYTICS_RETENTION_DAYS` controls raw page-view retention and defaults to 365. The worker deletes older events daily.
+
 ## Account bootstrap and email
 
 ```dotenv

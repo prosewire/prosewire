@@ -28,13 +28,13 @@ Prosewire therefore treats self-hosting, bulk operations, portable content, and 
 | Multiple workspaces and publications | Implemented with explicit dashboard selectors and isolated public/integration surfaces |
 | Multiple users and authors | Workspace membership, email invitations, and publication-specific public authors implemented |
 | Fixed and granular roles | Owner, admin, editor, author, and viewer enforced at dashboard and API mutation boundaries |
-| Version history and user revision tracking | Implemented |
+| Version history and user revision tracking | Revision snapshots and actor tracking implemented; history/restore UI planned |
 | Audit log | Implemented for workspace, membership, publication, content, scheduler, and API-key mutations with dashboard visibility |
 | Link monitoring | Planned |
 | Offsite backups | Deployment concern; documented database ownership, automation planned |
 | SSO | Planned adapter |
 | Two-factor authentication | Better Auth foundation present; 2FA plugin planned |
-| CSV export | Implemented |
+| Portable export | Versioned JSON with revisions and relationships, plus CSV |
 | White-glove migration | Not applicable to the OSS core; import tools are planned |
 | Staging environment | Supported through separate instances; dashboard workflow planned |
 | AI topic planning | Planned as an optional provider integration |
@@ -57,7 +57,7 @@ Prosewire therefore treats self-hosting, bulk operations, portable content, and 
 | Localization | Per-blog and per-post locale implemented; translation UI planned |
 | Rich copy/paste | Plain Markdown editor today; structured paste pipeline planned |
 | Template inheritance and custom CSS | Implemented through semantic classes and scoped CSS |
-| Shopify / WordPress / CSV imports | Planned; CSV export is implemented |
+| Shopify / WordPress / CSV imports | Planned; portable JSON and CSV exports are implemented |
 | Zapier automation | REST API supports automation; packaged Zapier app planned |
 | SDK, MCP, rendered API, raw API | Implemented |
 | Bulk post operations | Bulk archive implemented; more bulk fields planned |

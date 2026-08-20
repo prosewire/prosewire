@@ -8,11 +8,12 @@ import { BlogSlug, PostId, UserId } from "./domain.ts";
 import { promiseEffect } from "./external-effect.ts";
 import { PostExport } from "./post-export.ts";
 import { PublicContent } from "./public-content.ts";
-import { serializePublicPost } from "./serialize.ts";
+import { serializePublicBlog, serializePublicPost } from "./serialize.ts";
 import { SessionErrors } from "./session-errors.ts";
 
 const ViewEvent = Schema.Struct({
   postId: Schema.String.check(Schema.isUUID()),
+  eventId: Schema.String.check(Schema.isUUID()),
   referrer: Schema.optional(Schema.String.check(Schema.isMaxLength(1000))),
 });
 
@@ -20,6 +21,49 @@ const parseBlogSlug = (value: string) =>
   Schema.decodeUnknownOption(BlogSlug)(value);
 
 const json = (value: unknown, init?: ResponseInit) => Response.json(value, init);
+
+type BoundedJson =
+  | { readonly type: "value"; readonly value: unknown }
+  | { readonly type: "invalid" }
+  | { readonly type: "too-large" };
+
+async function readBoundedJson(request: Request, maxBytes: number): Promise<BoundedJson> {
+  const declaredLength = Number(request.headers.get("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+    return { type: "too-large" };
+  }
+  if (!request.body) return { type: "invalid" };
+
+  const reader = request.body.getReader();
+  const chunks: Array<Uint8Array> = [];
+  let length = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      length += value.byteLength;
+      if (length > maxBytes) {
+        await reader.cancel();
+        return { type: "too-large" };
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const body = new Uint8Array(length);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try {
+    return { type: "value", value: JSON.parse(new TextDecoder().decode(body)) };
+  } catch {
+    return { type: "invalid" };
+  }
+}
 
 function escapeHtml(value: string): string {
   return value.replace(
@@ -87,8 +131,14 @@ export function authPost(request: Request): Promise<Response> {
 }
 
 export async function recordView(request: Request): Promise<Response> {
-  const body = (await request.json().catch(() => undefined)) as unknown;
-  const parsed = Schema.decodeUnknownOption(ViewEvent)(body);
+  const body = await readBoundedJson(request, 2_048);
+  if (body.type === "too-large") {
+    return json({ error: "Event too large" }, { status: 413 });
+  }
+  if (body.type === "invalid") {
+    return json({ error: "Invalid event" }, { status: 400 });
+  }
+  const parsed = Schema.decodeUnknownOption(ViewEvent)(body.value);
   if (Option.isNone(parsed)) {
     return json({ error: "Invalid event" }, { status: 400 });
   }
@@ -97,9 +147,16 @@ export async function recordView(request: Request): Promise<Response> {
       content
         .recordView(
           PostId.make(parsed.value.postId),
+          parsed.value.eventId,
           parsed.value.referrer ?? null,
         )
-        .pipe(Effect.as(new Response(null, { status: 204 }))),
+        .pipe(
+          Effect.map((accepted) =>
+            accepted
+              ? new Response(null, { status: 204 })
+              : json({ error: "Post not found" }, { status: 404 }),
+          ),
+        ),
     ),
     request.signal,
   );
@@ -118,12 +175,13 @@ export async function exportPosts(
       Effect.gen(function* () {
         const session = yield* requireSessionWithHeadersEffect(request.headers);
         const service = yield* PostExport.Service;
-        return yield* service.csv(
-          new PostExport.Input({
-            blogSlug: slug.value,
-            actorId: UserId.make(session.user.id),
-          }),
-        );
+        const input = new PostExport.Input({
+          blogSlug: slug.value,
+          actorId: UserId.make(session.user.id),
+        });
+        return yield* (new URL(request.url).searchParams.get("format") === "json"
+          ? service.portable(input)
+          : service.csv(input));
       }),
     ),
     request.signal,
@@ -159,31 +217,46 @@ export async function listPublicPosts(
     return json({ error: "Blog not found" }, { status: 404 });
   }
   const query = new URL(request.url).searchParams;
-  const requestedLimit = Number(query.get("limit") ?? 50);
+  const requestedPageSize = Number(
+    query.get("pageSize") ?? query.get("limit") ?? 50,
+  );
+  const requestedPage = Number(query.get("page") ?? 1);
   const search = query.get("search");
   const category = query.get("category");
-  const limit = Number.isFinite(requestedLimit)
-    ? Math.max(1, Math.min(requestedLimit, 100))
+  const pageSize = Number.isFinite(requestedPageSize)
+    ? Math.max(1, Math.min(Math.trunc(requestedPageSize), 100))
     : 50;
+  const page = Number.isFinite(requestedPage)
+    ? Math.max(1, Math.trunc(requestedPage))
+    : 1;
   const result = await runAppEffect(
     Effect.flatMap(PublicContent.Service, (content) =>
       content.blog(slug.value, {
         ...(search === null ? {} : { search }),
         ...(category === null ? {} : { category }),
-        limit,
+        limit: pageSize + 1,
+        offset: (page - 1) * pageSize,
       }),
     ),
     request.signal,
   );
   if (!result) return json({ error: "Blog not found" }, { status: 404 });
+  const hasMore = result.posts.length > pageSize;
   return json(
     {
-      blog: {
-        ...result.blog,
-        createdAt: result.blog.createdAt.toISOString(),
-        updatedAt: result.blog.updatedAt.toISOString(),
+      blog: serializePublicBlog(result.blog),
+      posts: result.posts.slice(0, pageSize).map(serializePublicPost),
+      categories: result.categories.map((category) => ({
+        id: category.id,
+        name: category.name,
+        slug: category.slug,
+        description: category.description,
+      })),
+      pagination: {
+        page,
+        pageSize,
+        hasMore,
       },
-      posts: result.posts.map(serializePublicPost),
     },
     { headers: publicHeaders() },
   );
@@ -226,11 +299,7 @@ export async function getPublicPost(
   }
   return json(
     {
-      blog: {
-        ...result.blog,
-        createdAt: result.blog.createdAt.toISOString(),
-        updatedAt: result.blog.updatedAt.toISOString(),
-      },
+      blog: serializePublicBlog(result.blog),
       post: serializePublicPost(result.post),
     },
     { headers: publicHeaders() },
@@ -310,12 +379,15 @@ export async function getRenderedContent(
 async function loadFeed(
   request: Request,
   context: { readonly params: Promise<{ readonly blog: string }> },
+  options: { readonly allPosts?: boolean } = {},
 ) {
   const { blog: rawBlog } = await context.params;
   const slug = parseBlogSlug(rawBlog);
   if (Option.isNone(slug)) return null;
   const result = await runAppEffect(
-    Effect.flatMap(PublicContent.Service, (content) => content.blog(slug.value)),
+    Effect.flatMap(PublicContent.Service, (content) =>
+      content.blog(slug.value, options.allPosts ? { limit: null } : {}),
+    ),
     request.signal,
   );
   return result ? { ...result, origin: new URL(request.url).origin } : null;
@@ -327,14 +399,21 @@ export async function getRss(
 ): Promise<Response> {
   const result = await loadFeed(request, context);
   if (!result) return new Response("Not found", { status: 404 });
+  const blogUrl = new URL(
+    `/b/${encodeURIComponent(result.blog.slug)}`,
+    result.origin,
+  ).toString();
   const items = result.posts
-    .map(
-      (post) =>
-        `<item><title>${escapeXml(post.title)}</title><link>${result.origin}/b/${result.blog.slug}/${post.slug}</link><guid>${result.origin}/b/${result.blog.slug}/${post.slug}</guid><description>${escapeXml(post.excerpt)}</description><pubDate>${post.publishedAt?.toUTCString() ?? ""}</pubDate><author>${escapeXml(post.author.name)}</author></item>`,
-    )
+    .map((post) => {
+      const postUrl = new URL(
+        `/b/${encodeURIComponent(result.blog.slug)}/${encodeURIComponent(post.slug)}`,
+        result.origin,
+      ).toString();
+      return `<item><title>${escapeXml(post.title)}</title><link>${escapeXml(postUrl)}</link><guid>${escapeXml(postUrl)}</guid><description>${escapeXml(post.excerpt)}</description><pubDate>${post.publishedAt?.toUTCString() ?? ""}</pubDate><author>${escapeXml(post.author.name)}</author></item>`;
+    })
     .join("");
   return new Response(
-    `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>${escapeXml(result.blog.name)}</title><link>${result.origin}/b/${result.blog.slug}</link><description>${escapeXml(result.blog.description)}</description>${items}</channel></rss>`,
+    `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>${escapeXml(result.blog.name)}</title><link>${escapeXml(blogUrl)}</link><description>${escapeXml(result.blog.description)}</description>${items}</channel></rss>`,
     { headers: feedHeaders("application/rss+xml; charset=utf-8") },
   );
 }
@@ -343,14 +422,21 @@ export async function getSitemap(
   request: Request,
   context: { readonly params: Promise<{ readonly blog: string }> },
 ): Promise<Response> {
-  const result = await loadFeed(request, context);
+  const result = await loadFeed(request, context, { allPosts: true });
   if (!result) return new Response("Not found", { status: 404 });
+  const blogUrl = new URL(
+    `/b/${encodeURIComponent(result.blog.slug)}`,
+    result.origin,
+  ).toString();
   const urls = [
-    `<url><loc>${result.origin}/b/${result.blog.slug}</loc><lastmod>${result.blog.updatedAt.toISOString()}</lastmod></url>`,
-    ...result.posts.map(
-      (post) =>
-        `<url><loc>${result.origin}/b/${result.blog.slug}/${post.slug}</loc><lastmod>${post.updatedAt.toISOString()}</lastmod></url>`,
-    ),
+    `<url><loc>${escapeXml(blogUrl)}</loc><lastmod>${result.blog.updatedAt.toISOString()}</lastmod></url>`,
+    ...result.posts.map((post) => {
+      const postUrl = new URL(
+        `/b/${encodeURIComponent(result.blog.slug)}/${encodeURIComponent(post.slug)}`,
+        result.origin,
+      ).toString();
+      return `<url><loc>${escapeXml(postUrl)}</loc><lastmod>${post.updatedAt.toISOString()}</lastmod></url>`;
+    }),
   ].join("");
   return new Response(
     `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`,

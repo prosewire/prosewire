@@ -19,7 +19,7 @@ const content = createPublicClient({
 ## List and retrieve posts
 
 ```typescript
-const posts = await content.listPosts({ limit: 10 });
+const posts = await content.listPosts({ page: 1, pageSize: 10 });
 const article = await content.getPost("shipping-with-confidence");
 ```
 
@@ -31,4 +31,4 @@ Public queries only return published content whose publication time has arrived.
 - Canonical slug and publication timestamps
 - Authors and categories
 - Locale and search metadata
-- Related posts and reading time
+- Reading time and page metadata

@@ -47,7 +47,12 @@ export const postOutput = z.object({
 const postMutableFields = {
   authorId: z.string().uuid(),
   title: z.string().trim().min(1).max(180),
-  slug: z.string().trim().min(1).max(120),
+  slug: z
+    .string()
+    .trim()
+    .min(1)
+    .max(120)
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use a lowercase URL slug"),
   excerpt: z.string().max(500),
   contentMarkdown: z.string(),
   coverImageUrl: z.url().nullable(),

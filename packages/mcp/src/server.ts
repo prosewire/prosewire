@@ -1,4 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { postCreateInput, postUpdateInput } from "@prosewire/contract/schemas";
 import { z } from "zod";
 import type { Client } from "@prosewire/sdk";
 
@@ -53,6 +54,35 @@ export function createProsewireMcpServer(client: Client, version = "0.1.0"): Mcp
     },
     async ({ id }) => ({
       content: [{ type: "text", text: JSON.stringify(await client.posts.get({ params: { id } }), null, 2) }],
+    }),
+  );
+
+  server.registerTool(
+    "posts_create",
+    {
+      title: "Create post",
+      description: "Create a post (mutating — confirm with the user first).",
+      inputSchema: postCreateInput.shape,
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+    },
+    async (body) => ({
+      content: [{ type: "text", text: JSON.stringify(await client.posts.create(body), null, 2) }],
+    }),
+  );
+
+  server.registerTool(
+    "posts_update",
+    {
+      title: "Update post",
+      description: "Update a post (mutating — confirm with the user first).",
+      inputSchema: {
+        id: z.uuid(),
+        body: postUpdateInput,
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+    },
+    async ({ id, body }) => ({
+      content: [{ type: "text", text: JSON.stringify(await client.posts.update({ params: { id }, body }), null, 2) }],
     }),
   );
 

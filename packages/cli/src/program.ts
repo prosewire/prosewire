@@ -89,5 +89,36 @@ export function createProgram(
       );
     });
 
+  program
+    .command("update <id>")
+    .description("Update a post from a JSON file")
+    .requiredOption("--data <file>", "Path to JSON request body")
+    .action(async (id: string, options: { data: string }) => {
+      const root = program.opts<{ url: string; key?: string }>();
+      if (!root.key) throw new Error("--key or PROSEWIRE_API_KEY is required");
+      const body = JSON.parse(
+        await dependencies.readFile(options.data, "utf8"),
+      ) as Parameters<ReturnType<typeof createClient>["posts"]["update"]>[0]["body"];
+      dependencies.output(
+        await dependencies
+          .createClient({ baseUrl: root.url, apiKey: root.key })
+          .posts.update({ params: { id }, body }),
+      );
+    });
+
+  program
+    .command("archive <id>")
+    .description("Archive a post")
+    .requiredOption("--yes", "Confirm the archive operation")
+    .action(async (id: string) => {
+      const root = program.opts<{ url: string; key?: string }>();
+      if (!root.key) throw new Error("--key or PROSEWIRE_API_KEY is required");
+      dependencies.output(
+        await dependencies
+          .createClient({ baseUrl: root.url, apiKey: root.key })
+          .posts.archive({ params: { id } }),
+      );
+    });
+
   return program;
 }

@@ -49,12 +49,13 @@ describe("Prosewire SDK", () => {
     const listing = await client.listPosts({
       search: "portable content",
       category: "engineering",
-      limit: 12,
-    }) as { url: string };
+      page: 2,
+      pageSize: 12,
+    }) as unknown as { url: string };
     expect(listing.url).toContain(
-      "/api/public/field%20notes/posts?search=portable+content&category=engineering&limit=12",
+      "/api/public/field%20notes/posts?search=portable+content&category=engineering&page=2&pageSize=12",
     );
-    const post = await client.getPost("a/b") as { url: string };
+    const post = await client.getPost("a/b") as unknown as { url: string };
     expect(post.url).toBe(
       "https://content.example/api/public/field%20notes/posts/a%2Fb",
     );

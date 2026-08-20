@@ -15,4 +15,17 @@ describe("POST /api/events/view", () => {
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({ error: "Invalid event" });
   });
+
+  it("rejects an oversized body even without a content-length header", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/events/view", {
+        method: "POST",
+        body: JSON.stringify({ padding: "x".repeat(2_048) }),
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    expect(response.status).toBe(413);
+    await expect(response.json()).resolves.toEqual({ error: "Event too large" });
+  });
 });

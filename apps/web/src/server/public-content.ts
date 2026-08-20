@@ -14,8 +14,14 @@ export const create = Effect.fn("PublicContent.create")(function* () {
     ) {
       const blog = yield* content.getPublicBlog(slug);
       if (!blog) return null;
-      const posts = yield* content.getPublicPosts(blog.id, options);
-      return { blog, posts };
+      const { posts, categories } = yield* Effect.all(
+        {
+          posts: content.getPublicPosts(blog.id, options),
+          categories: content.getCategories(blog.id),
+        },
+        { concurrency: "unbounded" },
+      );
+      return { blog, posts, categories };
     }),
     post: Effect.fn("PublicContent.post")(function* (
       blogSlug: BlogSlug,
@@ -46,13 +52,14 @@ export const create = Effect.fn("PublicContent.create")(function* () {
       const blogId = blog.id;
       const author = yield* content.getPublicAuthor(blogId, authorSlug);
       if (!author) return null;
-      const posts = (yield* content.getPublicPosts(blogId)).filter(
-        (post) => post.authorId === author.id,
-      );
+      const posts = yield* content.getPublicPosts(blogId, {
+        authorId: author.id,
+        limit: null,
+      });
       return { blog, author, posts };
     }),
-    recordView: Effect.fn("PublicContent.recordView")((postId: PostId, referrer: string | null) =>
-      content.recordPostView(postId, referrer),
+    recordView: Effect.fn("PublicContent.recordView")((postId: PostId, eventId: string, referrer: string | null) =>
+      content.recordPostView(postId, eventId, referrer),
     ),
   };
 });

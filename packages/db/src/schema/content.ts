@@ -1,6 +1,7 @@
 import { relations, sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   index,
   integer,
   jsonb,
@@ -103,9 +104,17 @@ export const post = pgTable(
   (table) => [
     uniqueIndex("post_blog_slug_unique").on(table.blogId, table.slug),
     index("post_blog_status_published_idx").on(table.blogId, table.status, table.publishedAt),
+    check(
+      "post_status_check",
+      sql`${table.status} in ('draft', 'scheduled', 'published', 'archived')`,
+    ),
+    check(
+      "post_status_timestamp_check",
+      sql`(${table.status} <> 'scheduled' or ${table.scheduledAt} is not null) and (${table.status} <> 'published' or ${table.publishedAt} is not null) and (${table.status} <> 'archived' or ${table.archivedAt} is not null)`,
+    ),
     index("post_search_idx").using(
       "gin",
-      sql`to_tsvector('english', ${table.title} || ' ' || ${table.excerpt} || ' ' || ${table.contentMarkdown})`,
+      sql`to_tsvector('simple', ${table.title} || ' ' || ${table.excerpt} || ' ' || ${table.contentMarkdown})`,
     ),
   ],
 );
@@ -153,7 +162,13 @@ export const redirect = pgTable(
     statusCode: integer("status_code").notNull().default(301),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [uniqueIndex("redirect_blog_path_unique").on(table.blogId, table.fromPath)],
+  (table) => [
+    uniqueIndex("redirect_blog_path_unique").on(table.blogId, table.fromPath),
+    check(
+      "redirect_status_code_check",
+      sql`${table.statusCode} in (301, 302, 307, 308)`,
+    ),
+  ],
 );
 
 export const snippet = pgTable(
@@ -218,6 +233,7 @@ export const postView = pgTable(
   "post_view",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    eventId: uuid("event_id").notNull().defaultRandom().unique(),
     postId: uuid("post_id")
       .notNull()
       .references(() => post.id, { onDelete: "cascade" }),

@@ -4,6 +4,8 @@ import { Effect, Fiber } from "effect";
 
 import {
   connectionFromUrl,
+  analyticsRetentionJobTemplate,
+  publishingJobTemplate,
   type ErrorEmitter,
   waitForEmitterError,
 } from "./worker-runtime.ts";
@@ -39,6 +41,30 @@ describe("worker runtime boundaries", () => {
       password: "p@ss",
       db: 3,
       tls: {},
+    });
+  });
+
+  it("bounds publishing retries and retained job history", () => {
+    expect(publishingJobTemplate()).toEqual({
+      name: "publish-scheduled",
+      data: {},
+      opts: {
+        attempts: 3,
+        backoff: { type: "exponential", delay: 5_000 },
+        removeOnComplete: { age: 86_400, count: 100 },
+        removeOnFail: { age: 604_800, count: 1_000 },
+      },
+    });
+  });
+
+  it("uses the same bounded policy for analytics retention", () => {
+    expect(analyticsRetentionJobTemplate()).toMatchObject({
+      name: "prune-analytics",
+      opts: {
+        attempts: 3,
+        removeOnComplete: { age: 86_400, count: 100 },
+        removeOnFail: { age: 604_800, count: 1_000 },
+      },
     });
   });
 });

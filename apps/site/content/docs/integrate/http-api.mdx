@@ -12,7 +12,7 @@ GET /api/public/:blog/posts
 GET /api/public/:blog/posts/:slug
 ```
 
-The public API supports pagination, search, author and category relationships, and canonical article lookup.
+The list endpoint accepts `page`, `pageSize` (maximum 100), `search`, and `category`. Its response includes `pagination.page`, `pagination.pageSize`, and `pagination.hasMore`, alongside author and category relationships. The legacy `limit` query parameter remains an alias for `pageSize`.
 
 ## Rendered HTML
 

@@ -8,6 +8,7 @@ export type BlogId = typeof BlogId.Type;
 export const BlogSlug = Schema.String.check(
   Schema.isMinLength(1),
   Schema.isMaxLength(200),
+  Schema.isPattern(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
 ).pipe(Schema.brand("@prosewire/BlogSlug"));
 export type BlogSlug = typeof BlogSlug.Type;
 
@@ -29,6 +30,7 @@ export type OrganizationId = typeof OrganizationId.Type;
 export const OrganizationSlug = Schema.String.check(
   Schema.isMinLength(1),
   Schema.isMaxLength(200),
+  Schema.isPattern(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
 ).pipe(Schema.brand("@prosewire/OrganizationSlug"));
 export type OrganizationSlug = typeof OrganizationSlug.Type;
 

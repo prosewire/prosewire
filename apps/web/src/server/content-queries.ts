@@ -4,6 +4,8 @@ import {
   count,
   desc,
   eq,
+  exists,
+  gte,
   ilike,
   isNotNull,
   lte,
@@ -37,13 +39,16 @@ import {
   OrganizationId,
   UserId,
   type BlogSlug,
+  type AuthorId,
   type PostId,
 } from "./domain.ts";
 
 export interface PublicPostOptions {
   readonly search?: string;
   readonly category?: string;
-  readonly limit?: number;
+  readonly authorId?: AuthorId;
+  readonly limit?: number | null;
+  readonly offset?: number;
 }
 
 export const create = Effect.fn("ContentQueries.create")(function* () {
@@ -78,26 +83,41 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
     blogId: BlogId,
     search?: string,
   ) {
-    const rows = yield* execute("post.listDashboard", (client) =>
-      client.query.post.findMany({
-        where: search?.trim()
-          ? and(
-              eq(schema.post.blogId, blogId),
-              or(
-                ilike(schema.post.title, `%${search.trim()}%`),
-                ilike(schema.post.excerpt, `%${search.trim()}%`),
-              ),
-            )
-          : eq(schema.post.blogId, blogId),
-        with: {
-          author: true,
-          categories: { with: { category: true } },
-          views: true,
-        },
-        orderBy: [desc(schema.post.updatedAt)],
-      }),
+    const { rows, viewCounts } = yield* Effect.all(
+      {
+        rows: execute("post.listDashboard", (client) =>
+          client.query.post.findMany({
+            where: search?.trim()
+              ? and(
+                  eq(schema.post.blogId, blogId),
+                  or(
+                    ilike(schema.post.title, `%${search.trim()}%`),
+                    ilike(schema.post.excerpt, `%${search.trim()}%`),
+                  ),
+                )
+              : eq(schema.post.blogId, blogId),
+            with: {
+              author: true,
+              categories: { with: { category: true } },
+            },
+            orderBy: [desc(schema.post.updatedAt)],
+          }),
+        ),
+        viewCounts: execute("post.listDashboardViewCounts", (client) =>
+          client
+            .select({ postId: schema.postView.postId, value: count() })
+            .from(schema.postView)
+            .innerJoin(schema.post, eq(schema.postView.postId, schema.post.id))
+            .where(eq(schema.post.blogId, blogId))
+            .groupBy(schema.postView.postId),
+        ),
+      },
+      { concurrency: "unbounded" },
     );
-    return rows.map(toDashboardPost);
+    const counts = new Map(
+      viewCounts.map((row) => [row.postId, Number(row.value)]),
+    );
+    return rows.map((row) => toDashboardPost(row, counts.get(row.id) ?? 0));
   });
 
   const getDashboardPost = Effect.fn("ContentQueries.getDashboardPost")(function* (
@@ -157,6 +177,7 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
   const getViewSeries = Effect.fn("ContentQueries.getViewSeries")(function* (
     blogId: BlogId,
   ) {
+    const since = new Date((yield* Clock.currentTimeMillis) - 14 * 86_400_000);
     const rows = yield* execute("metrics.viewSeries", (client) =>
       client
         .select({
@@ -165,7 +186,12 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
         })
         .from(schema.postView)
         .innerJoin(schema.post, eq(schema.postView.postId, schema.post.id))
-        .where(eq(schema.post.blogId, blogId))
+        .where(
+          and(
+            eq(schema.post.blogId, blogId),
+            gte(schema.postView.occurredAt, since),
+          ),
+        )
         .groupBy(sql`date_trunc('day', ${schema.postView.occurredAt})`)
         .orderBy(sql`date_trunc('day', ${schema.postView.occurredAt})`),
     );
@@ -224,12 +250,12 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
         const role = member.role === "member" ? "viewer" : member.role;
         return isTeamRole(role)
           ? [
-          new TeamMember({
-            ...member,
+              new TeamMember({
+                ...member,
                 id: MemberId.make(member.id),
                 userId: UserId.make(member.userId),
                 role,
-          }),
+              }),
             ]
           : [];
       }),
@@ -345,30 +371,50 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
     options: PublicPostOptions = {},
   ) {
     const now = new Date(yield* Clock.currentTimeMillis);
-    const filters = [
-      eq(schema.post.blogId, blogId),
-      eq(schema.post.status, "published"),
-      isNotNull(schema.post.publishedAt),
-      lte(schema.post.publishedAt, now),
-    ];
-    if (options.search?.trim()) {
-      filters.push(
-        sql<boolean>`to_tsvector('english', ${schema.post.title} || ' ' || ${schema.post.excerpt} || ' ' || ${schema.post.contentMarkdown}) @@ plainto_tsquery('english', ${options.search.trim()})`,
-      );
-    }
-    const rows = yield* execute("post.listPublic", (client) =>
-      client.query.post.findMany({
+    const rows = yield* execute("post.listPublic", (client) => {
+      const filters = [
+        eq(schema.post.blogId, blogId),
+        eq(schema.post.status, "published"),
+        isNotNull(schema.post.publishedAt),
+        lte(schema.post.publishedAt, now),
+      ];
+      if (options.search?.trim()) {
+        filters.push(
+          sql<boolean>`to_tsvector('simple', ${schema.post.title} || ' ' || ${schema.post.excerpt} || ' ' || ${schema.post.contentMarkdown}) @@ plainto_tsquery('simple', ${options.search.trim()})`,
+        );
+      }
+      if (options.authorId) {
+        filters.push(eq(schema.post.authorId, options.authorId));
+      }
+      if (options.category) {
+        filters.push(
+          exists(
+            client
+              .select({ id: schema.postCategory.postId })
+              .from(schema.postCategory)
+              .innerJoin(
+                schema.category,
+                eq(schema.postCategory.categoryId, schema.category.id),
+              )
+              .where(
+                and(
+                  eq(schema.postCategory.postId, schema.post.id),
+                  eq(schema.category.blogId, blogId),
+                  eq(schema.category.slug, options.category),
+                ),
+              ),
+          ),
+        );
+      }
+      return client.query.post.findMany({
         where: and(...filters),
         with: { author: true, categories: { with: { category: true } } },
         orderBy: [desc(schema.post.featured), desc(schema.post.publishedAt)],
-        limit: options.limit ?? 50,
-      }),
-    );
-    const posts = rows.map(toPublicPost);
-    if (!options.category) return posts;
-    return posts.filter((row) =>
-      row.categories.some((entry) => entry.category.slug === options.category),
-    );
+        ...(options.limit === null ? {} : { limit: options.limit ?? 50 }),
+        ...(options.offset === undefined ? {} : { offset: options.offset }),
+      });
+    });
+    return rows.map(toPublicPost);
   });
 
   const getPublicPost = Effect.fn("ContentQueries.getPublicPost")(function* (
@@ -407,10 +453,31 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
 
   const recordPostView = Effect.fn("ContentQueries.recordPostView")(function* (
     postId: PostId,
+    eventId: string,
     referrer: string | null,
   ) {
-    yield* execute("postView.create", (client) =>
-      client.insert(schema.postView).values({ postId, referrer }),
+    const now = new Date(yield* Clock.currentTimeMillis);
+    return yield* execute("postView.create", (client) =>
+      client.transaction(async (transaction) => {
+        const [publicPost] = await transaction
+          .select({ id: schema.post.id })
+          .from(schema.post)
+          .where(
+            and(
+              eq(schema.post.id, postId),
+              eq(schema.post.status, "published"),
+              isNotNull(schema.post.publishedAt),
+              lte(schema.post.publishedAt, now),
+            ),
+          )
+          .for("update");
+        if (!publicPost) return false;
+        await transaction
+          .insert(schema.postView)
+          .values({ postId, eventId, referrer })
+          .onConflictDoNothing({ target: schema.postView.eventId });
+        return true;
+      }),
     );
   });
 

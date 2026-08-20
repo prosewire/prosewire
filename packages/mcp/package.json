@@ -41,13 +41,17 @@
   },
   "devDependencies": {
     "@prosewire/config": "workspace:*",
+    "@prosewire/contract": "workspace:*",
     "@types/node": "^24.0.0",
     "eslint": "9.39.4",
     "tsdown": "^0.22.0",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.5"
+    "vitest": "^4.1.11"
   },
   "tsdown": {
-    "entry": ["src/index.ts", "src/server.ts"]
+    "entry": ["src/index.ts", "src/server.ts"],
+    "deps": {
+      "alwaysBundle": ["@prosewire/contract"]
+    }
   }
 }

@@ -31,6 +31,6 @@
     "drizzle-kit": "^0.31.10",
     "eslint": "9.39.4",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.5"
+    "vitest": "^4.1.11"
   }
 }
