@@ -1,13 +1,9 @@
 import { and, count, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { Context, Effect, Layer } from "effect";
 import * as schema from "@prosewire/db/schema";
+import { toApiPost } from "./api-content-models.ts";
 import { Database } from "./database.ts";
-import {
-  AuthorId,
-  BlogId,
-  CategoryId,
-  PostId,
-} from "./domain.ts";
+import { BlogId, type PostId } from "./domain.ts";
 import { PostErrors } from "./post-errors.ts";
 
 export interface PostListInput {
@@ -15,53 +11,6 @@ export interface PostListInput {
   readonly status?: "draft" | "scheduled" | "published" | "archived" | undefined;
   readonly page: number;
   readonly pageSize: number;
-}
-
-type PostWithRelations = typeof schema.post.$inferSelect & {
-  readonly author: typeof schema.author.$inferSelect;
-  readonly categories: ReadonlyArray<{
-    readonly category: typeof schema.category.$inferSelect;
-  }>;
-};
-
-function serializePost(row: PostWithRelations) {
-  return {
-    id: PostId.make(row.id),
-    blogId: BlogId.make(row.blogId),
-    title: row.title,
-    slug: row.slug,
-    excerpt: row.excerpt,
-    contentMarkdown: row.contentMarkdown,
-    contentHtml: row.contentHtml,
-    coverImageUrl: row.coverImageUrl,
-    coverImageAlt: row.coverImageAlt,
-    status: row.status,
-    locale: row.locale,
-    featured: row.featured,
-    seoTitle: row.seoTitle,
-    seoDescription: row.seoDescription,
-    focusKeyword: row.focusKeyword,
-    canonicalUrl: row.canonicalUrl,
-    publishedAt: row.publishedAt?.toISOString() ?? null,
-    scheduledAt: row.scheduledAt?.toISOString() ?? null,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-    author: {
-      id: AuthorId.make(row.author.id),
-      name: row.author.name,
-      slug: row.author.slug,
-      bio: row.author.bio,
-      avatarUrl: row.author.avatarUrl,
-      jobTitle: row.author.jobTitle,
-      credentials: row.author.credentials,
-    },
-    categories: row.categories.map(({ category }) => ({
-      id: CategoryId.make(category.id),
-      name: category.name,
-      slug: category.slug,
-      description: category.description,
-    })),
-  };
 }
 
 export const create = Effect.fn("ApiContent.create")(function* () {
@@ -117,7 +66,7 @@ export const create = Effect.fn("ApiContent.create")(function* () {
         { concurrency: "unbounded" },
       );
       return {
-        items: rows.map(serializePost),
+        items: rows.map(toApiPost),
         total: Number(totals[0]?.value ?? 0),
         page: input.page,
         pageSize: input.pageSize,
@@ -137,7 +86,7 @@ export const create = Effect.fn("ApiContent.create")(function* () {
         }),
       );
       if (!row) return yield* new PostErrors.PostNotFound({ postId });
-      return serializePost(row);
+      return toApiPost(row);
     }),
   };
 });

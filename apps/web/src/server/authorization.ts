@@ -9,12 +9,14 @@ import {
 } from "@prosewire/core";
 import * as schema from "@prosewire/db/schema";
 import {
-  Blog,
-  TeamRole,
-  Workspace,
   toBlog,
   toWorkspace,
 } from "./content-models.ts";
+import {
+  BlogAuthorization,
+  DashboardContext,
+  WorkspaceAuthorization,
+} from "./authorization-models.ts";
 import { Database, type DatabaseError } from "./database.ts";
 import {
   BlogId,
@@ -87,34 +89,11 @@ export class NoPublicationAvailable extends Schema.TaggedError<NoPublicationAvai
   }
 }
 
-export class WorkspaceAuthorization extends Schema.Class<WorkspaceAuthorization>(
-  "Authorization.WorkspaceAuthorization",
-)({
-  workspace: Workspace,
-  memberId: MemberId,
-  role: TeamRole,
-}) {}
-
-export class BlogAuthorization extends Schema.Class<BlogAuthorization>(
-  "Authorization.BlogAuthorization",
-)({
-  workspace: Workspace,
-  blog: Blog,
-  memberId: MemberId,
-  role: TeamRole,
-}) {}
-
-export class DashboardContext extends Schema.Class<DashboardContext>(
-  "Authorization.DashboardContext",
-)({
-  userId: UserId,
-  workspace: Workspace,
-  workspaces: Schema.Array(Workspace),
-  publication: Blog,
-  publications: Schema.Array(Blog),
-  memberId: MemberId,
-  role: TeamRole,
-}) {}
+export {
+  BlogAuthorization,
+  DashboardContext,
+  WorkspaceAuthorization,
+} from "./authorization-models.ts";
 
 export type Error =
   | DatabaseError

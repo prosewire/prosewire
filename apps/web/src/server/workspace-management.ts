@@ -1,11 +1,12 @@
 import { Buffer } from "node:buffer";
 import { and, eq, gt, sql } from "drizzle-orm";
-import { Clock, Context, Crypto, Effect, Layer, Schema } from "effect";
+import { Clock, Context, Crypto, Effect, Layer, Result, Schema } from "effect";
 import {
   isTeamRole,
   slugify,
   type TeamRole as CoreTeamRole,
 } from "@prosewire/core";
+import type { Db } from "@prosewire/db/client";
 import * as schema from "@prosewire/db/schema";
 import { BlogAccess } from "./authorization.ts";
 import {
@@ -24,6 +25,10 @@ import {
   UserId,
 } from "./domain.ts";
 import { TransactionalEmail } from "./transactional-email.ts";
+import {
+  lockBlogAuthorization,
+  lockWorkspaceAuthorization,
+} from "./transactional-access.ts";
 
 const EditableRole = Schema.Literals(["admin", "editor", "author", "viewer"]);
 type EditableRole = typeof EditableRole.Type;
@@ -213,6 +218,19 @@ export const create = Effect.fn("WorkspaceManagement.create")(function* () {
 
   const uuid = crypto.randomUUIDv4.pipe(Effect.orDie);
 
+  const executeResult = <A, E>(
+    operation: string,
+    evaluate: (client: Db) => PromiseLike<Result.Result<A, E>>,
+  ): Effect.Effect<A, DatabaseError | E> =>
+    database.execute(operation, evaluate).pipe(
+      Effect.flatMap(
+        Result.match({
+          onFailure: Effect.fail,
+          onSuccess: Effect.succeed,
+        }),
+      ),
+    );
+
   const invitationDetails = Effect.fn("WorkspaceManagement.invitationDetails")(
     function* (invitationId: InvitationId, emailAddress?: string) {
       const now = new Date(yield* Clock.currentTimeMillis);
@@ -340,7 +358,7 @@ export const create = Effect.fn("WorkspaceManagement.create")(function* () {
   const createPublication = Effect.fn(
     "WorkspaceManagement.createPublication",
   )(function* (input: CreatePublicationInput, actor: Actor) {
-    const authorization = yield* access.requirePublicationCreate(
+    yield* access.requirePublicationCreate(
       input.organizationId,
       actor.id,
     );
@@ -351,57 +369,91 @@ export const create = Effect.fn("WorkspaceManagement.create")(function* () {
       actor.email,
       "Author name",
     );
-    const created = yield* database.execute("publication.create", (client) =>
-      client.transaction(async (tx) => {
-        const [publication] = await tx
-          .insert(schema.blog)
-          .values({ organizationId: input.organizationId, name, slug })
-          .returning();
-        if (!publication) throw new Error("Unable to create publication");
-        await tx.insert(schema.author).values({
-          blogId: publication.id,
-          userId: actor.id,
-          name: actor.name,
-          slug: authorSlug,
-        });
-        await tx.insert(schema.auditLog).values({
-          organizationId: authorization.workspace.id,
-          blogId: publication.id,
-          actorId: actor.id,
-          action: "publication.created",
-          entityType: "publication",
-          entityId: publication.id,
-          after: { name, slug },
-        });
-        return publication;
-      }),
+    return yield* executeResult<BlogId, BlogAccess.WorkspaceAccessDenied>(
+      "publication.create",
+      (client) =>
+        client.transaction(async (tx) => {
+          const authorization = await lockWorkspaceAuthorization(
+            tx,
+            input.organizationId,
+            actor.id,
+            "publications:create",
+          );
+          if (!authorization) {
+            return Result.fail(
+              new BlogAccess.WorkspaceAccessDenied({
+                organizationId: input.organizationId,
+                userId: actor.id,
+                capability: "publications:create",
+              }),
+            );
+          }
+          const [publication] = await tx
+            .insert(schema.blog)
+            .values({ organizationId: input.organizationId, name, slug })
+            .returning();
+          if (!publication) throw new Error("Unable to create publication");
+          await tx.insert(schema.author).values({
+            blogId: publication.id,
+            userId: actor.id,
+            name: actor.name,
+            slug: authorSlug,
+          });
+          await tx.insert(schema.auditLog).values({
+            organizationId: authorization.workspace.id,
+            blogId: publication.id,
+            actorId: actor.id,
+            action: "publication.created",
+            entityType: "publication",
+            entityId: publication.id,
+            after: { name, slug },
+          });
+          return Result.succeed(BlogId.make(publication.id));
+        }),
     );
-    return BlogId.make(created.id);
   });
 
   const updateWorkspace = Effect.fn("WorkspaceManagement.updateWorkspace")(
     function* (input: UpdateWorkspaceInput, actor: Actor) {
-      const authorization = yield* access.requireWorkspaceUpdate(
+      yield* access.requireWorkspaceUpdate(
         input.organizationId,
         actor.id,
       );
       const name = yield* required(input.name, "Workspace name");
-      yield* database.execute("workspace.update", (client) =>
-        client.transaction(async (tx) => {
-          await tx
-            .update(schema.organization)
-            .set({ name })
-            .where(eq(schema.organization.id, input.organizationId));
-          await tx.insert(schema.auditLog).values({
-            organizationId: input.organizationId,
-            actorId: actor.id,
-            action: "workspace.updated",
-            entityType: "workspace",
-            entityId: input.organizationId,
-            before: { name: authorization.workspace.name },
-            after: { name },
-          });
-        }),
+      yield* executeResult<void, BlogAccess.WorkspaceAccessDenied>(
+        "workspace.update",
+        (client) =>
+          client.transaction(async (tx) => {
+            const authorization = await lockWorkspaceAuthorization(
+              tx,
+              input.organizationId,
+              actor.id,
+              "workspace:update",
+            );
+            if (!authorization) {
+              return Result.fail(
+                new BlogAccess.WorkspaceAccessDenied({
+                  organizationId: input.organizationId,
+                  userId: actor.id,
+                  capability: "workspace:update",
+                }),
+              );
+            }
+            await tx
+              .update(schema.organization)
+              .set({ name })
+              .where(eq(schema.organization.id, input.organizationId));
+            await tx.insert(schema.auditLog).values({
+              organizationId: input.organizationId,
+              actorId: actor.id,
+              action: "workspace.updated",
+              entityType: "workspace",
+              entityId: input.organizationId,
+              before: { name: authorization.workspace.name },
+              after: { name },
+            });
+            return Result.succeed(undefined);
+          }),
       );
     },
   );
@@ -420,43 +472,83 @@ export const create = Effect.fn("WorkspaceManagement.create")(function* () {
         });
       }
       const now = new Date(yield* Clock.currentTimeMillis);
-      const publication = yield* database.execute(
+      return yield* executeResult<
+        BlogId | undefined,
+        BlogAccess.WorkspaceAccessDenied
+      >(
         "workspace.switch",
         (client) =>
           client.transaction(async (tx) => {
+            const lockedAuthorization = await lockWorkspaceAuthorization(
+              tx,
+              organizationId,
+              actor.id,
+              "content:read",
+            );
+            if (!lockedAuthorization) {
+              return Result.fail(
+                new BlogAccess.WorkspaceAccessDenied({
+                  organizationId,
+                  userId: actor.id,
+                  capability: "content:read",
+                }),
+              );
+            }
             await tx
               .update(schema.session)
               .set({ activeOrganizationId: organizationId, updatedAt: now })
               .where(eq(schema.session.id, actor.sessionId));
-            return tx.query.blog.findFirst({
+            const publication = await tx.query.blog.findFirst({
               where: eq(schema.blog.organizationId, organizationId),
             });
+            return Result.succeed(
+              publication ? BlogId.make(publication.id) : undefined,
+            );
           }),
       );
-      return publication ? BlogId.make(publication.id) : undefined;
     },
   );
 
   const switchPublication = Effect.fn(
     "WorkspaceManagement.switchPublication",
   )(function* (blogId: BlogId, actor: Actor) {
-    const authorization = yield* access.requireRead(blogId, actor.id);
+    yield* access.requireRead(blogId, actor.id);
     const now = new Date(yield* Clock.currentTimeMillis);
-    yield* database.execute("publication.switch", (client) =>
-      client
-        .update(schema.session)
-        .set({
-          activeOrganizationId: authorization.workspace.id,
-          updatedAt: now,
-        })
-        .where(eq(schema.session.id, actor.sessionId)),
+    return yield* executeResult<
+      BlogAccess.BlogAuthorization,
+      BlogAccess.BlogAccessDenied
+    >("publication.switch", (client) =>
+      client.transaction(async (tx) => {
+        const authorization = await lockBlogAuthorization(
+          tx,
+          blogId,
+          actor.id,
+          "content:read",
+        );
+        if (!authorization) {
+          return Result.fail(
+            new BlogAccess.BlogAccessDenied({
+              blogId,
+              userId: actor.id,
+              capability: "content:read",
+            }),
+          );
+        }
+        await tx
+          .update(schema.session)
+          .set({
+            activeOrganizationId: authorization.workspace.id,
+            updatedAt: now,
+          })
+          .where(eq(schema.session.id, actor.sessionId));
+        return Result.succeed(authorization);
+      }),
     );
-    return authorization;
   });
 
   const inviteMember = Effect.fn("WorkspaceManagement.inviteMember")(
     function* (input: InviteMemberInput, actor: Actor) {
-      const authorization = yield* access.requireMembersManage(
+      yield* access.requireMembersManage(
         input.organizationId,
         actor.id,
       );
@@ -488,8 +580,26 @@ export const create = Effect.fn("WorkspaceManagement.create")(function* () {
       const invitationId = InvitationId.make(yield* uuid);
       const now = new Date(yield* Clock.currentTimeMillis);
       const expiresAt = new Date(now.getTime() + 48 * 60 * 60 * 1000);
-      yield* database.execute("invitation.create", (client) =>
+      const workspaceName = yield* executeResult<
+        string,
+        BlogAccess.WorkspaceAccessDenied
+      >("invitation.create", (client) =>
         client.transaction(async (tx) => {
+          const authorization = await lockWorkspaceAuthorization(
+            tx,
+            input.organizationId,
+            actor.id,
+            "members:manage",
+          );
+          if (!authorization) {
+            return Result.fail(
+              new BlogAccess.WorkspaceAccessDenied({
+                organizationId: input.organizationId,
+                userId: actor.id,
+                capability: "members:manage",
+              }),
+            );
+          }
           await tx.execute(
             sql`select pg_advisory_xact_lock(hashtextextended(${`${input.organizationId}:${recipient}`}, 0))`,
           );
@@ -519,15 +629,16 @@ export const create = Effect.fn("WorkspaceManagement.create")(function* () {
             entityId: invitationId,
             after: { email: recipient, role: input.role },
           });
+          return Result.succeed(authorization.workspace.name);
         }),
       );
       const invitationUrl = `${config.publicUrl}/accept-invitation/${invitationId}`;
       yield* email.send(
         new TransactionalEmail.Message({
           to: recipient,
-          subject: `Join ${authorization.workspace.name} on Prosewire`,
-          text: `${actor.name} invited you to join ${authorization.workspace.name} as ${input.role}. Accept the invitation: ${invitationUrl}`,
-          html: `<p>${escapeHtml(actor.name)} invited you to join <strong>${escapeHtml(authorization.workspace.name)}</strong> as ${escapeHtml(input.role)}.</p><p><a href="${escapeHtml(invitationUrl)}">Accept invitation</a></p>`,
+          subject: `Join ${workspaceName} on Prosewire`,
+          text: `${actor.name} invited you to join ${workspaceName} as ${input.role}. Accept the invitation: ${invitationUrl}`,
+          html: `<p>${escapeHtml(actor.name)} invited you to join <strong>${escapeHtml(workspaceName)}</strong> as ${escapeHtml(input.role)}.</p><p><a href="${escapeHtml(invitationUrl)}">Accept invitation</a></p>`,
         }),
       );
       return invitationId;
@@ -538,22 +649,47 @@ export const create = Effect.fn("WorkspaceManagement.create")(function* () {
     "WorkspaceManagement.updateMemberRole",
   )(function* (input: UpdateMemberRoleInput, actor: Actor) {
     yield* access.requireMembersManage(input.organizationId, actor.id);
-    const target = yield* database.execute("member.findForRoleUpdate", (client) =>
-      client.query.member.findFirst({
-        where: and(
-          eq(schema.member.id, input.memberId),
-          eq(schema.member.organizationId, input.organizationId),
-        ),
-      }),
-    );
-    if (!target) return yield* new MemberNotFound({ memberId: input.memberId });
-    if (target.role === "owner" || target.userId === actor.id) {
-      return yield* new ProtectedMember({
-        message: "The owner role and your own membership cannot be changed here",
-      });
-    }
-    yield* database.execute("member.updateRole", (client) =>
+    yield* executeResult<
+      void,
+      BlogAccess.WorkspaceAccessDenied | MemberNotFound | ProtectedMember
+    >("member.updateRole", (client) =>
       client.transaction(async (tx) => {
+        const authorization = await lockWorkspaceAuthorization(
+          tx,
+          input.organizationId,
+          actor.id,
+          "members:manage",
+        );
+        if (!authorization) {
+          return Result.fail(
+            new BlogAccess.WorkspaceAccessDenied({
+              organizationId: input.organizationId,
+              userId: actor.id,
+              capability: "members:manage",
+            }),
+          );
+        }
+        const [target] = await tx
+          .select()
+          .from(schema.member)
+          .where(
+            and(
+              eq(schema.member.id, input.memberId),
+              eq(schema.member.organizationId, input.organizationId),
+            ),
+          )
+          .for("update");
+        if (!target) {
+          return Result.fail(new MemberNotFound({ memberId: input.memberId }));
+        }
+        if (target.role === "owner" || target.userId === actor.id) {
+          return Result.fail(
+            new ProtectedMember({
+              message:
+                "The owner role and your own membership cannot be changed here",
+            }),
+          );
+        }
         await tx
           .update(schema.member)
           .set({ role: input.role })
@@ -572,6 +708,7 @@ export const create = Effect.fn("WorkspaceManagement.create")(function* () {
           before: { role: target.role },
           after: { role: input.role, userId: target.userId },
         });
+        return Result.succeed(undefined);
       }),
     );
   });
@@ -579,22 +716,46 @@ export const create = Effect.fn("WorkspaceManagement.create")(function* () {
   const removeMember = Effect.fn("WorkspaceManagement.removeMember")(
     function* (input: MemberMutationInput, actor: Actor) {
       yield* access.requireMembersManage(input.organizationId, actor.id);
-      const target = yield* database.execute("member.findForRemoval", (client) =>
-        client.query.member.findFirst({
-          where: and(
-            eq(schema.member.id, input.memberId),
-            eq(schema.member.organizationId, input.organizationId),
-          ),
-        }),
-      );
-      if (!target) return yield* new MemberNotFound({ memberId: input.memberId });
-      if (target.role === "owner" || target.userId === actor.id) {
-        return yield* new ProtectedMember({
-          message: "The owner and your own membership cannot be removed here",
-        });
-      }
-      yield* database.execute("member.remove", (client) =>
+      yield* executeResult<
+        void,
+        BlogAccess.WorkspaceAccessDenied | MemberNotFound | ProtectedMember
+      >("member.remove", (client) =>
         client.transaction(async (tx) => {
+          const authorization = await lockWorkspaceAuthorization(
+            tx,
+            input.organizationId,
+            actor.id,
+            "members:manage",
+          );
+          if (!authorization) {
+            return Result.fail(
+              new BlogAccess.WorkspaceAccessDenied({
+                organizationId: input.organizationId,
+                userId: actor.id,
+                capability: "members:manage",
+              }),
+            );
+          }
+          const [target] = await tx
+            .select()
+            .from(schema.member)
+            .where(
+              and(
+                eq(schema.member.id, input.memberId),
+                eq(schema.member.organizationId, input.organizationId),
+              ),
+            )
+            .for("update");
+          if (!target) {
+            return Result.fail(new MemberNotFound({ memberId: input.memberId }));
+          }
+          if (target.role === "owner" || target.userId === actor.id) {
+            return Result.fail(
+              new ProtectedMember({
+                message: "The owner and your own membership cannot be removed here",
+              }),
+            );
+          }
           await tx
             .delete(schema.member)
             .where(
@@ -611,6 +772,7 @@ export const create = Effect.fn("WorkspaceManagement.create")(function* () {
             entityId: input.memberId,
             before: { role: target.role, userId: target.userId },
           });
+          return Result.succeed(undefined);
         }),
       );
     },
@@ -624,8 +786,26 @@ export const create = Effect.fn("WorkspaceManagement.create")(function* () {
     actor: Actor,
   ) {
     yield* access.requireMembersManage(organizationId, actor.id);
-    const canceled = yield* database.execute("invitation.cancel", (client) =>
+    const canceled = yield* executeResult<
+      boolean,
+      BlogAccess.WorkspaceAccessDenied
+    >("invitation.cancel", (client) =>
       client.transaction(async (tx) => {
+        const authorization = await lockWorkspaceAuthorization(
+          tx,
+          organizationId,
+          actor.id,
+          "members:manage",
+        );
+        if (!authorization) {
+          return Result.fail(
+            new BlogAccess.WorkspaceAccessDenied({
+              organizationId,
+              userId: actor.id,
+              capability: "members:manage",
+            }),
+          );
+        }
         const [invitation] = await tx
           .update(schema.invitation)
           .set({ status: "canceled" })
@@ -640,7 +820,7 @@ export const create = Effect.fn("WorkspaceManagement.create")(function* () {
             email: schema.invitation.email,
             role: schema.invitation.role,
           });
-        if (!invitation) return false;
+        if (!invitation) return Result.succeed(false);
         await tx.insert(schema.auditLog).values({
           organizationId,
           actorId: actor.id,
@@ -649,7 +829,7 @@ export const create = Effect.fn("WorkspaceManagement.create")(function* () {
           entityId: input.invitationId,
           before: { email: invitation.email, role: invitation.role },
         });
-        return true;
+        return Result.succeed(true);
       }),
     );
     if (!canceled) {
@@ -732,7 +912,7 @@ export const create = Effect.fn("WorkspaceManagement.create")(function* () {
 
   const createApiKey = Effect.fn("WorkspaceManagement.createApiKey")(
     function* (input: CreateApiKeyInput, actor: Actor) {
-      const authorization = yield* access.requireIntegrationsManage(
+      yield* access.requireIntegrationsManage(
         input.blogId,
         actor.id,
       );
@@ -746,26 +926,44 @@ export const create = Effect.fn("WorkspaceManagement.create")(function* () {
       const scopes = input.allowWrite
         ? ["content:read", "content:write"]
         : ["content:read"];
-      yield* database.execute("apiKey.create", (client) =>
-        client.transaction(async (tx) => {
-          await tx.insert(schema.apiKey).values({
-            id: apiKeyId,
-            blogId: input.blogId,
-            name,
-            prefix: token.slice(0, 10),
-            keyHash: hex(digest),
-            scopes,
-          });
-          await tx.insert(schema.auditLog).values({
-            organizationId: authorization.workspace.id,
-            blogId: input.blogId,
-            actorId: actor.id,
-            action: "api_key.created",
-            entityType: "api_key",
-            entityId: apiKeyId,
-            after: { name, scopes },
-          });
-        }),
+      yield* executeResult<void, BlogAccess.BlogAccessDenied>(
+        "apiKey.create",
+        (client) =>
+          client.transaction(async (tx) => {
+            const authorization = await lockBlogAuthorization(
+              tx,
+              input.blogId,
+              actor.id,
+              "integrations:manage",
+            );
+            if (!authorization) {
+              return Result.fail(
+                new BlogAccess.BlogAccessDenied({
+                  blogId: input.blogId,
+                  userId: actor.id,
+                  capability: "integrations:manage",
+                }),
+              );
+            }
+            await tx.insert(schema.apiKey).values({
+              id: apiKeyId,
+              blogId: input.blogId,
+              name,
+              prefix: token.slice(0, 10),
+              keyHash: hex(digest),
+              scopes,
+            });
+            await tx.insert(schema.auditLog).values({
+              organizationId: authorization.workspace.id,
+              blogId: input.blogId,
+              actorId: actor.id,
+              action: "api_key.created",
+              entityType: "api_key",
+              entityId: apiKeyId,
+              after: { name, scopes },
+            });
+            return Result.succeed(undefined);
+          }),
       );
       return token;
     },
@@ -773,21 +971,45 @@ export const create = Effect.fn("WorkspaceManagement.create")(function* () {
 
   const revokeApiKey = Effect.fn("WorkspaceManagement.revokeApiKey")(
     function* (input: RevokeApiKeyInput, actor: Actor) {
-      const authorization = yield* access.requireIntegrationsManage(
+      yield* access.requireIntegrationsManage(
         input.blogId,
         actor.id,
       );
-      const key = yield* database.execute("apiKey.findForRevocation", (client) =>
-        client.query.apiKey.findFirst({
-          where: and(
-            eq(schema.apiKey.id, input.apiKeyId),
-            eq(schema.apiKey.blogId, input.blogId),
-          ),
-        }),
-      );
-      if (!key) return yield* new ApiKeyNotFound({ apiKeyId: input.apiKeyId });
-      yield* database.execute("apiKey.revoke", (client) =>
+      yield* executeResult<
+        void,
+        BlogAccess.BlogAccessDenied | ApiKeyNotFound
+      >("apiKey.revoke", (client) =>
         client.transaction(async (tx) => {
+          const authorization = await lockBlogAuthorization(
+            tx,
+            input.blogId,
+            actor.id,
+            "integrations:manage",
+          );
+          if (!authorization) {
+            return Result.fail(
+              new BlogAccess.BlogAccessDenied({
+                blogId: input.blogId,
+                userId: actor.id,
+                capability: "integrations:manage",
+              }),
+            );
+          }
+          const [key] = await tx
+            .select()
+            .from(schema.apiKey)
+            .where(
+              and(
+                eq(schema.apiKey.id, input.apiKeyId),
+                eq(schema.apiKey.blogId, input.blogId),
+              ),
+            )
+            .for("update");
+          if (!key) {
+            return Result.fail(
+              new ApiKeyNotFound({ apiKeyId: input.apiKeyId }),
+            );
+          }
           await tx
             .delete(schema.apiKey)
             .where(
@@ -805,6 +1027,7 @@ export const create = Effect.fn("WorkspaceManagement.create")(function* () {
             entityId: input.apiKeyId,
             before: { name: key.name, prefix: key.prefix, scopes: key.scopes },
           });
+          return Result.succeed(undefined);
         }),
       );
     },

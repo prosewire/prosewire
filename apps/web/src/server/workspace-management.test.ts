@@ -28,6 +28,21 @@ const actor = {
 };
 const input = new InvitationMutationInput({ invitationId });
 
+function workspaceAuthorizationRow(name = "Workspace") {
+  return {
+    workspace: {
+      id: organizationId,
+      name,
+      slug: "studio",
+      logo: null,
+      metadata: null,
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+    },
+    memberId: "member-1",
+    role: "owner",
+  };
+}
+
 function dependencies(
   client: Db,
   options: {
@@ -75,6 +90,15 @@ function dependencies(
 function invitationClient(events: Array<string>, initiallyPending: boolean): Db {
   let pending = initiallyPending;
   const transaction = {
+    select: () => ({
+      from: () => ({
+        innerJoin: () => ({
+          where: () => ({
+            for: () => Promise.resolve([workspaceAuthorizationRow()]),
+          }),
+        }),
+      }),
+    }),
     update: (table: unknown) => ({
       set: (values: { status?: string }) => ({
         where: () => {
@@ -133,6 +157,18 @@ describe("workspace invitation transitions", () => {
     const events: Array<string> = [];
     let delivered: TransactionalEmail.Message | undefined;
     const transaction = {
+      select: () => ({
+        from: () => ({
+          innerJoin: () => ({
+            where: () => ({
+              for: () =>
+                Promise.resolve([
+                  workspaceAuthorizationRow("Studio & Partners"),
+                ]),
+            }),
+          }),
+        }),
+      }),
       execute: () => {
         events.push("lock");
         return Promise.resolve();
@@ -273,6 +309,43 @@ describe("workspace invitation transitions", () => {
 
       expect(error._tag).toBe("InvitationNotFound");
       expect(events).toEqual([]);
+    }).pipe(
+      Effect.provide(
+        WorkspaceManagement.layer.pipe(Layer.provide(dependencies(client))),
+      ),
+    );
+  });
+
+  it.effect("does not mutate after authorization is lost before the transaction", () => {
+    let writes = 0;
+    const transaction = {
+      select: () => ({
+        from: () => ({
+          innerJoin: () => ({
+            where: () => ({
+              for: () => Promise.resolve([]),
+            }),
+          }),
+        }),
+      }),
+      update: () => {
+        writes += 1;
+        throw new Error("unauthorized transactions must not write");
+      },
+    };
+    const client = {
+      transaction: (evaluate: (tx: typeof transaction) => Promise<unknown>) =>
+        evaluate(transaction),
+    } as unknown as Db;
+
+    return Effect.gen(function* () {
+      const management = yield* WorkspaceManagement.Service;
+      const error = yield* Effect.flip(
+        management.cancelInvitation(organizationId, input, actor),
+      );
+
+      expect(error).toBeInstanceOf(BlogAccess.WorkspaceAccessDenied);
+      expect(writes).toBe(0);
     }).pipe(
       Effect.provide(
         WorkspaceManagement.layer.pipe(Layer.provide(dependencies(client))),

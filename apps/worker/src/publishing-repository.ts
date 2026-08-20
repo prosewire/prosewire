@@ -1,9 +1,9 @@
-import { openDb, type Db, type DbResource } from "@prosewire/db/client";
+import type { Db } from "@prosewire/db/client";
 import * as schema from "@prosewire/db/schema";
 import { and, eq, inArray, isNotNull, lte } from "drizzle-orm";
-import { Context, Effect, Layer, Redacted, Schema } from "effect";
+import { Context, Effect, Layer, Schema } from "effect";
+import { WorkerDatabase } from "./database.ts";
 import { PostId, PublishedPost } from "./domain.ts";
-import { WorkerConfig } from "./worker-config.ts";
 
 export class PublishingDatabaseError extends Schema.TaggedError<PublishingDatabaseError>()(
   "PublishingDatabaseError",
@@ -92,33 +92,9 @@ export class Service extends Context.Service<Service, Interface>()(
   "@prosewire/worker/PublishingRepository",
 ) {}
 
-export const layerWith = (open: (databaseUrl: string) => DbResource) =>
-  Layer.effect(
-    Service,
-    Effect.gen(function* () {
-      const config = yield* WorkerConfig;
-      const resource = yield* Effect.acquireRelease(
-        Effect.try({
-          try: () => open(Redacted.value(config.databaseUrl)),
-          catch: (cause) =>
-            new PublishingDatabaseError({ operation: "connect", cause }),
-        }),
-        (resource) =>
-          Effect.tryPromise({
-            try: resource.close,
-            catch: (cause) =>
-              new PublishingDatabaseError({ operation: "close", cause }),
-          }).pipe(
-            Effect.tapError((error) =>
-              Effect.logError("Failed to close the worker database", error),
-            ),
-            Effect.ignore,
-          ),
-      );
-      return Service.of(make(resource.client));
-    }),
-  );
-
-export const layer = layerWith(openDb);
+export const layer = Layer.effect(
+  Service,
+  Effect.map(WorkerDatabase.Service, ({ client }) => Service.of(make(client))),
+);
 
 export * as PublishingRepository from "./publishing-repository.js";

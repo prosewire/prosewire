@@ -4,11 +4,7 @@ import {
   ApiInputRejected,
   ApiPostNotFound,
   ApiUnavailable,
-  api,
 } from "@prosewire/contract";
-import { Effect, Layer } from "effect";
-import { HttpRouter, HttpServer } from "effect/unstable/http";
-import { HttpApiBuilder } from "effect/unstable/httpapi";
 import {
   archivePost,
   createPost,
@@ -16,9 +12,10 @@ import {
   health,
   listBlogs,
   listPosts,
+  type CreatePostBoundaryInput,
+  type UpdatePostBoundaryInput,
   updatePost,
 } from "./api-entrypoints.ts";
-import { processSingleton } from "./process-singleton.ts";
 
 type ApiError =
   | ApiInputRejected
@@ -27,99 +24,120 @@ type ApiError =
   | ApiPostNotFound
   | ApiUnavailable;
 
-function requestSource(request: { readonly source: object }): Request {
-  if (request.source instanceof Request) return request.source;
-  throw new ApiUnavailable({ message: "Unsupported request transport" });
+const statusByTag: Readonly<Record<ApiError["_tag"], number>> = {
+  ApiInputRejected: 400,
+  ApiAuthenticationFailed: 401,
+  ApiAccessDenied: 403,
+  ApiPostNotFound: 404,
+  ApiUnavailable: 500,
+};
+
+function isApiError(error: unknown): error is ApiError {
+  return error instanceof ApiInputRejected ||
+    error instanceof ApiAuthenticationFailed ||
+    error instanceof ApiAccessDenied ||
+    error instanceof ApiPostNotFound ||
+    error instanceof ApiUnavailable;
 }
 
-function fromPromise<A>(evaluate: () => Promise<A>): Effect.Effect<A, ApiError> {
-  return Effect.tryPromise({
-    try: evaluate,
-    catch: (error) => {
-      if (
-        error instanceof ApiInputRejected ||
-        error instanceof ApiAuthenticationFailed ||
-        error instanceof ApiAccessDenied ||
-        error instanceof ApiPostNotFound ||
-        error instanceof ApiUnavailable
-      ) {
-        return error;
-      }
-      return new ApiUnavailable({ message: "Internal server error" });
-    },
-  });
+function apiErrorResponse(error: unknown): Response {
+  const failure = isApiError(error)
+    ? error
+    : new ApiUnavailable({ message: "Internal server error" });
+  return Response.json(failure, { status: statusByTag[failure._tag] });
 }
 
-function healthFromPromise<A>(
-  evaluate: () => Promise<A>,
-): Effect.Effect<A, ApiUnavailable> {
-  return Effect.tryPromise({
-    try: evaluate,
-    catch: (error) =>
-      error instanceof ApiUnavailable
-        ? error
-        : new ApiUnavailable({ message: "Internal server error" }),
-  });
+async function jsonBody(request: Request): Promise<unknown> {
+  try {
+    return await request.json();
+  } catch {
+    throw new ApiInputRejected({ message: "Invalid JSON request body" });
+  }
 }
 
-const HealthLive = HttpApiBuilder.group(api, "health", (handlers) =>
-  handlers.handle("check", ({ request }) => {
-    const source = requestSource(request);
-    return healthFromPromise(() => health(source));
-  }),
-);
+function positiveInteger(
+  value: string | null,
+  fallback: number,
+  maximum?: number,
+): number {
+  if (value === null) return fallback;
+  const parsed = Number(value);
+  if (
+    !Number.isInteger(parsed) ||
+    parsed < 1 ||
+    (maximum !== undefined && parsed > maximum)
+  ) {
+    throw new ApiInputRejected({ message: "Invalid pagination parameters" });
+  }
+  return parsed;
+}
 
-const BlogsLive = HttpApiBuilder.group(api, "blogs", (handlers) =>
-  handlers.handle("list", ({ request }) => {
-    const source = requestSource(request);
-    return fromPromise(() => listBlogs(source));
-  }),
-);
+function postId(pathname: string): string | undefined {
+  const match = /^\/api\/v1\/posts\/([^/]+)$/.exec(pathname);
+  if (!match?.[1]) return undefined;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    throw new ApiInputRejected({ message: "Invalid post id" });
+  }
+}
 
-const PostsLive = HttpApiBuilder.group(api, "posts", (handlers) =>
-  handlers
-    .handle("list", ({ query, request }) => {
-      const source = requestSource(request);
-      return fromPromise(() =>
-        listPosts(source, {
-          ...query,
-          page: query.page ?? 1,
-          pageSize: query.pageSize ?? 20,
-        }),
-      );
-    })
-    .handle("get", ({ params, request }) => {
-      const source = requestSource(request);
-      return fromPromise(() => getPost(source, params.id));
-    })
-    .handle("create", ({ payload, request }) => {
-      const source = requestSource(request);
-      return fromPromise(() => createPost(source, payload));
-    })
-    .handle("update", ({ params, payload, request }) => {
-      const source = requestSource(request);
-      return fromPromise(() =>
-        updatePost(source, params.id, payload),
-      );
-    })
-    .handle("archive", ({ params, request }) => {
-      const source = requestSource(request);
-      return fromPromise(() => archivePost(source, params.id));
-    }),
-);
+async function dispatch(request: Request): Promise<unknown> {
+  const url = new URL(request.url);
+  const { pathname, searchParams } = url;
 
-const ApiLive = HttpApiBuilder.layer(api).pipe(
-  Layer.provide([HealthLive, BlogsLive, PostsLive]),
-  Layer.provide(HttpServer.layerServices),
-);
+  if (request.method === "GET" && pathname === "/api/v1/health") {
+    return health(request);
+  }
+  if (request.method === "GET" && pathname === "/api/v1/blogs") {
+    return listBlogs(request);
+  }
+  if (request.method === "GET" && pathname === "/api/v1/posts") {
+    const status = searchParams.get("status");
+    if (
+      status !== null &&
+      status !== "draft" &&
+      status !== "scheduled" &&
+      status !== "published" &&
+      status !== "archived"
+    ) {
+      throw new ApiInputRejected({ message: "Invalid post status" });
+    }
+    return listPosts(request, {
+      blog: searchParams.get("blog") ?? undefined,
+      search: searchParams.get("search") ?? undefined,
+      status: status ?? undefined,
+      page: positiveInteger(searchParams.get("page"), 1),
+      pageSize: positiveInteger(searchParams.get("pageSize"), 20, 100),
+    });
+  }
 
-const webHandler = processSingleton(
-  "@prosewire/web/PrivateHttpApi/v1",
-  () => HttpRouter.toWebHandler(ApiLive),
-);
+  const id = postId(pathname);
+  if (id && request.method === "GET") return getPost(request, id);
+  if (pathname === "/api/v1/posts" && request.method === "POST") {
+    return createPost(
+      request,
+      await jsonBody(request) as CreatePostBoundaryInput,
+    );
+  }
+  if (id && request.method === "PATCH") {
+    return updatePost(
+      request,
+      id,
+      await jsonBody(request) as UpdatePostBoundaryInput,
+    );
+  }
+  if (id && request.method === "DELETE") return archivePost(request, id);
 
-export function handlePrivateApi(request: Request): Promise<Response> {
-  return webHandler.handler(request);
+  throw new ApiPostNotFound({ message: "API route not found" });
+}
+
+export async function handlePrivateApi(request: Request): Promise<Response> {
+  try {
+    return Response.json(await dispatch(request));
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
 }
 
 export * as PrivateApi from "./router";

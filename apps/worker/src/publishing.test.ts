@@ -2,7 +2,9 @@ import { describe, expect, it } from "@effect/vitest";
 import { Effect, Layer, ManagedRuntime, Redacted } from "effect";
 import type { Db } from "@prosewire/db/client";
 
+import { AnalyticsRetention } from "./analytics-retention.ts";
 import { PostId, PublishedPost } from "./domain.ts";
+import { WorkerDatabase } from "./database.ts";
 import { Publishing } from "./publishing.ts";
 import { PublishingRepository } from "./publishing-repository.ts";
 import { WorkerConfig } from "./worker-config.ts";
@@ -55,23 +57,42 @@ describe("publishScheduledPosts", () => {
     );
   });
 
-  it("closes its database resource when the worker layer is disposed", async () => {
+  it("shares and closes one database resource across worker services", async () => {
+    let opened = 0;
     let closed = 0;
     const config = Layer.succeed(WorkerConfig, {
       databaseUrl: Redacted.make("postgres://test"),
       analyticsRetentionDays: 365,
     });
-    const repository = PublishingRepository.layerWith(() => ({
-      client: {} as Db,
-      close: () => {
-        closed += 1;
-        return Promise.resolve();
-      },
-    })).pipe(Layer.provide(config));
-    const runtime = ManagedRuntime.make(repository);
+    const database = WorkerDatabase.layerWith(() => {
+      opened += 1;
+      return {
+        client: {} as Db,
+        close: () => {
+          closed += 1;
+          return Promise.resolve();
+        },
+      };
+    }).pipe(Layer.provideMerge(config));
+    const repository = PublishingRepository.layer.pipe(
+      Layer.provideMerge(database),
+    );
+    const retention = AnalyticsRetention.layer.pipe(
+      Layer.provideMerge(database),
+    );
+    const runtime = ManagedRuntime.make(
+      Layer.mergeAll(database, repository, retention),
+    );
 
     try {
-      await runtime.runPromise(Effect.void);
+      await runtime.runPromise(
+        Effect.all([
+          WorkerDatabase.Service,
+          PublishingRepository.Service,
+          AnalyticsRetention.Service,
+        ]),
+      );
+      expect(opened).toBe(1);
       expect(closed).toBe(0);
     } finally {
       await runtime.dispose();

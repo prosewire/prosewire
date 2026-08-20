@@ -2,7 +2,7 @@ import { describe, expect, it } from "@effect/vitest";
 import { Effect, Layer, Option, Redacted, Schema } from "effect";
 import type { Db } from "@prosewire/db/client";
 import * as databaseSchema from "@prosewire/db/schema";
-import { ApiContent } from "./api-content.ts";
+import { ApiAccess } from "./api-access.ts";
 import { BlogAccess } from "./authorization.ts";
 import { WebConfig } from "./config.ts";
 import { Database } from "./database.ts";
@@ -25,6 +25,32 @@ const blogId = "11111111-1111-4111-8111-111111111111";
 const authorId = "22222222-2222-4222-8222-222222222222";
 const categoryId = "33333333-3333-4333-8333-333333333333";
 const keyId = "44444444-4444-4444-8444-444444444444";
+
+const authorizationRow = {
+  blog: {
+    id: blogId,
+    organizationId: "workspace-1",
+    name: "Fieldnotes",
+    slug: "fieldnotes",
+    description: "",
+    locale: "en",
+    accentColor: "#f06445",
+    customCss: "",
+    publicUrl: null,
+    createdAt: new Date("2026-01-01T00:00:00.000Z"),
+    updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+  },
+  workspace: {
+    id: "workspace-1",
+    name: "Studio",
+    slug: "studio",
+    logo: null,
+    metadata: null,
+    createdAt: new Date("2026-01-01T00:00:00.000Z"),
+  },
+  memberId: "member-1",
+  role: "editor",
+};
 
 describe("Publishing inputs", () => {
   it.effect("decodes external identifiers and dates into the domain command", () =>
@@ -90,7 +116,6 @@ describe("Publishing transitions", () => {
         environment: "test",
       }),
       Layer.mock(BlogAccess.Service, {}),
-      Layer.mock(ApiContent.Service, {}),
     );
 
     return Effect.gen(function* () {
@@ -137,14 +162,25 @@ describe("Publishing transitions", () => {
     let updated: Record<string, unknown> | undefined;
     const transaction = {
       select: () => ({
-        from: (table: unknown) => ({
-          where: () =>
-            table === databaseSchema.author
-              ? Promise.resolve([{ id: authorId }])
-              : {
-                  for: () => Promise.resolve([existing]),
-                },
-        }),
+        from: (table: unknown) =>
+          table === databaseSchema.blog
+            ? {
+                innerJoin: () => ({
+                  innerJoin: () => ({
+                    where: () => ({
+                      for: () => Promise.resolve([authorizationRow]),
+                    }),
+                  }),
+                }),
+              }
+            : {
+                where: () =>
+                  table === databaseSchema.author
+                    ? Promise.resolve([{ id: authorId }])
+                    : {
+                        for: () => Promise.resolve([existing]),
+                      },
+              },
       }),
       query: {
         postRevision: {
@@ -208,7 +244,6 @@ describe("Publishing transitions", () => {
             blog: { slug: "fieldnotes" },
           } as never),
       }),
-      Layer.mock(ApiContent.Service, {}),
     );
 
     return Effect.gen(function* () {
@@ -290,7 +325,6 @@ describe("Publishing transitions", () => {
             }),
           ),
       }),
-      Layer.mock(ApiContent.Service, {}),
     );
 
     return Effect.gen(function* () {
@@ -342,11 +376,31 @@ describe("Publishing transitions", () => {
     };
     const transaction = {
       select: () => ({
-        from: () => ({
-          where: () => ({
-            for: () => Promise.resolve([existing]),
-          }),
-        }),
+        from: (table: unknown) =>
+          table === databaseSchema.apiKey
+            ? {
+                innerJoin: () => ({
+                  where: () => ({
+                    for: () =>
+                      Promise.resolve([
+                        {
+                          key: {
+                            id: keyId,
+                            blogId,
+                            scopes: ["content:read", "content:write"],
+                            expiresAt: null,
+                          },
+                          organizationId: "workspace-1",
+                        },
+                      ]),
+                  }),
+                }),
+              }
+            : {
+                where: () => ({
+                  for: () => Promise.resolve([existing]),
+                }),
+              },
       }),
       query: {
         postRevision: {
@@ -409,7 +463,6 @@ describe("Publishing transitions", () => {
         environment: "test",
       }),
       Layer.mock(BlogAccess.Service, {}),
-      Layer.mock(ApiContent.Service, {}),
     );
 
     return Effect.gen(function* () {
@@ -421,6 +474,74 @@ describe("Publishing transitions", () => {
 
       expect(result).toEqual({ ok: true });
       expect(events).toEqual(["revision", "archive", "audit"]);
+    }).pipe(
+      Effect.provide(Publishing.layer.pipe(Layer.provide(dependencies))),
+    );
+  });
+
+  it.effect("rejects an API mutation when its key was revoked before the transaction", () => {
+    let writes = 0;
+    const transaction = {
+      select: () => ({
+        from: () => ({
+          innerJoin: () => ({
+            where: () => ({
+              for: () => Promise.resolve([]),
+            }),
+          }),
+        }),
+      }),
+      insert: () => {
+        writes += 1;
+        throw new Error("revoked keys must not write");
+      },
+      update: () => {
+        writes += 1;
+        throw new Error("revoked keys must not write");
+      },
+    };
+    const client = {
+      transaction: async (
+        evaluate: (tx: typeof transaction) => Promise<unknown>,
+      ) => await evaluate(transaction),
+    } as unknown as Db;
+    const dependencies = Layer.mergeAll(
+      Layer.succeed(Database, {
+        client: Effect.succeed(client),
+        execute: (operation, evaluate) =>
+          Effect.tryPromise({
+            try: () => evaluate(client),
+            catch: (cause) =>
+              new Error(`${operation}: ${String(cause)}`) as never,
+          }),
+      }),
+      Layer.succeed(WebConfig, {
+        defaultBlog: "fieldnotes",
+        publicUrl: "http://localhost:3000",
+        databaseUrl: Redacted.make("postgres://test"),
+        authSecret: Redacted.make("test-secret-at-least-32-characters"),
+        allowSignUp: false,
+        smtpUrl: Option.none(),
+        emailFrom: "Prosewire <prosewire@localhost>",
+        environment: "test",
+      }),
+      Layer.mock(BlogAccess.Service, {}),
+    );
+
+    return Effect.gen(function* () {
+      const publishing = yield* Publishing.Service;
+      const error = yield* Effect.flip(
+        publishing.archiveApiPost(
+          PostId.make("55555555-5555-4555-8555-555555555555"),
+          {
+            blogId: BlogId.make(blogId),
+            keyId: ApiKeyId.make(keyId),
+          },
+        ),
+      );
+
+      expect(error).toBeInstanceOf(ApiAccess.AuthenticationFailed);
+      expect(writes).toBe(0);
     }).pipe(
       Effect.provide(Publishing.layer.pipe(Layer.provide(dependencies))),
     );

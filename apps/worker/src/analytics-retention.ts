@@ -1,7 +1,8 @@
 import { lt } from "drizzle-orm";
-import { Context, Effect, Layer, Redacted, Schema } from "effect";
-import { openDb, type Db, type DbResource } from "@prosewire/db/client";
+import { Context, Effect, Layer, Schema } from "effect";
+import type { Db } from "@prosewire/db/client";
 import * as schema from "@prosewire/db/schema";
+import { WorkerDatabase } from "./database.ts";
 import { WorkerConfig } from "./worker-config.ts";
 
 export class AnalyticsRetentionError extends Schema.TaggedError<AnalyticsRetentionError>()(
@@ -44,28 +45,13 @@ export class Service extends Context.Service<Service, Interface>()(
   "@prosewire/worker/AnalyticsRetention",
 ) {}
 
-export const layerWith = (open: (databaseUrl: string) => DbResource) =>
-  Layer.effect(
-    Service,
-    Effect.gen(function* () {
-      const config = yield* WorkerConfig;
-      const resource = yield* Effect.acquireRelease(
-        Effect.try({
-          try: () => open(Redacted.value(config.databaseUrl)),
-          catch: (cause) =>
-            new AnalyticsRetentionError({ operation: "connect", cause }),
-        }),
-        (resource) =>
-          Effect.tryPromise({
-            try: resource.close,
-            catch: (cause) =>
-              new AnalyticsRetentionError({ operation: "close", cause }),
-          }).pipe(Effect.ignore),
-      );
-      return Service.of(make(resource.client, config.analyticsRetentionDays));
-    }),
-  );
-
-export const layer = layerWith(openDb);
+export const layer = Layer.effect(
+  Service,
+  Effect.gen(function* () {
+    const database = yield* WorkerDatabase.Service;
+    const config = yield* WorkerConfig;
+    return Service.of(make(database.client, config.analyticsRetentionDays));
+  }),
+);
 
 export * as AnalyticsRetention from "./analytics-retention.js";

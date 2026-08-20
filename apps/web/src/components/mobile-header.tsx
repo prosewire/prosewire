@@ -1,7 +1,6 @@
 import { Menu } from "lucide-react";
 import Link from "next/link";
 import { hasPermission, type TeamRole } from "@prosewire/core";
-import type { schema } from "@prosewire/db";
 import { switchPublication, switchWorkspace } from "@/server/actions";
 import { Logo } from "./logo";
 import { SignOutButton } from "./sign-out-button";
@@ -16,8 +15,10 @@ const links = [
   ["/settings", "Settings"],
 ] as const;
 
-type Workspace = typeof schema.organization.$inferSelect;
-type Publication = typeof schema.blog.$inferSelect;
+interface NamedSelection {
+  readonly id: string;
+  readonly name: string;
+}
 
 export function MobileHeader({
   userName,
@@ -29,10 +30,10 @@ export function MobileHeader({
 }: {
   userName: string;
   role: TeamRole;
-  workspace: Workspace;
-  workspaces: ReadonlyArray<Workspace>;
-  publication: Publication;
-  publications: ReadonlyArray<Publication>;
+  workspace: NamedSelection;
+  workspaces: ReadonlyArray<NamedSelection>;
+  publication: NamedSelection;
+  publications: ReadonlyArray<NamedSelection>;
 }) {
   return (
     <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-[#dedfd9] bg-[#f8f7f2]/95 px-4 backdrop-blur lg:hidden">

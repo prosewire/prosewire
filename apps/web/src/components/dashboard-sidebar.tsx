@@ -10,7 +10,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { hasPermission, type TeamRole } from "@prosewire/core";
-import type { schema } from "@prosewire/db";
 import { switchPublication, switchWorkspace } from "@/server/actions";
 import { Logo } from "./logo";
 import { SignOutButton } from "./sign-out-button";
@@ -28,8 +27,10 @@ const manage = [
   { href: "/settings", label: "Settings", icon: Settings2 },
 ];
 
-type Workspace = typeof schema.organization.$inferSelect;
-type Publication = typeof schema.blog.$inferSelect;
+interface NamedSelection {
+  readonly id: string;
+  readonly name: string;
+}
 
 export function DashboardSidebar({
   userName,
@@ -41,10 +42,10 @@ export function DashboardSidebar({
 }: {
   userName: string;
   role: TeamRole;
-  workspace: Workspace;
-  workspaces: ReadonlyArray<Workspace>;
-  publication: Publication;
-  publications: ReadonlyArray<Publication>;
+  workspace: NamedSelection;
+  workspaces: ReadonlyArray<NamedSelection>;
+  publication: NamedSelection;
+  publications: ReadonlyArray<NamedSelection>;
 }) {
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-[248px] flex-col border-r border-[#dedfd9] bg-[#f8f7f2] px-4 py-5 lg:flex">

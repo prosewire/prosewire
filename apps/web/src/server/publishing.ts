@@ -1,9 +1,17 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { Clock, Context, Effect, Layer, Result, Schema } from "effect";
-import { createExcerpt, renderMarkdown, slugify } from "@prosewire/core";
+import {
+  canUpdatePost,
+  createExcerpt,
+  hasPermission,
+  renderMarkdown,
+  slugify,
+} from "@prosewire/core";
+import type { Post as ApiPost } from "@prosewire/contract";
 import type { Db } from "@prosewire/db/client";
 import * as schema from "@prosewire/db/schema";
-import { ApiContent } from "./api-content.ts";
+import { ApiAccess, hasScope } from "./api-access.ts";
+import { toApiPost } from "./api-content-models.ts";
 import { BlogAccess } from "./authorization.ts";
 import { BlogErrors } from "./blog-errors.ts";
 import { Database, DatabaseError } from "./database.ts";
@@ -18,6 +26,11 @@ import {
 } from "./domain.ts";
 import { promiseEffect } from "./external-effect.ts";
 import { PostErrors } from "./post-errors.ts";
+import {
+  lockApiKey,
+  lockBlogAuthorization,
+  type TransactionClient,
+} from "./transactional-access.ts";
 
 export class SavePostInput extends Schema.Class<SavePostInput>(
   "Publishing.SavePostInput",
@@ -118,7 +131,6 @@ export class ApiUpdatePostInput extends Schema.Class<ApiUpdatePostInput>(
 export const create = Effect.fn("Publishing.create")(function* () {
   const database = yield* Database;
   const access = yield* BlogAccess.Service;
-  const apiContent = yield* ApiContent.Service;
 
   const executeResult = <A, E>(
     operation: string,
@@ -133,15 +145,35 @@ export const create = Effect.fn("Publishing.create")(function* () {
       ),
     );
 
-  const getOrganizationId = Effect.fn("Publishing.getOrganizationId")(
-    function* (blogId: BlogId) {
-      const row = yield* database.execute("blog.findOrganization", (client) =>
-        client.query.blog.findFirst({ where: eq(schema.blog.id, blogId) }),
-      );
-      if (!row) return yield* new BlogErrors.BlogNotFound({ blogId });
-      return OrganizationId.make(row.organizationId);
-    },
-  );
+  const lockApiWrite = async (
+    transaction: TransactionClient,
+    actor: ApiActor,
+    now: Date,
+  ) => {
+    const authorization = await lockApiKey(
+      transaction,
+      actor.blogId,
+      actor.keyId,
+    );
+    if (
+      !authorization ||
+      (authorization.key.expiresAt && authorization.key.expiresAt <= now)
+    ) {
+      return {
+        error: new ApiAccess.AuthenticationFailed({
+          message: "Invalid or expired API key",
+        }),
+      } as const;
+    }
+    if (!hasScope(authorization.key.scopes, "content:write")) {
+      return {
+        error: new ApiAccess.ScopeDenied({ requiredScope: "content:write" }),
+      } as const;
+    }
+    return {
+      organizationId: OrganizationId.make(authorization.organizationId),
+    } as const;
+  };
 
   const savePost = Effect.fn("Publishing.savePost")(function* (
     input: SavePostInput,
@@ -160,15 +192,17 @@ export const create = Effect.fn("Publishing.create")(function* () {
     if (input.id && !existingForAuthorization) {
       return yield* new PostErrors.PostNotFound({ postId: input.id });
     }
-    const authorization = existingForAuthorization
-      ? yield* access.requirePostUpdate(
-          input.blogId,
-          actorId,
-          existingForAuthorization.createdById
-            ? UserId.make(existingForAuthorization.createdById)
-            : null,
-        )
-      : yield* access.requirePostCreate(input.blogId, actorId);
+    if (existingForAuthorization) {
+      yield* access.requirePostUpdate(
+        input.blogId,
+        actorId,
+        existingForAuthorization.createdById
+          ? UserId.make(existingForAuthorization.createdById)
+          : null,
+      );
+    } else {
+      yield* access.requirePostCreate(input.blogId, actorId);
+    }
     if (existingForAuthorization?.status === "archived") {
       yield* access.requireArchive(
         input.blogId,
@@ -223,13 +257,31 @@ export const create = Effect.fn("Publishing.create")(function* () {
       updatedAt: now,
     } satisfies Partial<typeof schema.post.$inferInsert>;
 
-    const savedId = yield* executeResult<
-      string,
-      PostErrors.InvalidPost | PostErrors.PostNotFound | DatabaseError
+    return yield* executeResult<
+      { readonly savedId: string; readonly blogSlug: string },
+      | PostErrors.InvalidPost
+      | PostErrors.PostNotFound
+      | BlogAccess.BlogAccessDenied
+      | DatabaseError
     >(
       "post.save",
       (client) =>
         client.transaction(async (tx) => {
+          const authorization = await lockBlogAuthorization(
+            tx,
+            input.blogId,
+            actorId,
+            input.id ? "content:read" : "content:create",
+          );
+          if (!authorization) {
+            return Result.fail(
+              new BlogAccess.BlogAccessDenied({
+                blogId: input.blogId,
+                userId: actorId,
+                capability: input.id ? "content:update:any" : "content:create",
+              }),
+            );
+          }
           const [author] = await tx
             .select({ id: schema.author.id })
             .from(schema.author)
@@ -278,6 +330,47 @@ export const create = Effect.fn("Publishing.create")(function* () {
               .for("update");
             if (!existing) {
               return Result.fail(new PostErrors.PostNotFound({ postId: input.id }));
+            }
+            const createdById = existing.createdById
+              ? UserId.make(existing.createdById)
+              : null;
+            if (!canUpdatePost(authorization.role, createdById, actorId)) {
+              return Result.fail(
+                new BlogAccess.BlogAccessDenied({
+                  blogId: input.blogId,
+                  userId: actorId,
+                  capability: "content:update:any",
+                }),
+              );
+            }
+            if (
+              existing.status === "archived" &&
+              (!hasPermission(authorization.role, "content:archive") ||
+                !canUpdatePost(authorization.role, createdById, actorId))
+            ) {
+              return Result.fail(
+                new BlogAccess.BlogAccessDenied({
+                  blogId: input.blogId,
+                  userId: actorId,
+                  capability: "content:archive",
+                }),
+              );
+            }
+            if (
+              (status === "scheduled" ||
+                status === "published" ||
+                (existing.status !== status &&
+                  (existing.status === "scheduled" ||
+                    existing.status === "published"))) &&
+              !hasPermission(authorization.role, "content:publish")
+            ) {
+              return Result.fail(
+                new BlogAccess.BlogAccessDenied({
+                  blogId: input.blogId,
+                  userId: actorId,
+                  capability: "content:publish",
+                }),
+              );
             }
             const latest = await tx.query.postRevision.findFirst({
               where: eq(schema.postRevision.postId, input.id),
@@ -364,10 +457,12 @@ export const create = Effect.fn("Publishing.create")(function* () {
             entityId: resolvedId,
             after: { title: input.title, slug, status },
           });
-          return Result.succeed(resolvedId);
+          return Result.succeed({
+            savedId: resolvedId,
+            blogSlug: authorization.blog.slug,
+          });
         }),
     );
-    return { savedId, blogSlug: authorization.blog.slug };
   });
 
   const bulkArchive = Effect.fn("Publishing.bulkArchive")(function* (
@@ -395,13 +490,35 @@ export const create = Effect.fn("Publishing.create")(function* () {
         ),
       { concurrency: "unbounded" },
     );
-    const authorization = authorizations[0] ??
-      (yield* access.requireRead(input.blogId, actorId));
+    if (authorizations.length === 0) {
+      yield* access.requireRead(input.blogId, actorId);
+    }
     const now = new Date(yield* Clock.currentTimeMillis);
-    const archivedCount = yield* database.execute(
+    const archivedCount = yield* executeResult<
+      number,
+      BlogAccess.BlogAccessDenied
+    >(
       "post.bulkArchive",
       (client) =>
         client.transaction(async (tx) => {
+          const authorization = await lockBlogAuthorization(
+            tx,
+            input.blogId,
+            actorId,
+            "content:read",
+          );
+          if (
+            !authorization ||
+            !hasPermission(authorization.role, "content:archive")
+          ) {
+            return Result.fail(
+              new BlogAccess.BlogAccessDenied({
+                blogId: input.blogId,
+                userId: actorId,
+                capability: "content:archive",
+              }),
+            );
+          }
           const candidates = (
             await tx
               .select()
@@ -414,7 +531,25 @@ export const create = Effect.fn("Publishing.create")(function* () {
               )
               .for("update")
           ).filter((post) => post.status !== "archived");
-          if (candidates.length === 0) return 0;
+          if (
+            candidates.some(
+              (post) =>
+                !canUpdatePost(
+                  authorization.role,
+                  post.createdById ? UserId.make(post.createdById) : null,
+                  actorId,
+                ),
+            )
+          ) {
+            return Result.fail(
+              new BlogAccess.BlogAccessDenied({
+                blogId: input.blogId,
+                userId: actorId,
+                capability: "content:archive",
+              }),
+            );
+          }
+          if (candidates.length === 0) return Result.succeed(0);
 
           const candidateIds = candidates.map(({ id }) => id);
           const revisions = await tx.query.postRevision.findMany({
@@ -458,7 +593,7 @@ export const create = Effect.fn("Publishing.create")(function* () {
               })),
             );
           }
-          return archived.length;
+          return Result.succeed(archived.length);
         }),
     );
     return archivedCount > 0;
@@ -466,7 +601,7 @@ export const create = Effect.fn("Publishing.create")(function* () {
 
   const updateBlogSettings = Effect.fn("Publishing.updateBlogSettings")(
     function* (input: UpdateBlogSettingsInput, actorId: UserId) {
-      const authorization = yield* access.requirePublicationUpdate(
+      yield* access.requirePublicationUpdate(
         input.blogId,
         actorId,
       );
@@ -480,10 +615,28 @@ export const create = Effect.fn("Publishing.create")(function* () {
         customCss: input.customCss,
         updatedAt: now,
       };
-      yield* executeResult<string, BlogErrors.BlogNotFound>(
+      return yield* executeResult<
+        string,
+        BlogErrors.BlogNotFound | BlogAccess.BlogAccessDenied
+      >(
         "blog.updateSettings",
         (client) =>
           client.transaction(async (tx) => {
+            const authorization = await lockBlogAuthorization(
+              tx,
+              input.blogId,
+              actorId,
+              "publications:update",
+            );
+            if (!authorization) {
+              return Result.fail(
+                new BlogAccess.BlogAccessDenied({
+                  blogId: input.blogId,
+                  userId: actorId,
+                  capability: "publications:update",
+                }),
+              );
+            }
             const [updated] = await tx
               .update(schema.blog)
               .set(values)
@@ -503,10 +656,9 @@ export const create = Effect.fn("Publishing.create")(function* () {
               entityId: input.blogId,
               after: values,
             });
-            return Result.succeed(updated.id);
+            return Result.succeed(authorization.blog.slug);
           }),
       );
-      return authorization.blog.slug;
     },
   );
 
@@ -519,17 +671,24 @@ export const create = Effect.fn("Publishing.create")(function* () {
         message: "Scheduled posts require a schedule time",
       });
     }
-    const organizationId = yield* getOrganizationId(actor.blogId);
     const now = new Date(yield* Clock.currentTimeMillis);
     const contentHtml = yield* promiseEffect("markdown", "renderApiPost", () =>
       renderMarkdown(input.contentMarkdown),
     );
     const categoryIds = [...new Set(input.categoryIds)];
-    const createdId = yield* executeResult<
-      string,
-      PostErrors.InvalidPost | DatabaseError
+    return yield* executeResult<
+      ApiPost,
+      | PostErrors.InvalidPost
+      | DatabaseError
+      | ApiAccess.AuthenticationFailed
+      | ApiAccess.ScopeDenied
     >("post.createApi", (client) =>
       client.transaction(async (tx) => {
+        const apiAuthorization = await lockApiWrite(tx, actor, now);
+        if ("error" in apiAuthorization) {
+          return Result.fail(apiAuthorization.error);
+        }
+        const { organizationId } = apiAuthorization;
         const [author] = await tx
           .select({ id: schema.author.id })
           .from(schema.author)
@@ -619,10 +778,24 @@ export const create = Effect.fn("Publishing.create")(function* () {
             status: input.status,
           },
         });
-        return Result.succeed(created.id);
+        const createdPost = await tx.query.post.findFirst({
+          where: and(
+            eq(schema.post.id, created.id),
+            eq(schema.post.blogId, actor.blogId),
+          ),
+          with: { author: true, categories: { with: { category: true } } },
+        });
+        if (!createdPost) {
+          return Result.fail(
+            new DatabaseError({
+              operation: "post.createApi response projection",
+              cause: new Error("Created post could not be projected"),
+            }),
+          );
+        }
+        return Result.succeed(toApiPost(createdPost));
       }),
     );
-    return yield* apiContent.getPost(actor.blogId, PostId.make(createdId));
   });
 
   const updateApiPost = Effect.fn("Publishing.updateApiPost")(function* (
@@ -630,7 +803,6 @@ export const create = Effect.fn("Publishing.create")(function* () {
     patch: ApiUpdatePostInput,
     actor: ApiActor,
   ) {
-    const organizationId = yield* getOrganizationId(actor.blogId);
     const contentMarkdown = patch.contentMarkdown;
     const contentHtml =
       contentMarkdown === undefined
@@ -642,11 +814,20 @@ export const create = Effect.fn("Publishing.create")(function* () {
     const categoryIds = patch.categoryIds
       ? [...new Set(patch.categoryIds)]
       : undefined;
-    const updatedId = yield* executeResult<
-      string,
-      PostErrors.InvalidPost | PostErrors.PostNotFound
+    return yield* executeResult<
+      ApiPost,
+      | PostErrors.InvalidPost
+      | PostErrors.PostNotFound
+      | DatabaseError
+      | ApiAccess.AuthenticationFailed
+      | ApiAccess.ScopeDenied
     >("post.updateApi", (client) =>
       client.transaction(async (tx) => {
+        const apiAuthorization = await lockApiWrite(tx, actor, now);
+        if ("error" in apiAuthorization) {
+          return Result.fail(apiAuthorization.error);
+        }
+        const { organizationId } = apiAuthorization;
         const [existing] = await tx
           .select()
           .from(schema.post)
@@ -799,22 +980,45 @@ export const create = Effect.fn("Publishing.create")(function* () {
           before: existing,
           after: { source: "api", apiKeyId: actor.keyId, patch },
         });
-        return Result.succeed(existing.id);
+        const updatedPost = await tx.query.post.findFirst({
+          where: and(
+            eq(schema.post.id, existing.id),
+            eq(schema.post.blogId, actor.blogId),
+          ),
+          with: { author: true, categories: { with: { category: true } } },
+        });
+        if (!updatedPost) {
+          return Result.fail(
+            new DatabaseError({
+              operation: "post.updateApi response projection",
+              cause: new Error("Updated post could not be projected"),
+            }),
+          );
+        }
+        return Result.succeed(toApiPost(updatedPost));
       }),
     );
-    return yield* apiContent.getPost(actor.blogId, PostId.make(updatedId));
   });
 
   const archiveApiPost = Effect.fn("Publishing.archiveApiPost")(function* (
     postId: PostId,
     actor: ApiActor,
   ) {
-    const organizationId = yield* getOrganizationId(actor.blogId);
     const now = new Date(yield* Clock.currentTimeMillis);
-    yield* executeResult<string, PostErrors.PostNotFound>(
+    yield* executeResult<
+      string,
+      | PostErrors.PostNotFound
+      | ApiAccess.AuthenticationFailed
+      | ApiAccess.ScopeDenied
+    >(
       "post.archiveApi",
       (client) =>
         client.transaction(async (tx) => {
+          const apiAuthorization = await lockApiWrite(tx, actor, now);
+          if ("error" in apiAuthorization) {
+            return Result.fail(apiAuthorization.error);
+          }
+          const { organizationId } = apiAuthorization;
           const [existing] = await tx
             .select()
             .from(schema.post)
