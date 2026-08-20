@@ -1,4 +1,4 @@
-FROM node:24-alpine AS base
+FROM node:26-alpine AS base
 RUN corepack enable
 WORKDIR /app
 
@@ -20,7 +20,7 @@ FROM dependencies AS builder
 COPY . .
 RUN pnpm --filter @prosewire/web... build && pnpm --filter @prosewire/worker build
 
-FROM node:24-alpine AS runner
+FROM node:26-alpine AS runner
 ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0 \
     PORT=3000 \
