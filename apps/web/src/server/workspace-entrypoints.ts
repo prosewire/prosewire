@@ -1,4 +1,5 @@
 import { Effect, Option, Schema } from "effect";
+import { io } from "next/cache";
 import {
   getDashboardSessionEffect,
   requireDashboardSessionEffect,
@@ -253,7 +254,8 @@ export function revokeApiKey(input: {
   );
 }
 
-export function loadOnboarding() {
+export async function loadOnboarding() {
+  await io();
   return runAppEffect(
     Effect.gen(function* () {
       const { session, actor } = yield* currentActor();
@@ -276,11 +278,12 @@ export function loadOnboarding() {
   );
 }
 
-export function loadInvitation(invitationId: string) {
+export async function loadInvitation(invitationId: string) {
   const parsed = Schema.decodeUnknownOption(InvitationId)(invitationId);
   if (Option.isNone(parsed)) {
     return Promise.resolve({ session: null, details: undefined });
   }
+  await io();
   return runAppEffect(
     Effect.gen(function* () {
       const session = yield* getDashboardSessionEffect();
@@ -294,7 +297,8 @@ export function loadInvitation(invitationId: string) {
   );
 }
 
-export function loadAuthenticationState(invitationId?: string) {
+export async function loadAuthenticationState(invitationId?: string) {
+  await io();
   return runAppEffect(
     Effect.gen(function* () {
       const session = yield* getDashboardSessionEffect();

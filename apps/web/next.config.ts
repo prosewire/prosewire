@@ -4,6 +4,9 @@ const allowedDevOrigins = process.env["PROSEWIRE_ALLOWED_DEV_ORIGINS"]
   ?.split(",")
   .map((origin) => origin.trim())
   .filter(Boolean);
+const developmentEval = process.env["NODE_ENV"] === "development"
+  ? " 'unsafe-eval'"
+  : "";
 
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -24,13 +27,15 @@ const securityHeaders = [
       "img-src 'self' data: https:",
       "font-src 'self' data:",
       "connect-src 'self'",
-      "script-src 'self' 'unsafe-inline'",
+      `script-src 'self' 'unsafe-inline'${developmentEval}`,
       "style-src 'self' 'unsafe-inline'",
     ].join("; "),
   },
 ];
 
 const nextConfig: NextConfig = {
+  cacheComponents: true,
+  partialPrefetching: true,
   output: "standalone",
   outputFileTracingIncludes: {
     "/*": [
@@ -48,6 +53,8 @@ const nextConfig: NextConfig = {
   transpilePackages: ["@prosewire/contract", "@prosewire/core", "@prosewire/db"],
   experimental: {
     authInterrupts: true,
+    exposeTestingApiInProductionBuild:
+      process.env["PROSEWIRE_EXPOSE_TESTING_API"] === "1",
     optimizePackageImports: ["lucide-react"],
     runtimeServerDeploymentId: true,
   },

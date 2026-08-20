@@ -37,6 +37,7 @@
   "devDependencies": {
     "@effect/vitest": "4.0.0-rc.110",
     "@modelcontextprotocol/sdk": "^1.30.0",
+    "@next/playwright": "16.3.1",
     "@playwright/test": "^1.51.1",
     "@prosewire/cli": "workspace:*",
     "@prosewire/config": "workspace:*",

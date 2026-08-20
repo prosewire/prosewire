@@ -3,6 +3,8 @@ import nextConfig from "../next.config.ts";
 
 describe("self-hosted Next.js configuration", () => {
   it("reads the deployment ID at server runtime for prebuilt images", () => {
+    expect(nextConfig.cacheComponents).toBe(true);
+    expect(nextConfig.partialPrefetching).toBe(true);
     expect(nextConfig.output).toBe("standalone");
     expect(nextConfig.outputFileTracingIncludes?.["/*"]).toEqual([
       "../../node_modules/.pnpm/@swc+helpers@*/node_modules/@swc/helpers/esm/**/*",
@@ -19,6 +21,9 @@ describe("self-hosted Next.js configuration", () => {
     expect(headers.get("X-Frame-Options")).toBe("DENY");
     expect(headers.get("Content-Security-Policy")).toContain(
       "frame-ancestors 'none'",
+    );
+    expect(headers.get("Content-Security-Policy")).not.toContain(
+      "'unsafe-eval'",
     );
   });
 });

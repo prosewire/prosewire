@@ -160,6 +160,9 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.30.0
         version: 1.30.0(supports-color@10.2.2)(zod@4.4.3)
+      '@next/playwright':
+        specifier: 16.3.1
+        version: 16.3.1(@playwright/test@1.62.1)
       '@playwright/test':
         specifier: ^1.51.1
         version: 1.62.1
@@ -2126,6 +2129,14 @@ packages:
 
   '@next/eslint-plugin-next@16.3.1':
     resolution: {integrity: sha512-B4SznlXwVpaLDa7Tbi6zLuueria2d/PmFDhXyDymPGrk2r1n/RMJmcn5FZq1L64k+Jsyte1lKvOr7lP9Xo80mQ==}
+
+  '@next/playwright@16.3.1':
+    resolution: {integrity: sha512-C5HQHjCg9clH66Zdvd860bOfXeBE45z4dBYxeDC3RpkG7H/7RvslVT8RkT62JqUASOqocJxo9cLyq7C4AI8MFQ==}
+    peerDependencies:
+      '@playwright/test': '>=1.0.0'
+    peerDependenciesMeta:
+      '@playwright/test':
+        optional: true
 
   '@next/swc-darwin-arm64@16.3.1':
     resolution: {integrity: sha512-ABMIu2zQ7cnNIHm5ivKGwZwUrm0pAai3yiJ/gK/rF1c1VP9UOnj7XECbMKFdVKp9I9eMYq9NoDs1WXOoowxzJw==}
@@ -8469,6 +8480,10 @@ snapshots:
       fast-glob: 3.3.1
     transitivePeerDependencies:
       - eslint
+
+  '@next/playwright@16.3.1(@playwright/test@1.62.1)':
+    optionalDependencies:
+      '@playwright/test': 1.62.1
 
   '@next/swc-darwin-arm64@16.3.1':
     optional: true

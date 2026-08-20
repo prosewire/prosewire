@@ -4,7 +4,6 @@ import { createPublication, createWorkspace } from "@/server/actions";
 import { loadOnboarding } from "@/server/workspace-entrypoints";
 
 export const metadata = { title: "Set up Prosewire" };
-export const dynamic = "force-dynamic";
 
 export default async function OnboardingPage({
   searchParams,

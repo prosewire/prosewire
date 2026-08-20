@@ -45,6 +45,7 @@ jobs:
       BETTER_AUTH_SECRET: ci-only-secret-with-at-least-32-characters
       PROSEWIRE_PUBLIC_URL: http://localhost:3000
       NEXT_PUBLIC_PROSEWIRE_PUBLIC_URL: http://localhost:3000
+      PROSEWIRE_EXPOSE_TESTING_API: "1"
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4

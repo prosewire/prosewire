@@ -1,4 +1,5 @@
 import { Effect, Option, Result, Schema } from "effect";
+import { io } from "next/cache";
 import { cookies } from "next/headers";
 import { requireDashboardSessionEffect } from "@/lib/session";
 import { BlogAccess } from "./authorization.ts";
@@ -49,6 +50,7 @@ export type DashboardPageResult<A> =
 async function runDashboardPage<A, E extends Error>(
   effect: Effect.Effect<A, E, AppServices>,
 ): Promise<DashboardPageResult<A>> {
+  await io();
   const result = await runAppEffect(Effect.result(effect));
   if (Result.isSuccess(result)) {
     return { _tag: "Success", value: result.success };
@@ -189,12 +191,13 @@ export function loadEditPost(id: string) {
   );
 }
 
-export function loadPublicBlog(
+export async function loadPublicBlog(
   slug: string,
   options: PublicPostOptions = {},
 ) {
   const parsed = parseBlogSlug(slug);
   if (Option.isNone(parsed)) return Promise.resolve(null);
+  await io();
   return runAppEffect(
     Effect.flatMap(PublicContent.Service, (content) =>
       content.blog(parsed.value, options),
@@ -202,9 +205,10 @@ export function loadPublicBlog(
   );
 }
 
-export function loadPublicPost(blogSlug: string, postSlug: string) {
+export async function loadPublicPost(blogSlug: string, postSlug: string) {
   const parsed = parseBlogSlug(blogSlug);
   if (Option.isNone(parsed)) return Promise.resolve(null);
+  await io();
   return runAppEffect(
     Effect.flatMap(PublicContent.Service, (content) =>
       content.post(parsed.value, postSlug),
@@ -212,9 +216,10 @@ export function loadPublicPost(blogSlug: string, postSlug: string) {
   );
 }
 
-export function loadPublicRedirect(blogSlug: string, postSlug: string) {
+export async function loadPublicRedirect(blogSlug: string, postSlug: string) {
   const parsed = parseBlogSlug(blogSlug);
   if (Option.isNone(parsed)) return Promise.resolve(undefined);
+  await io();
   return runAppEffect(
     Effect.flatMap(PublicContent.Service, (content) =>
       content.redirect(parsed.value, postSlug),
@@ -222,9 +227,10 @@ export function loadPublicRedirect(blogSlug: string, postSlug: string) {
   );
 }
 
-export function loadPublicAuthor(blogSlug: string, authorSlug: string) {
+export async function loadPublicAuthor(blogSlug: string, authorSlug: string) {
   const parsed = parseBlogSlug(blogSlug);
   if (Option.isNone(parsed)) return Promise.resolve(null);
+  await io();
   return runAppEffect(
     Effect.flatMap(PublicContent.Service, (content) =>
       content.author(parsed.value, authorSlug),
