@@ -5,28 +5,25 @@ import { notFound } from "next/navigation";
 import { readingMinutes, slugify } from "@prosewire/core";
 import { PublicHeader } from "@/components/public-header";
 import { ReadingProgress } from "@/components/public-progress";
-import { getPublicBlog, getPublicPost, getPublicPosts } from "@/server/data";
+import { loadPublicPost } from "@/server/page-entrypoints";
 
 export async function generateMetadata({ params }: { params: Promise<{ blog: string; slug: string }> }): Promise<Metadata> {
   const { blog: blogSlug, slug } = await params;
-  const blog = await getPublicBlog(blogSlug);
-  if (!blog) return {};
-  const post = await getPublicPost(blog.id, slug);
-  if (!post) return {};
+  const result = await loadPublicPost(blogSlug, slug);
+  if (!result) return {};
+  const { blog, post } = result;
   const canonical = post.canonicalUrl ?? (blog.publicUrl ? `${blog.publicUrl}/${post.slug}` : undefined);
   return { title: post.seoTitle ?? post.title, description: post.seoDescription ?? post.excerpt, alternates: { canonical }, authors: [{ name: post.author.name }] };
 }
 
 export default async function PublicPostPage({ params }: { params: Promise<{ blog: string; slug: string }> }) {
   const { blog: blogSlug, slug } = await params;
-  const blog = await getPublicBlog(blogSlug);
-  if (!blog) notFound();
-  const post = await getPublicPost(blog.id, slug);
-  if (!post) notFound();
-  const allPosts = await getPublicPosts(blog.id);
+  const result = await loadPublicPost(blogSlug, slug);
+  if (!result) notFound();
+  const { blog, post, allPosts, publicUrl } = result;
   const related = allPosts.filter((item) => item.id !== post.id && item.categories.some((entry) => post.categories.some((own) => own.categoryId === entry.categoryId))).slice(0, 2);
   const headings = (post.contentMarkdown.match(/^#{2,3}\s+.+$/gm) ?? []).map((heading) => ({ level: heading.startsWith('###') ? 3 : 2, label: heading.replace(/^#{2,3}\s+/, ''), id: slugify(heading.replace(/^#{2,3}\s+/, '')) }));
-  const canonical = post.canonicalUrl ?? (blog.publicUrl ? `${blog.publicUrl}/${post.slug}` : `${process.env["PROSEWIRE_PUBLIC_URL"] ?? "http://localhost:3000"}/b/${blog.slug}/${post.slug}`);
+  const canonical = post.canonicalUrl ?? (blog.publicUrl ? `${blog.publicUrl}/${post.slug}` : `${publicUrl}/b/${blog.slug}/${post.slug}`);
   const jsonLd = { "@context": "https://schema.org", "@type": "BlogPosting", headline: post.title, description: post.excerpt, datePublished: post.publishedAt?.toISOString(), dateModified: post.updatedAt.toISOString(), mainEntityOfPage: canonical, author: { "@type": "Person", name: post.author.name, description: post.author.bio }, publisher: { "@type": "Organization", name: blog.name } };
   return (
     <main style={{ "--blog-accent": blog.accentColor } as React.CSSProperties} className="min-h-screen bg-[#f8f7f2] text-[#172329]">

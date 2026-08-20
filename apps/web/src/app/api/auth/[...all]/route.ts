@@ -1,16 +1,4 @@
-import { toNextJsHandler } from "better-auth/next-js";
-import { auth } from "@/lib/auth";
+import { authGet, authPost } from "@/server/http-entrypoints";
 
-let cached: ReturnType<typeof toNextJsHandler> | undefined;
-function handler() {
-  cached ??= toNextJsHandler(auth());
-  return cached;
-}
-
-export async function GET(request: Request): Promise<Response> {
-  return handler().GET(request);
-}
-
-export async function POST(request: Request): Promise<Response> {
-  return handler().POST(request);
-}
+export const GET = authGet;
+export const POST = authPost;

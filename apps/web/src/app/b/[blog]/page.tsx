@@ -3,20 +3,24 @@ import { ArrowRight, Search } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PublicHeader } from "@/components/public-header";
-import { getPublicBlog, getPublicPosts } from "@/server/data";
+import { loadPublicBlog } from "@/server/page-entrypoints";
 
 export async function generateMetadata({ params }: { params: Promise<{ blog: string }> }): Promise<Metadata> {
   const { blog: slug } = await params;
-  const blog = await getPublicBlog(slug);
-  if (!blog) return {};
+  const result = await loadPublicBlog(slug);
+  if (!result) return {};
+  const { blog } = result;
   return { title: blog.name, description: blog.description, alternates: { types: { "application/rss+xml": `/b/${blog.slug}/rss.xml` } } };
 }
 
 export default async function PublicBlogPage({ params, searchParams }: { params: Promise<{ blog: string }>; searchParams: Promise<{ q?: string; category?: string }> }) {
   const [{ blog: slug }, query] = await Promise.all([params, searchParams]);
-  const blog = await getPublicBlog(slug);
-  if (!blog) notFound();
-  const posts = await getPublicPosts(blog.id, { search: query.q, category: query.category });
+  const result = await loadPublicBlog(slug, {
+    ...(query.q === undefined ? {} : { search: query.q }),
+    ...(query.category === undefined ? {} : { category: query.category }),
+  });
+  if (!result) notFound();
+  const { blog, posts } = result;
   const featured = posts.find((post) => post.featured) ?? posts[0];
   const rest = posts.filter((post) => post.id !== featured?.id);
   const categories = Array.from(new Map(posts.flatMap((post) => post.categories.map((entry) => [entry.category.slug, entry.category] as const))).values());

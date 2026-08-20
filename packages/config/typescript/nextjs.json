@@ -6,6 +6,6 @@
     "jsx": "preserve",
     "noEmit": true,
     "allowJs": true,
-    "plugins": [{ "name": "next" }]
+    "plugins": [{ "name": "next" }, { "name": "@effect/language-service" }]
   }
 }

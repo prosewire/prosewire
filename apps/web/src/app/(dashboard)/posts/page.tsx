@@ -2,15 +2,13 @@ import { Archive, Download, Plus, Search } from "lucide-react";
 import Link from "next/link";
 import { StatusBadge } from "@/components/ui";
 import { bulkArchivePosts } from "@/server/actions";
-import { getDashboardPosts, getDefaultBlog } from "@/server/data";
+import { loadDashboardPosts } from "@/server/page-entrypoints";
 
 export const metadata = { title: "Posts" };
 
 export default async function PostsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const { q } = await searchParams;
-  const blog = await getDefaultBlog();
-  if (!blog) return null;
-  const posts = await getDashboardPosts(blog.id, q);
+  const { blog, posts } = await loadDashboardPosts(q);
   return (
     <main className="mx-auto max-w-[1400px] px-4 py-6 sm:px-7 lg:px-9 lg:py-8">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">

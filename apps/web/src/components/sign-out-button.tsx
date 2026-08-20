@@ -10,9 +10,13 @@ export function SignOutButton() {
     <button
       type="button"
       onClick={async () => {
-        await signOut();
-        router.push("/sign-in");
-        router.refresh();
+        try {
+          await signOut();
+          router.push("/sign-in");
+          router.refresh();
+        } catch {
+          // The existing session remains active; the user can retry safely.
+        }
       }}
       className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-xs font-medium text-[#687279] transition hover:bg-black/5 hover:text-[#172329]"
     >

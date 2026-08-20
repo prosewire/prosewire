@@ -9,9 +9,13 @@ export function CopyButton({ value }: { value: string }) {
     <button
       type="button"
       onClick={async () => {
-        await navigator.clipboard.writeText(value);
-        setCopied(true);
-        window.setTimeout(() => setCopied(false), 1600);
+        try {
+          await navigator.clipboard.writeText(value);
+          setCopied(true);
+          window.setTimeout(() => setCopied(false), 1600);
+        } catch {
+          setCopied(false);
+        }
       }}
       className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/10 px-2.5 py-1.5 text-[10px] font-semibold text-white transition hover:bg-white/15"
     >

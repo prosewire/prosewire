@@ -13,16 +13,17 @@
     "test:coverage": "vitest run --coverage --passWithNoTests"
   },
   "dependencies": {
-    "@prosewire/contract": "workspace:*",
-    "@prosewire/core": "workspace:*",
-    "@prosewire/db": "workspace:*",
     "@orpc/openapi": "^1.14.2",
     "@orpc/server": "^1.14.2",
     "@orpc/zod": "^1.14.2",
+    "@prosewire/contract": "workspace:*",
+    "@prosewire/core": "workspace:*",
+    "@prosewire/db": "workspace:*",
     "better-auth": "^1.6.25",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
+    "effect": "4.0.0-rc.110",
     "lucide-react": "^0.577.0",
     "next": "16.2.11",
     "react": "19.2.4",
@@ -32,6 +33,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@effect/vitest": "4.0.0-rc.110",
     "@prosewire/config": "workspace:*",
     "@tailwindcss/postcss": "^4.3.1",
     "@types/node": "^24.0.0",

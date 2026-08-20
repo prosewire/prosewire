@@ -1,18 +1,10 @@
 import { ShieldCheck, UserPlus, Users2 } from "lucide-react";
-import { eq } from "drizzle-orm";
-import { schema } from "@prosewire/db";
-import { db } from "@/lib/db";
-import { getAuthors, getDefaultBlog } from "@/server/data";
+import { loadDashboardTeam } from "@/server/page-entrypoints";
 
 export const metadata = { title: "Authors & team" };
 
 export default async function TeamPage() {
-  const blog = await getDefaultBlog();
-  if (!blog) return null;
-  const [authors, members] = await Promise.all([
-    getAuthors(blog.id),
-    db().select({ id: schema.user.id, name: schema.user.name, email: schema.user.email, role: schema.blogMember.role }).from(schema.blogMember).innerJoin(schema.user, eq(schema.blogMember.userId, schema.user.id)).where(eq(schema.blogMember.blogId, blog.id)),
-  ]);
+  const { authors, members } = await loadDashboardTeam();
   return (
     <main className="mx-auto max-w-[1100px] px-4 py-6 sm:px-7 lg:px-9 lg:py-8">
       <header className="flex items-end justify-between"><div><p className="text-xs font-semibold text-[#ef6848]">People</p><h1 className="mt-1 text-3xl font-semibold tracking-[-.04em]">Authors & team</h1><p className="mt-2 text-sm text-[#6e787d]">Separate dashboard access from public author identity.</p></div><button className="hidden h-10 items-center gap-2 rounded-xl bg-[#172329] px-4 text-sm font-semibold text-white sm:inline-flex"><UserPlus className="size-3.5" />Invite member</button></header>

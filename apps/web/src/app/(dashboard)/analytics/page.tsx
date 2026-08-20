@@ -1,13 +1,11 @@
 import { Eye, MousePointerClick, Search, TrendingUp } from "lucide-react";
 import { Sparkline } from "@/components/sparkline";
-import { getDashboardMetrics, getDashboardPosts, getDefaultBlog, getViewSeries } from "@/server/data";
+import { loadDashboardAnalytics } from "@/server/page-entrypoints";
 
 export const metadata = { title: "Analytics" };
 
 export default async function AnalyticsPage() {
-  const blog = await getDefaultBlog();
-  if (!blog) return null;
-  const [metrics, posts, series] = await Promise.all([getDashboardMetrics(blog.id), getDashboardPosts(blog.id), getViewSeries(blog.id)]);
+  const { metrics, posts, series } = await loadDashboardAnalytics();
   const published = posts.filter((post) => post.status === "published").sort((a, b) => b.views.length - a.views.length);
   return (
     <main className="mx-auto max-w-[1200px] px-4 py-6 sm:px-7 lg:px-9 lg:py-8">
