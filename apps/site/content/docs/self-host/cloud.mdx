@@ -1,0 +1,40 @@
+---
+title: Deploy with managed services
+description: Run the portable Prosewire image with external Postgres, Redis, SMTP, and a cloud load balancer.
+section: Operate
+order: 7
+---
+
+## Runtime topology
+
+A cloud deployment has three commands from the same image:
+
+| Process | Command | Scaling |
+| --- | --- | --- |
+| Migration | `node apps/worker/dist/migrate.mjs` | One job per release |
+| Web | `node apps/web/server.js` | One or more replicas |
+| Worker | `node apps/worker/dist/index.mjs` | One or more replicas |
+
+Provide managed Postgres and Redis through `DATABASE_URL` and `REDIS_URL`. Run the migration job to completion before replacing web and worker replicas.
+
+## Compose against cloud services
+
+The repository includes `docker-compose.cloud.yml` for a host that connects to external services:
+
+```shell
+PROSEWIRE_IMAGE=ghcr.io/your-org/prosewire:v0.1.0 \
+  docker compose -f docker-compose.cloud.yml up -d
+```
+
+Your `.env` must contain the external database, Redis, public origin, authentication, server-action, and SMTP settings. The cloud file does not provision stateful services.
+
+## Platform requirements
+
+- Preserve the same `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` across web replicas and releases
+- Route traffic only after `/api/health` returns 200
+- Allow graceful termination so in-flight requests finish
+- Run web and worker from the same immutable image digest
+- Back up Postgres independently of the application lifecycle
+- Keep Redis and Postgres connections encrypted and network-restricted
+
+No managed Prosewire control plane or billing service is required; the container is self-contained apart from Postgres, Redis, and SMTP.

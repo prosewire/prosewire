@@ -1,4 +1,4 @@
 {
   "title": "Self-host",
-  "pages": ["docker"]
+  "pages": ["docker", "cloud"]
 }

@@ -5,19 +5,35 @@ import {
   Fiber,
   Layer,
   ManagedRuntime,
+  Option,
   Redacted,
 } from "effect";
 import type { Db } from "@prosewire/db/client";
 
-import { emailPasswordPolicy } from "./auth-service.ts";
+import {
+  disabledOrganizationMutationPaths,
+  emailPasswordPolicy,
+} from "./auth-service.ts";
 import { WebConfig } from "./config.ts";
 import { Database } from "./database.ts";
 import { promiseEffect } from "./external-effect.ts";
 import { SeedConfig } from "./seed-config.ts";
 
 describe("web infrastructure", () => {
-  it("disables public email/password signup", () => {
-    expect(emailPasswordPolicy.disableSignUp).toBe(true);
+  it("keeps the signup endpoint available for the invitation-aware gate", () => {
+    expect(emailPasswordPolicy.disableSignUp).toBe(false);
+  });
+
+  it("routes organization writes through the audited application service", () => {
+    expect(disabledOrganizationMutationPaths).toContain(
+      "/organization/invite-member",
+    );
+    expect(disabledOrganizationMutationPaths).toContain(
+      "/organization/update-member-role",
+    );
+    expect(disabledOrganizationMutationPaths).toContain(
+      "/organization/create",
+    );
   });
 
   it("fails configuration when required production credentials are absent", async () => {
@@ -120,6 +136,10 @@ describe("web infrastructure", () => {
       publicUrl: "http://localhost:3000",
       databaseUrl: Redacted.make("postgres://test"),
       authSecret: Redacted.make("test-secret-at-least-32-characters"),
+      allowSignUp: false,
+      smtpUrl: Option.none(),
+      emailFrom: "Prosewire <prosewire@localhost>",
+      environment: "test",
     });
     const database = Database.layerWith(() => {
       opened += 1;

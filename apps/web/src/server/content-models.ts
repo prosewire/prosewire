@@ -1,10 +1,16 @@
 import { Schema } from "effect";
 import type * as databaseSchema from "@prosewire/db/schema";
 import {
+  ApiKeyId,
+  AuditLogId,
   AuthorId,
   BlogId,
   BlogSlug,
   CategoryId,
+  InvitationId,
+  MemberId,
+  OrganizationId,
+  OrganizationSlug,
   PostId,
   PostRevisionId,
   PostViewId,
@@ -21,6 +27,7 @@ const timestamps = {
 
 export class Blog extends Schema.Class<Blog>("Content.Blog")({
   id: BlogId,
+  organizationId: OrganizationId,
   name: Schema.String,
   slug: BlogSlug,
   description: Schema.String,
@@ -29,6 +36,47 @@ export class Blog extends Schema.Class<Blog>("Content.Blog")({
   customCss: Schema.String,
   publicUrl: nullableString,
   ...timestamps,
+}) {}
+
+export const TeamRole = Schema.Literals([
+  "owner",
+  "admin",
+  "editor",
+  "author",
+  "viewer",
+]);
+export type TeamRole = typeof TeamRole.Type;
+
+export class Workspace extends Schema.Class<Workspace>("Content.Workspace")({
+  id: OrganizationId,
+  name: Schema.String,
+  slug: OrganizationSlug,
+  logo: nullableString,
+  metadata: nullableString,
+  createdAt: Schema.Date,
+}) {}
+
+export class WorkspaceMembership extends Schema.Class<WorkspaceMembership>(
+  "Content.WorkspaceMembership",
+)({
+  id: MemberId,
+  organizationId: OrganizationId,
+  userId: UserId,
+  role: TeamRole,
+  createdAt: Schema.Date,
+}) {}
+
+export class WorkspaceInvitation extends Schema.Class<WorkspaceInvitation>(
+  "Content.WorkspaceInvitation",
+)({
+  id: InvitationId,
+  organizationId: OrganizationId,
+  email: Schema.String,
+  role: TeamRole,
+  status: Schema.Literals(["pending", "accepted", "rejected", "canceled"]),
+  inviterId: UserId,
+  expiresAt: Schema.Date,
+  createdAt: Schema.Date,
 }) {}
 
 export class Author extends Schema.Class<Author>("Content.Author")({
@@ -101,6 +149,8 @@ const postFields = {
   scheduledAt: Schema.NullOr(Schema.Date),
   publishedAt: Schema.NullOr(Schema.Date),
   archivedAt: Schema.NullOr(Schema.Date),
+  createdById: Schema.NullOr(UserId),
+  updatedById: Schema.NullOr(UserId),
   ...timestamps,
 };
 
@@ -147,10 +197,40 @@ export class Redirect extends Schema.Class<Redirect>("Content.Redirect")({
 }) {}
 
 export class TeamMember extends Schema.Class<TeamMember>("Content.TeamMember")({
-  id: UserId,
+  id: MemberId,
+  userId: UserId,
   name: Schema.String,
   email: Schema.String,
-  role: Schema.Literals(["owner", "admin", "editor", "author", "viewer"]),
+  role: TeamRole,
+}) {}
+
+export class ApiKeySummary extends Schema.Class<ApiKeySummary>(
+  "Content.ApiKeySummary",
+)({
+  id: ApiKeyId,
+  blogId: BlogId,
+  name: Schema.String,
+  prefix: Schema.String,
+  scopes: Schema.Array(Schema.String),
+  lastUsedAt: Schema.NullOr(Schema.Date),
+  expiresAt: Schema.NullOr(Schema.Date),
+  createdAt: Schema.Date,
+}) {}
+
+export class AuditEntry extends Schema.Class<AuditEntry>("Content.AuditEntry")({
+  id: AuditLogId,
+  organizationId: OrganizationId,
+  blogId: Schema.NullOr(BlogId),
+  actorId: Schema.NullOr(UserId),
+  actorName: nullableString,
+  actorEmail: nullableString,
+  publicationName: nullableString,
+  action: Schema.String,
+  entityType: Schema.String,
+  entityId: nullableString,
+  before: Schema.Unknown,
+  after: Schema.Unknown,
+  createdAt: Schema.Date,
 }) {}
 
 type BlogRow = typeof databaseSchema.blog.$inferSelect;
@@ -164,7 +244,21 @@ type PostViewRow = typeof databaseSchema.postView.$inferSelect;
 type PostRevisionRow = typeof databaseSchema.postRevision.$inferSelect;
 
 export const toBlog = (row: BlogRow) =>
-  new Blog({ ...row, id: BlogId.make(row.id), slug: BlogSlug.make(row.slug) });
+  new Blog({
+    ...row,
+    id: BlogId.make(row.id),
+    organizationId: OrganizationId.make(row.organizationId),
+    slug: BlogSlug.make(row.slug),
+  });
+
+export const toWorkspace = (
+  row: typeof databaseSchema.organization.$inferSelect,
+) =>
+  new Workspace({
+    ...row,
+    id: OrganizationId.make(row.id),
+    slug: OrganizationSlug.make(row.slug),
+  });
 
 export const toAuthor = (row: AuthorRow) =>
   new Author({
@@ -208,6 +302,8 @@ const postValues = (row: PostRow) => ({
   id: PostId.make(row.id),
   blogId: BlogId.make(row.blogId),
   authorId: AuthorId.make(row.authorId),
+  createdById: row.createdById ? UserId.make(row.createdById) : null,
+  updatedById: row.updatedById ? UserId.make(row.updatedById) : null,
 });
 
 export const toDashboardPost = (

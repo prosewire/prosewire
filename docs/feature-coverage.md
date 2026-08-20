@@ -25,10 +25,11 @@ Prosewire therefore treats self-hosting, bulk operations, portable content, and 
 | Capability | Prosewire status |
 | --- | --- |
 | Unlimited posts | Implemented |
-| Multiple users and authors | Data model and UI implemented; invitations are next |
-| Fixed and granular roles | Role model implemented; per-operation enforcement is next |
+| Multiple workspaces and publications | Implemented with explicit dashboard selectors and isolated public/integration surfaces |
+| Multiple users and authors | Workspace membership, email invitations, and publication-specific public authors implemented |
+| Fixed and granular roles | Owner, admin, editor, author, and viewer enforced at dashboard and API mutation boundaries |
 | Version history and user revision tracking | Implemented |
-| Audit log | Implemented in data and mutations; export UI is next |
+| Audit log | Implemented for workspace, membership, publication, content, scheduler, and API-key mutations with dashboard visibility |
 | Link monitoring | Planned |
 | Offsite backups | Deployment concern; documented database ownership, automation planned |
 | SSO | Planned adapter |

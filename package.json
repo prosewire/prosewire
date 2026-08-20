@@ -13,7 +13,7 @@
     "dev": "dotenv -e .env -- turbo run dev",
     "dev:web": "dotenv -e .env -- pnpm --filter @prosewire/web dev",
     "dev:site": "pnpm --filter @prosewire/site dev",
-    "dev:services": "docker compose up -d postgres redis",
+    "dev:services": "docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres redis",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",

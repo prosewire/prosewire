@@ -11,6 +11,12 @@ Prosewire keeps its schemas and operation metadata in a shared contract package.
 
 This makes draft visibility, scheduled publication, audit records, and destructive-operation safeguards consistent whether a person uses the dashboard or an agent uses MCP.
 
+## Tenant boundaries
+
+A Better Auth organization is a Prosewire workspace. Workspace membership carries one of five roles: owner, admin, editor, author, or viewer. Publications belong to exactly one workspace; content, public URLs, API keys, exports, and analytics remain publication-scoped.
+
+Authorization is repeated next to every server mutation and private API operation. Submitted publication, author, category, member, and invitation identifiers are resolved against the caller's workspace before writes begin. Authors can edit only posts they created, while editors can review and publish across the workspace.
+
 ## Choose your delivery surface
 
 - JavaScript embed for the fastest integration

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Layer, Redacted, Schema } from "effect";
+import { Effect, Layer, Option, Redacted, Schema } from "effect";
 import type { Db } from "@prosewire/db/client";
 import * as databaseSchema from "@prosewire/db/schema";
 import { ApiContent } from "./api-content.ts";
@@ -84,6 +84,10 @@ describe("Publishing transitions", () => {
         publicUrl: "http://localhost:3000",
         databaseUrl: Redacted.make("postgres://test"),
         authSecret: Redacted.make("test-secret-at-least-32-characters"),
+        allowSignUp: false,
+        smtpUrl: Option.none(),
+        emailFrom: "Prosewire <prosewire@localhost>",
+        environment: "test",
       }),
       Layer.mock(BlogAccess.Service, {}),
       Layer.mock(ApiContent.Service, {}),
@@ -163,6 +167,9 @@ describe("Publishing transitions", () => {
       }),
     };
     const client = {
+      query: {
+        post: { findFirst: () => Promise.resolve(existing) },
+      },
       transaction: async (
         evaluate: (tx: typeof transaction) => Promise<unknown>,
       ) => await evaluate(transaction),
@@ -182,9 +189,24 @@ describe("Publishing transitions", () => {
         publicUrl: "http://localhost:3000",
         databaseUrl: Redacted.make("postgres://test"),
         authSecret: Redacted.make("test-secret-at-least-32-characters"),
+        allowSignUp: false,
+        smtpUrl: Option.none(),
+        emailFrom: "Prosewire <prosewire@localhost>",
+        environment: "test",
       }),
       Layer.mock(BlogAccess.Service, {
-        requirePostWrite: () => Effect.succeed({ role: "editor" } as never),
+        requirePostUpdate: () =>
+          Effect.succeed({
+            role: "editor",
+            workspace: { id: "workspace-1" },
+            blog: { slug: "fieldnotes" },
+          } as never),
+        requirePublish: () =>
+          Effect.succeed({
+            role: "editor",
+            workspace: { id: "workspace-1" },
+            blog: { slug: "fieldnotes" },
+          } as never),
       }),
       Layer.mock(ApiContent.Service, {}),
     );
@@ -215,6 +237,94 @@ describe("Publishing transitions", () => {
       );
 
       expect(updated?.["publishedAt"]).toBe(publishedAt);
+    }).pipe(
+      Effect.provide(Publishing.layer.pipe(Layer.provide(dependencies))),
+    );
+  });
+
+  it.effect("requires publish permission before taking a live post back to draft", () => {
+    const postId = "55555555-5555-4555-8555-555555555555";
+    const actorId = UserId.make("author-1");
+    const existing = {
+      id: postId,
+      blogId,
+      createdById: actorId,
+      status: "published" as const,
+    };
+    let executions = 0;
+    const client = {
+      query: {
+        post: { findFirst: () => Promise.resolve(existing) },
+      },
+    } as unknown as Db;
+    const dependencies = Layer.mergeAll(
+      Layer.succeed(Database, {
+        client: Effect.succeed(client),
+        execute: (operation, evaluate) => {
+          executions += 1;
+          return Effect.tryPromise({
+            try: () => evaluate(client),
+            catch: (cause) =>
+              new Error(`${operation}: ${String(cause)}`) as never,
+          });
+        },
+      }),
+      Layer.succeed(WebConfig, {
+        defaultBlog: "fieldnotes",
+        publicUrl: "http://localhost:3000",
+        databaseUrl: Redacted.make("postgres://test"),
+        authSecret: Redacted.make("test-secret-at-least-32-characters"),
+        allowSignUp: false,
+        smtpUrl: Option.none(),
+        emailFrom: "Prosewire <prosewire@localhost>",
+        environment: "test",
+      }),
+      Layer.mock(BlogAccess.Service, {
+        requirePostUpdate: () => Effect.succeed({} as never),
+        requirePublish: () =>
+          Effect.fail(
+            new BlogAccess.BlogAccessDenied({
+              blogId: BlogId.make(blogId),
+              userId: actorId,
+              capability: "content:publish",
+            }),
+          ),
+      }),
+      Layer.mock(ApiContent.Service, {}),
+    );
+
+    return Effect.gen(function* () {
+      const publishing = yield* Publishing.Service;
+      const error = yield* Effect.flip(
+        publishing.savePost(
+          new SavePostInput({
+            id: PostId.make(postId),
+            blogId: BlogId.make(blogId),
+            authorId: AuthorId.make(authorId),
+            title: "Back to draft",
+            requestedSlug: "back-to-draft",
+            excerpt: "",
+            contentMarkdown: "# Draft",
+            requestedStatus: "draft",
+            featured: false,
+            locale: "en",
+            coverImageUrl: null,
+            coverImageAlt: null,
+            seoTitle: null,
+            seoDescription: null,
+            focusKeyword: null,
+            canonicalUrl: null,
+            scheduledAt: null,
+          }),
+          actorId,
+        ),
+      );
+
+      expect(error).toBeInstanceOf(BlogAccess.BlogAccessDenied);
+      if (error instanceof BlogAccess.BlogAccessDenied) {
+        expect(error.capability).toBe("content:publish");
+      }
+      expect(executions).toBe(1);
     }).pipe(
       Effect.provide(Publishing.layer.pipe(Layer.provide(dependencies))),
     );
@@ -269,6 +379,11 @@ describe("Publishing transitions", () => {
       }),
     };
     const client = {
+      query: {
+        blog: {
+          findFirst: () => Promise.resolve({ organizationId: "workspace-1" }),
+        },
+      },
       transaction: async (
         evaluate: (tx: typeof transaction) => Promise<unknown>,
       ) => await evaluate(transaction),
@@ -288,6 +403,10 @@ describe("Publishing transitions", () => {
         publicUrl: "http://localhost:3000",
         databaseUrl: Redacted.make("postgres://test"),
         authSecret: Redacted.make("test-secret-at-least-32-characters"),
+        allowSignUp: false,
+        smtpUrl: Option.none(),
+        emailFrom: "Prosewire <prosewire@localhost>",
+        environment: "test",
       }),
       Layer.mock(BlogAccess.Service, {}),
       Layer.mock(ApiContent.Service, {}),

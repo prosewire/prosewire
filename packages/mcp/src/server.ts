@@ -7,15 +7,28 @@ export function createProsewireMcpServer(client: Client, version = "0.1.0"): Mcp
     { name: "prosewire", version },
     {
       instructions:
-        "Manage Prosewire content. Read-only tools are marked safe. Confirm with the user before mutating or archiving content.",
+        "Manage the single publication scoped to PROSEWIRE_API_KEY. Read-only tools are marked safe. Confirm with the user before mutating or archiving content.",
     },
+  );
+
+  server.registerTool(
+    "publication_get",
+    {
+      title: "Get active publication",
+      description: "Return the publication scoped to this API key (safe, read-only).",
+      inputSchema: {},
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
+    },
+    async () => ({
+      content: [{ type: "text", text: JSON.stringify(await client.blogs.list(), null, 2) }],
+    }),
   );
 
   server.registerTool(
     "posts_list",
     {
       title: "List posts",
-      description: "List and search posts (safe, read-only).",
+      description: "List and search posts in the API key's publication (safe, read-only).",
       inputSchema: {
         blog: z.string().optional(),
         search: z.string().optional(),

@@ -1,30 +1,50 @@
 ---
 title: Configuration map
-description: The core runtime settings to define before sharing a Prosewire deployment.
+description: Runtime, authentication, email, and multi-instance settings for a Prosewire deployment.
 section: Reference
 order: 8
 ---
 
-## Required values
+## Required services and origin
 
 ```dotenv
 DATABASE_URL=postgres://…
-BETTER_AUTH_SECRET=replace-with-a-long-secret
-BETTER_AUTH_URL=https://publish.example.com
+REDIS_URL=redis://…
+BETTER_AUTH_SECRET=replace-with-at-least-32-random-characters
+PROSEWIRE_PUBLIC_URL=https://publish.example.com
+NEXT_PUBLIC_PROSEWIRE_PUBLIC_URL=https://publish.example.com
 ```
 
-## Background publishing
+The public URL must be the external HTTPS origin seen by browsers. The web and worker must use the same Postgres and Redis services.
+
+## Account bootstrap and email
 
 ```dotenv
-REDIS_URL=redis://redis:6379
+PROSEWIRE_ALLOW_SIGN_UP=true
+SMTP_URL=smtps://user:password@smtp.example.com:465
+EMAIL_FROM=Prosewire <no-reply@example.com>
+# PROSEWIRE_REQUIRE_EMAIL_VERIFICATION=true
 ```
 
-Redis connects the web process to the scheduled-publishing worker. Keep both services pointed at the same Postgres and Redis instances.
+Production sign-up is disabled unless `PROSEWIRE_ALLOW_SIGN_UP=true`. Enable it to create the first owner, complete onboarding, then disable it unless open registration is intended. A valid, unexpired invitation still allows its matching email address to create an account. SMTP is required in production for team invitations.
+
+## Rolling and multi-instance deployments
+
+```dotenv
+NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=<base64-encoded-32-byte-key>
+PROSEWIRE_DEPLOYMENT_ID=release-2026-08-19
+```
+
+Use one stable server-action encryption key across every web replica and release. Give each release a deployment ID so clients do not mix incompatible assets while a rollout is in progress.
+
+## Local-only seed
+
+`ADMIN_EMAIL`, `ADMIN_PASSWORD`, and `PROSEWIRE_DEFAULT_BLOG` are read only by the development seed. Production web startup never migrates or seeds the database.
 
 ## Security notes
 
 - Never commit production environment files
-- Rotate development credentials before deployment
-- Store API tokens as hashes
-- Encrypt secrets that must be recovered later
-- Scope API keys to the operations an integration needs
+- Keep Postgres and Redis on private networks
+- Store API tokens as hashes and use the narrowest read/write scope
+- Rotate a compromised API key by creating a replacement, changing the consumer, then revoking the old key
+- Back up Postgres and test a restore before launch

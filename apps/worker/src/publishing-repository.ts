@@ -1,6 +1,6 @@
 import { openDb, type Db, type DbResource } from "@prosewire/db/client";
 import * as schema from "@prosewire/db/schema";
-import { and, eq, isNotNull, lte } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, lte } from "drizzle-orm";
 import { Context, Effect, Layer, Redacted, Schema } from "effect";
 import { PostId, PublishedPost } from "./domain.ts";
 import { WorkerConfig } from "./worker-config.ts";
@@ -41,15 +41,37 @@ export function make(db: Db): Interface {
                 blogId: schema.post.blogId,
               });
             if (published.length > 0) {
-              await tx.insert(schema.auditLog).values(
-                published.map((post) => ({
+              const blogIds = [...new Set(published.map((post) => post.blogId))];
+              const publications = await tx
+                .select({
+                  id: schema.blog.id,
+                  organizationId: schema.blog.organizationId,
+                })
+                .from(schema.blog)
+                .where(inArray(schema.blog.id, blogIds));
+              const organizationByBlog = new Map(
+                publications.map((publication) => [
+                  publication.id,
+                  publication.organizationId,
+                ]),
+              );
+              const auditEntries = published.map((post) => {
+                const organizationId = organizationByBlog.get(post.blogId);
+                if (!organizationId) {
+                  throw new Error(
+                    `Publication ${post.blogId} has no owning workspace`,
+                  );
+                }
+                return {
+                  organizationId,
                   blogId: post.blogId,
                   action: "post.published_scheduled",
                   entityType: "post",
                   entityId: post.id,
                   after: { source: "worker", status: "published" },
-                })),
-              );
+                };
+              });
+              await tx.insert(schema.auditLog).values(auditEntries);
             }
             return published.map(
               ({ id, title }) =>

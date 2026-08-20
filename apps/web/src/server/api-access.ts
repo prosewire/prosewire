@@ -1,5 +1,4 @@
-import { createHash } from "node:crypto";
-import { Clock, Context, Effect, Layer, Schema } from "effect";
+import { Clock, Context, Crypto, Effect, Layer, Schema } from "effect";
 import { eq } from "drizzle-orm";
 import * as schema from "@prosewire/db/schema";
 import { Database, type DatabaseError } from "./database.ts";
@@ -54,8 +53,13 @@ export function hasScope(
   return scopes.includes(requiredScope);
 }
 
+function hex(bytes: Uint8Array): string {
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 export const create = Effect.fn("ApiAccess.create")(function* () {
   const database = yield* Database;
+  const crypto = yield* Crypto.Crypto;
 
   return {
     authenticate: Effect.fn("ApiAccess.authenticate")(function* (
@@ -67,7 +71,10 @@ export const create = Effect.fn("ApiAccess.create")(function* () {
           message: "Bearer API key required",
         });
       }
-      const hash = createHash("sha256").update(token).digest("hex");
+      const digest = yield* crypto
+        .digest("SHA-256", new TextEncoder().encode(token))
+        .pipe(Effect.orDie);
+      const hash = hex(digest);
       const key = yield* database.execute("apiKey.find", (client) =>
         client.query.apiKey.findFirst({
           where: eq(schema.apiKey.keyHash, hash),

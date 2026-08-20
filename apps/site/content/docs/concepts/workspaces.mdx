@@ -1,0 +1,28 @@
+---
+title: Workspaces, publications, and roles
+description: Understand Prosewire's tenant boundary and the permissions carried by each workspace role.
+section: Start here
+order: 3
+---
+
+## Workspace versus publication
+
+A workspace owns the team. A publication owns content, public reader URLs, API keys, analytics, authors, categories, redirects, and exports. One workspace can contain multiple publications, and one signed-in user can belong to multiple workspaces.
+
+The dashboard stores the active workspace in the authenticated session and the active publication in an HTTP-only cookie. Switching either value revalidates membership before the selection is accepted.
+
+## Role matrix
+
+| Role | Capabilities |
+| --- | --- |
+| Owner | Full workspace, member, publication, content, integration, audit, and ownership control |
+| Admin | Workspace, member, publication, content, integration, and audit control; cannot delete the workspace |
+| Editor | Create, edit, schedule, publish, and archive all content; read analytics and integration details |
+| Author | Create drafts and edit only posts they created; read analytics and integration details |
+| Viewer | Read dashboard content, analytics, and integration details without mutations |
+
+Invitations are sent by email, expire after 48 hours, and can be canceled before acceptance. Owner transfer and workspace deletion are deliberately separate from routine role editing.
+
+## Integration isolation
+
+Private API keys belong to one publication. A key may have `content:read`, `content:write`, or both scopes. Selecting a different publication in the dashboard does not broaden an existing key.

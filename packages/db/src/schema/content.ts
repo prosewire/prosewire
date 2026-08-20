@@ -11,7 +11,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import { user } from "./auth.ts";
+import { organization, user } from "./auth.ts";
 
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -20,6 +20,9 @@ const timestamps = {
 
 export const blog = pgTable("blog", {
   id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: text("organization_id")
+    .notNull()
+    .references(() => organization.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(),
   description: text("description").notNull().default(""),
@@ -29,23 +32,6 @@ export const blog = pgTable("blog", {
   publicUrl: text("public_url"),
   ...timestamps,
 });
-
-export const blogMember = pgTable(
-  "blog_member",
-  {
-    blogId: uuid("blog_id")
-      .notNull()
-      .references(() => blog.id, { onDelete: "cascade" }),
-    userId: text("user_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
-    role: text("role", { enum: ["owner", "admin", "editor", "author", "viewer"] })
-      .notNull()
-      .default("viewer"),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  },
-  (table) => [primaryKey({ columns: [table.blogId, table.userId] })],
-);
 
 export const author = pgTable(
   "author",
@@ -110,6 +96,8 @@ export const post = pgTable(
     scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
     publishedAt: timestamp("published_at", { withTimezone: true }),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdById: text("created_by_id").references(() => user.id, { onDelete: "set null" }),
+    updatedById: text("updated_by_id").references(() => user.id, { onDelete: "set null" }),
     ...timestamps,
   },
   (table) => [
@@ -205,6 +193,7 @@ export const auditLog = pgTable(
   "audit_log",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: text("organization_id").references(() => organization.id, { onDelete: "set null" }),
     blogId: uuid("blog_id").references(() => blog.id, { onDelete: "set null" }),
     actorId: text("actor_id").references(() => user.id, { onDelete: "set null" }),
     action: text("action").notNull(),
@@ -216,7 +205,13 @@ export const auditLog = pgTable(
     userAgent: text("user_agent"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("audit_log_blog_created_idx").on(table.blogId, table.createdAt)],
+  (table) => [
+    index("audit_log_blog_created_idx").on(table.blogId, table.createdAt),
+    index("audit_log_organization_created_idx").on(
+      table.organizationId,
+      table.createdAt,
+    ),
+  ],
 );
 
 export const postView = pgTable(
@@ -233,11 +228,11 @@ export const postView = pgTable(
   (table) => [index("post_view_post_occurred_idx").on(table.postId, table.occurredAt)],
 );
 
-export const blogRelations = relations(blog, ({ many }) => ({
+export const blogRelations = relations(blog, ({ one, many }) => ({
+  workspace: one(organization, { fields: [blog.organizationId], references: [organization.id] }),
   authors: many(author),
   categories: many(category),
   posts: many(post),
-  members: many(blogMember),
 }));
 
 export const authorRelations = relations(author, ({ one, many }) => ({

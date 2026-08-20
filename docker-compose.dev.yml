@@ -1,12 +1,7 @@
 services:
-  web:
-    image: prosewire:dev
-    build:
-      context: .
-      dockerfile: Dockerfile
-
-  worker:
-    image: prosewire:dev
-    build:
-      context: .
-      dockerfile: Dockerfile
+  postgres:
+    ports:
+      - "5432:5432"
+  redis:
+    ports:
+      - "6379:6379"

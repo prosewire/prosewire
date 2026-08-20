@@ -1,5 +1,5 @@
 export type PostStatus = "draft" | "scheduled" | "published" | "archived";
-export type TeamRole = "owner" | "admin" | "editor" | "author" | "viewer";
+export type { TeamRole } from "./permissions.ts";
 
 export interface PublicAuthor {
   id: string;

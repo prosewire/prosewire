@@ -4,6 +4,7 @@ import { Effect, Layer } from "effect";
 import type { Db } from "@prosewire/db/client";
 import { ApiAccess } from "./api-access.ts";
 import { Database, DatabaseError } from "./database.ts";
+import { PlatformCrypto } from "./platform-crypto.ts";
 
 function apiKeyDatabase(scopes: ReadonlyArray<string>, calls: Array<string>) {
   const token = "pw_test_key";
@@ -51,7 +52,11 @@ describe("API key scopes", () => {
       expect(principal.blogId).toBe("11111111-1111-4111-8111-111111111111");
       expect(calls).toEqual(["apiKey.find"]);
     }).pipe(
-      Effect.provide(ApiAccess.layer.pipe(Layer.provide(layer))),
+      Effect.provide(
+        ApiAccess.layer.pipe(
+          Layer.provide(Layer.mergeAll(layer, PlatformCrypto.layer)),
+        ),
+      ),
     );
   });
 
@@ -66,7 +71,11 @@ describe("API key scopes", () => {
       expect(denied._tag).toBe("ApiScopeDenied");
       expect(calls).toEqual(["apiKey.find"]);
     }).pipe(
-      Effect.provide(ApiAccess.layer.pipe(Layer.provide(layer))),
+      Effect.provide(
+        ApiAccess.layer.pipe(
+          Layer.provide(Layer.mergeAll(layer, PlatformCrypto.layer)),
+        ),
+      ),
     );
   });
 });

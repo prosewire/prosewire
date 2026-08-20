@@ -1,7 +1,7 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { hashPassword } from "better-auth/crypto";
 import { eq } from "drizzle-orm";
-import { Clock, Context, Effect, Layer, Option, Redacted } from "effect";
+import { Clock, Context, Crypto, Effect, Layer, Option, Redacted } from "effect";
 import { createExcerpt, renderMarkdown } from "@prosewire/core";
 import * as schema from "@prosewire/db/schema";
 import { WebConfig } from "./config.ts";
@@ -145,6 +145,8 @@ export const create = Effect.fn("Seed.create")(function* () {
   const webConfig = yield* WebConfig;
   const seedConfig = yield* SeedConfig;
   const database = yield* Database;
+  const crypto = yield* Crypto.Crypto;
+  const uuid = crypto.randomUUIDv4.pipe(Effect.orDie);
 
   const initialData = Effect.fn("Seed.initialData")(function* () {
     const now = yield* Clock.currentTimeMillis;
@@ -154,7 +156,8 @@ export const create = Effect.fn("Seed.create")(function* () {
       }),
     );
     if (!admin) {
-      const userId = randomUUID();
+      const userId = yield* uuid;
+      const accountId = yield* uuid;
       const password = yield* promiseEffect(
         "better-auth",
         "hashAdminPassword",
@@ -173,7 +176,7 @@ export const create = Effect.fn("Seed.create")(function* () {
             .returning();
           if (!created) throw new Error("Unable to create the admin user");
           await tx.insert(schema.account).values({
-            id: randomUUID(),
+            id: accountId,
             userId,
             accountId: userId,
             providerId: "credential",
@@ -203,12 +206,18 @@ export const create = Effect.fn("Seed.create")(function* () {
       }),
     );
     if (existingBlog) {
+      const memberId = yield* uuid;
       yield* database.execute("seed.ensureAdminMembership", (client) =>
         client
-          .insert(schema.blogMember)
-          .values({ blogId: existingBlog.id, userId: adminId, role: "owner" })
+          .insert(schema.member)
+          .values({
+            id: memberId,
+            organizationId: existingBlog.organizationId,
+            userId: adminId,
+            role: "owner",
+          })
           .onConflictDoUpdate({
-            target: [schema.blogMember.blogId, schema.blogMember.userId],
+            target: [schema.member.organizationId, schema.member.userId],
             set: { role: "owner" },
           }),
       );
@@ -223,12 +232,20 @@ export const create = Effect.fn("Seed.create")(function* () {
         ).pipe(Effect.map((contentHtml) => ({ item, contentHtml }))),
       { concurrency: "unbounded" },
     );
+    const organizationId = yield* uuid;
+    const memberId = yield* uuid;
 
     yield* database.execute("seed.createInitialData", (client) =>
       client.transaction(async (tx) => {
+        await tx.insert(schema.organization).values({
+          id: organizationId,
+          name: "Prosewire",
+          slug: "prosewire",
+        });
         const [createdBlog] = await tx
           .insert(schema.blog)
           .values({
+            organizationId,
             name: "Fieldnotes",
             slug: webConfig.defaultBlog,
             description:
@@ -239,8 +256,9 @@ export const create = Effect.fn("Seed.create")(function* () {
           .returning();
         if (!createdBlog) throw new Error("Unable to seed the demo blog");
 
-        await tx.insert(schema.blogMember).values({
-          blogId: createdBlog.id,
+        await tx.insert(schema.member).values({
+          id: memberId,
+          organizationId,
           userId: adminId,
           role: "owner",
         });
@@ -306,6 +324,8 @@ export const create = Effect.fn("Seed.create")(function* () {
                       now + item.scheduledInDays * 24 * 60 * 60 * 1000,
                     )
                   : null,
+              createdById: adminId,
+              updatedById: adminId,
             })
             .returning();
           const selectedCategory = categoryRows.find(
