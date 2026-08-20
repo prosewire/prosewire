@@ -16,7 +16,8 @@
     "dev:services": "docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres redis",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
-    "test": "turbo run test",
+    "test": "turbo run test && pnpm test:packages",
+    "test:packages": "node scripts/package-tarball-smoke.mjs",
     "test:coverage": "turbo run test:coverage",
     "db:generate": "pnpm --filter @prosewire/db generate",
     "db:migrate": "pnpm --filter @prosewire/db migrate",
@@ -25,7 +26,7 @@
     "prepare": "(lefthook install || true) && effect-language-service patch",
     "changeset": "changeset",
     "version-packages": "changeset version",
-    "release": "turbo run build --filter=@prosewire/sdk --filter=@prosewire/cli --filter=@prosewire/mcp && changeset publish"
+    "release": "pnpm test:packages && changeset publish"
   },
   "devDependencies": {
     "@changesets/cli": "^2.31.0",

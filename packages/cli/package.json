@@ -4,7 +4,19 @@
   "license": "Apache-2.0",
   "type": "module",
   "description": "Prosewire command-line interface.",
-  "exports": { ".": "./src/index.ts" },
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    }
+  },
+  "bin": {
+    "prosewire": "./dist/index.mjs"
+  },
   "files": ["dist", "README.md"],
   "scripts": {
     "build": "tsdown",
@@ -15,11 +27,7 @@
     "prepublishOnly": "tsdown"
   },
   "publishConfig": {
-    "access": "public",
-    "bin": { "prosewire": "./dist/index.mjs" },
-    "main": "./dist/index.mjs",
-    "module": "./dist/index.mjs",
-    "types": "./dist/index.d.mts"
+    "access": "public"
   },
   "dependencies": {
     "@prosewire/sdk": "workspace:^",
