@@ -10,6 +10,7 @@ import {
   organizationAccess,
   organizationRoles,
 } from "@/lib/permissions";
+import { invitationRegistrationHeader } from "@/lib/auth-headers";
 import { WebConfig } from "./config.ts";
 import { Database, type DatabaseError } from "./database.ts";
 
@@ -53,6 +54,37 @@ export const disabledOrganizationMutationPaths = [
   "/organization/update-team",
 ] as const;
 
+export async function requireRegistrationInvitation(
+  database: Db,
+  input: {
+    readonly allowSignUp: boolean;
+    readonly email: string;
+    readonly invitationId: string | null;
+    readonly now?: Date;
+  },
+): Promise<void> {
+  if (input.allowSignUp) return;
+  const invitationId = input.invitationId?.trim();
+  if (!invitationId) {
+    throw new APIError("FORBIDDEN", {
+      message: "Registration requires a workspace invitation",
+    });
+  }
+  const invitation = await database.query.invitation.findFirst({
+    where: and(
+      eq(databaseSchema.invitation.id, invitationId),
+      eq(databaseSchema.invitation.email, input.email.toLowerCase()),
+      eq(databaseSchema.invitation.status, "pending"),
+      gt(databaseSchema.invitation.expiresAt, input.now ?? new Date()),
+    ),
+  });
+  if (!invitation) {
+    throw new APIError("FORBIDDEN", {
+      message: "Registration requires a workspace invitation",
+    });
+  }
+}
+
 function buildAuth(
   database: Db,
   config: {
@@ -88,20 +120,13 @@ function buildAuth(
     databaseHooks: {
       user: {
         create: {
-          before: async (user) => {
-            if (config.allowSignUp) return;
-            const invitation = await database.query.invitation.findFirst({
-              where: and(
-                eq(databaseSchema.invitation.email, user.email.toLowerCase()),
-                eq(databaseSchema.invitation.status, "pending"),
-                gt(databaseSchema.invitation.expiresAt, new Date()),
-              ),
+          before: async (user, context) => {
+            await requireRegistrationInvitation(database, {
+              allowSignUp: config.allowSignUp,
+              email: user.email,
+              invitationId:
+                context?.getHeader(invitationRegistrationHeader) ?? null,
             });
-            if (!invitation) {
-              throw new APIError("FORBIDDEN", {
-                message: "Registration requires a workspace invitation",
-              });
-            }
           },
         },
       },

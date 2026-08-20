@@ -6,13 +6,14 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Logo } from "@/components/logo";
 import { signUp } from "@/lib/auth-client";
+import { invitationRegistrationHeader } from "@/lib/auth-headers";
 
 function formText(data: FormData, name: string): string {
   const value = data.get(name);
   return typeof value === "string" ? value : "";
 }
 
-export function SignUpForm({ returnTo, invitedEmail }: { returnTo: string; invitedEmail?: string }) {
+export function SignUpForm({ returnTo, invitedEmail, invitationId }: { returnTo: string; invitedEmail?: string; invitationId?: string }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -20,7 +21,14 @@ export function SignUpForm({ returnTo, invitedEmail }: { returnTo: string; invit
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     setPending(true); setError(null);
-    const result = await signUp.email({ name: formText(data, "name"), email: formText(data, "email"), password: formText(data, "password") });
+    const result = await signUp.email({
+      name: formText(data, "name"),
+      email: formText(data, "email"),
+      password: formText(data, "password"),
+      ...(invitationId
+        ? { fetchOptions: { headers: { [invitationRegistrationHeader]: invitationId } } }
+        : {}),
+    });
     setPending(false);
     if (result.error) { setError(result.error.message ?? "Unable to create account"); return; }
     router.push(returnTo); router.refresh();

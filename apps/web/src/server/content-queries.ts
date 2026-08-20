@@ -198,7 +198,7 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
     organizationId: OrganizationId,
     blogId: BlogId,
   ) {
-    const { authors, members, invitations } = yield* Effect.all(
+    const { authors, members } = yield* Effect.all(
       {
         authors: getAuthors(blogId),
         members: execute("member.list", (client) =>
@@ -214,15 +214,6 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
             .innerJoin(schema.user, eq(schema.member.userId, schema.user.id))
             .where(eq(schema.member.organizationId, organizationId))
             .orderBy(asc(schema.member.createdAt)),
-        ),
-        invitations: execute("invitation.list", (client) =>
-          client.query.invitation.findMany({
-            where: and(
-              eq(schema.invitation.organizationId, organizationId),
-              eq(schema.invitation.status, "pending"),
-            ),
-            orderBy: [asc(schema.invitation.createdAt)],
-          }),
         ),
       },
       { concurrency: "unbounded" },
@@ -242,24 +233,35 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
             ]
           : [];
       }),
-      invitations: invitations.flatMap((invitation) => {
-        const role =
-          invitation.role === "member" ? "viewer" : invitation.role;
-        return isTeamRole(role)
-          ? [
-              new WorkspaceInvitation({
-                ...invitation,
-                id: InvitationId.make(invitation.id),
-                organizationId: OrganizationId.make(
-                  invitation.organizationId,
-                ),
-                inviterId: UserId.make(invitation.inviterId),
-                role,
-              }),
-            ]
-          : [];
-      }),
     };
+  });
+
+  const getPendingInvitations = Effect.fn(
+    "ContentQueries.getPendingInvitations",
+  )(function* (organizationId: OrganizationId) {
+    const invitations = yield* execute("invitation.list", (client) =>
+      client.query.invitation.findMany({
+        where: and(
+          eq(schema.invitation.organizationId, organizationId),
+          eq(schema.invitation.status, "pending"),
+        ),
+        orderBy: [asc(schema.invitation.createdAt)],
+      }),
+    );
+    return invitations.flatMap((invitation) => {
+      const role = invitation.role === "member" ? "viewer" : invitation.role;
+      return isTeamRole(role)
+        ? [
+            new WorkspaceInvitation({
+              ...invitation,
+              id: InvitationId.make(invitation.id),
+              organizationId: OrganizationId.make(invitation.organizationId),
+              inviterId: UserId.make(invitation.inviterId),
+              role,
+            }),
+          ]
+        : [];
+    });
   });
 
   const getApiKeys = Effect.fn("ContentQueries.getApiKeys")(function* (
@@ -407,6 +409,7 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
     getViewSeries,
     getContentLibrary,
     getTeam,
+    getPendingInvitations,
     getApiKeys,
     getAuditLog,
     getPublicBlog,

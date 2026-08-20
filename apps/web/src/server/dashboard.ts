@@ -123,7 +123,15 @@ export const create = Effect.fn("Dashboard.create")(function* () {
     const context = yield* authorizedContext(actorId, selection);
     const blog = context.publication;
     const result = yield* content.getTeam(context.workspace.id, blog.id);
-    return { context, blog, ...result };
+    const invitations = yield* access
+      .requireMembersManage(context.workspace.id, actorId)
+      .pipe(
+        Effect.flatMap(() =>
+          content.getPendingInvitations(context.workspace.id),
+        ),
+        Effect.catchTag("WorkspaceAccessDenied", () => Effect.succeed([])),
+      );
+    return { context, blog, ...result, invitations };
   });
 
   const audit = Effect.fn("Dashboard.audit")(function* (

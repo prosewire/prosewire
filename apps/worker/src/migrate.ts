@@ -1,5 +1,5 @@
 import { Config, Effect, Option, Redacted, Schema } from "effect";
-import { runMigrations } from "@prosewire/db";
+import { migrateDatabase } from "./migration-runner.ts";
 
 class MigrationError extends Schema.TaggedError<MigrationError>()(
   "MigrationError",
@@ -19,7 +19,7 @@ const program = Effect.gen(function* () {
   );
   yield* Effect.tryPromise({
     try: () =>
-      runMigrations(
+      migrateDatabase(
         Redacted.value(databaseUrl),
         Option.getOrUndefined(migrationsDir),
       ),

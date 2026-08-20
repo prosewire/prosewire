@@ -1,5 +1,5 @@
 import { Buffer } from "node:buffer";
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, sql } from "drizzle-orm";
 import { Clock, Context, Crypto, Effect, Layer, Schema } from "effect";
 import {
   isTeamRole,
@@ -191,6 +191,17 @@ function toInvitation(
 
 function hex(bytes: Uint8Array): string {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function escapeHtml(value: string): string {
+  const replacements: Record<string, string> = {
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  };
+  return value.replace(/[&<>"']/g, (character) => replacements[character] ?? character);
 }
 
 export const create = Effect.fn("WorkspaceManagement.create")(function* () {
@@ -479,6 +490,9 @@ export const create = Effect.fn("WorkspaceManagement.create")(function* () {
       const expiresAt = new Date(now.getTime() + 48 * 60 * 60 * 1000);
       yield* database.execute("invitation.create", (client) =>
         client.transaction(async (tx) => {
+          await tx.execute(
+            sql`select pg_advisory_xact_lock(hashtextextended(${`${input.organizationId}:${recipient}`}, 0))`,
+          );
           await tx
             .update(schema.invitation)
             .set({ status: "canceled" })
@@ -513,7 +527,7 @@ export const create = Effect.fn("WorkspaceManagement.create")(function* () {
           to: recipient,
           subject: `Join ${authorization.workspace.name} on Prosewire`,
           text: `${actor.name} invited you to join ${authorization.workspace.name} as ${input.role}. Accept the invitation: ${invitationUrl}`,
-          html: `<p>${actor.name} invited you to join <strong>${authorization.workspace.name}</strong> as ${input.role}.</p><p><a href="${invitationUrl}">Accept invitation</a></p>`,
+          html: `<p>${escapeHtml(actor.name)} invited you to join <strong>${escapeHtml(authorization.workspace.name)}</strong> as ${escapeHtml(input.role)}.</p><p><a href="${escapeHtml(invitationUrl)}">Accept invitation</a></p>`,
         }),
       );
       return invitationId;
@@ -610,28 +624,23 @@ export const create = Effect.fn("WorkspaceManagement.create")(function* () {
     actor: Actor,
   ) {
     yield* access.requireMembersManage(organizationId, actor.id);
-    const invitation = yield* database.execute(
-      "invitation.findForCancellation",
-      (client) =>
-        client.query.invitation.findFirst({
-          where: and(
-            eq(schema.invitation.id, input.invitationId),
-            eq(schema.invitation.organizationId, organizationId),
-            eq(schema.invitation.status, "pending"),
-          ),
-        }),
-    );
-    if (!invitation) {
-      return yield* new InvitationNotFound({
-        invitationId: input.invitationId,
-      });
-    }
-    yield* database.execute("invitation.cancel", (client) =>
+    const canceled = yield* database.execute("invitation.cancel", (client) =>
       client.transaction(async (tx) => {
-        await tx
+        const [invitation] = await tx
           .update(schema.invitation)
           .set({ status: "canceled" })
-          .where(eq(schema.invitation.id, input.invitationId));
+          .where(
+            and(
+              eq(schema.invitation.id, input.invitationId),
+              eq(schema.invitation.organizationId, organizationId),
+              eq(schema.invitation.status, "pending"),
+            ),
+          )
+          .returning({
+            email: schema.invitation.email,
+            role: schema.invitation.role,
+          });
+        if (!invitation) return false;
         await tx.insert(schema.auditLog).values({
           organizationId,
           actorId: actor.id,
@@ -640,65 +649,82 @@ export const create = Effect.fn("WorkspaceManagement.create")(function* () {
           entityId: input.invitationId,
           before: { email: invitation.email, role: invitation.role },
         });
+        return true;
       }),
     );
+    if (!canceled) {
+      return yield* new InvitationNotFound({
+        invitationId: input.invitationId,
+      });
+    }
   });
 
   const acceptInvitation = Effect.fn(
     "WorkspaceManagement.acceptInvitation",
   )(function* (input: InvitationMutationInput, actor: Actor) {
-    const details = yield* invitationDetails(input.invitationId, actor.email);
-    if (!details) {
-      return yield* new InvitationNotFound({
-        invitationId: input.invitationId,
-      });
-    }
     const memberId = MemberId.make(yield* uuid);
     const now = new Date(yield* Clock.currentTimeMillis);
-    yield* database.execute("invitation.accept", (client) =>
+    const accepted = yield* database.execute("invitation.accept", (client) =>
       client.transaction(async (tx) => {
-        await tx
-          .insert(schema.member)
-          .values({
-            id: memberId,
-            organizationId: details.workspace.id,
-            userId: actor.id,
-            role: details.invitation.role,
-          })
-          .onConflictDoNothing({
-            target: [schema.member.organizationId, schema.member.userId],
-          });
-        await tx
+        const [invitation] = await tx
           .update(schema.invitation)
           .set({ status: "accepted" })
           .where(
             and(
               eq(schema.invitation.id, input.invitationId),
+              eq(schema.invitation.email, actor.email.toLowerCase()),
               eq(schema.invitation.status, "pending"),
+              gt(schema.invitation.expiresAt, now),
             ),
-          );
+          )
+          .returning({
+            organizationId: schema.invitation.organizationId,
+            role: schema.invitation.role,
+          });
+        if (!invitation) return undefined;
+        const role = normalizeRole(invitation.role);
+        if (!role) throw new Error("Invitation has an invalid role");
+        await tx
+          .insert(schema.member)
+          .values({
+            id: memberId,
+            organizationId: invitation.organizationId,
+            userId: actor.id,
+            role,
+          })
+          .onConflictDoNothing({
+            target: [schema.member.organizationId, schema.member.userId],
+          });
         await tx
           .update(schema.session)
           .set({
-            activeOrganizationId: details.workspace.id,
+            activeOrganizationId: invitation.organizationId,
             updatedAt: now,
           })
           .where(eq(schema.session.id, actor.sessionId));
         await tx.insert(schema.auditLog).values({
-          organizationId: details.workspace.id,
+          organizationId: invitation.organizationId,
           actorId: actor.id,
           action: "invitation.accepted",
           entityType: "invitation",
           entityId: input.invitationId,
-          after: { role: details.invitation.role },
+          after: { role },
         });
+        return {
+          organizationId: OrganizationId.make(invitation.organizationId),
+        };
       }),
     );
+    if (!accepted) {
+      return yield* new InvitationNotFound({
+        invitationId: input.invitationId,
+      });
+    }
     const publication = yield* database.execute(
       "invitation.firstPublication",
       (client) =>
         client.query.blog.findFirst({
-          where: eq(schema.blog.organizationId, details.workspace.id),
+          where: eq(schema.blog.organizationId, accepted.organizationId),
         }),
     );
     return publication ? BlogId.make(publication.id) : undefined;

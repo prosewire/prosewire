@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { boolean, index, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
@@ -75,6 +76,9 @@ export const invitation = pgTable(
   (table) => [
     index("invitation_organization_idx").on(table.organizationId),
     index("invitation_email_idx").on(table.email),
+    uniqueIndex("invitation_pending_email_unique")
+      .on(table.organizationId, table.email)
+      .where(sql`${table.status} = 'pending'`),
   ],
 );
 

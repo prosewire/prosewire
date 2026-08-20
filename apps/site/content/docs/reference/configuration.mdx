@@ -23,19 +23,18 @@ The public URL must be the external HTTPS origin seen by browsers. The web and w
 PROSEWIRE_ALLOW_SIGN_UP=true
 SMTP_URL=smtps://user:password@smtp.example.com:465
 EMAIL_FROM=Prosewire <no-reply@example.com>
-# PROSEWIRE_REQUIRE_EMAIL_VERIFICATION=true
 ```
 
-Production sign-up is disabled unless `PROSEWIRE_ALLOW_SIGN_UP=true`. Enable it to create the first owner, complete onboarding, then disable it unless open registration is intended. A valid, unexpired invitation still allows its matching email address to create an account. SMTP is required in production for team invitations.
+Production sign-up is disabled unless `PROSEWIRE_ALLOW_SIGN_UP=true`. Enable it to create the first owner, complete onboarding, then disable it unless open registration is intended. A valid, unexpired invitation link still allows the invited email address to create an account. SMTP is required in production for team invitations.
 
 ## Rolling and multi-instance deployments
 
 ```dotenv
 NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=<base64-encoded-32-byte-key>
-PROSEWIRE_DEPLOYMENT_ID=release-2026-08-19
+NEXT_DEPLOYMENT_ID=release-2026-08-20
 ```
 
-Use one stable server-action encryption key across every web replica and release. Give each release a deployment ID so clients do not mix incompatible assets while a rollout is in progress.
+Use one stable server-action encryption key across every web replica and release. Give each release a deployment ID at container runtime so clients do not mix incompatible assets while a rollout is in progress. Every replica serving the same release must use the same ID.
 
 ## Local-only seed
 

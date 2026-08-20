@@ -23,7 +23,12 @@ export default async function SignUpPage({
   return (
     <SignUpForm
       returnTo={safeReturnTo}
-      {...(state.invitation ? { invitedEmail: state.invitation.email } : {})}
+      {...(state.invitation && invitationId
+        ? {
+            invitedEmail: state.invitation.email,
+            invitationId,
+          }
+        : {})}
     />
   );
 }
