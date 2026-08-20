@@ -12,13 +12,13 @@ jobs:
       postgres:
         image: postgres:17-alpine
         env:
-          POSTGRES_DB: prosewire
+          POSTGRES_DB: prosewire_acceptance
           POSTGRES_USER: prosewire
           POSTGRES_PASSWORD: prosewire
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U prosewire -d prosewire"
+          --health-cmd "pg_isready -U prosewire -d prosewire_acceptance"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -32,7 +32,7 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
-      DATABASE_URL: postgres://prosewire:prosewire@localhost:5432/prosewire
+      DATABASE_URL: postgres://prosewire:prosewire@localhost:5432/prosewire_acceptance
       REDIS_URL: redis://localhost:6379
       BETTER_AUTH_SECRET: ci-only-secret-with-at-least-32-characters
       PROSEWIRE_PUBLIC_URL: http://localhost:3000
@@ -48,6 +48,8 @@ jobs:
       - run: pnpm db:migrate
       - run: pnpm lint
       - run: pnpm typecheck
-      - run: pnpm test
+      - run: pnpm test:coverage
       - run: pnpm build
+      - run: pnpm --filter @prosewire/web exec playwright install --with-deps chromium
+      - run: pnpm test:acceptance
       - run: docker build --tag prosewire:ci .

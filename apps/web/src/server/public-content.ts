@@ -29,6 +29,14 @@ export const create = Effect.fn("PublicContent.create")(function* () {
       const allPosts = yield* content.getPublicPosts(blogId);
       return { blog, post, allPosts, publicUrl: config.publicUrl };
     }),
+    redirect: Effect.fn("PublicContent.redirect")(function* (
+      blogSlug: BlogSlug,
+      fromPath: string,
+    ) {
+      const blog = yield* content.getPublicBlog(blogSlug);
+      if (!blog) return undefined;
+      return yield* content.getPublicRedirect(blog.id, fromPath);
+    }),
     author: Effect.fn("PublicContent.author")(function* (
       blogSlug: BlogSlug,
       authorSlug: string,

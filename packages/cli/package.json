@@ -10,8 +10,8 @@
     "build": "tsdown",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests",
-    "test:coverage": "vitest run --coverage --passWithNoTests",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "prepublishOnly": "tsdown"
   },
   "publishConfig": {

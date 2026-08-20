@@ -44,27 +44,44 @@ export const postOutput = z.object({
   categories: z.array(categoryOutput),
 });
 
-export const postCreateInput = z.object({
-  blogId: z.string().uuid(),
+const postMutableFields = {
   authorId: z.string().uuid(),
   title: z.string().trim().min(1).max(180),
   slug: z.string().trim().min(1).max(120),
-  excerpt: z.string().max(500).optional(),
-  contentMarkdown: z.string().default(""),
-  coverImageUrl: z.url().nullable().optional(),
-  coverImageAlt: z.string().max(180).nullable().optional(),
-  status: postStatus.default("draft"),
-  locale: z.string().min(2).max(10).default("en"),
-  featured: z.boolean().default(false),
-  seoTitle: z.string().max(70).nullable().optional(),
-  seoDescription: z.string().max(180).nullable().optional(),
-  focusKeyword: z.string().max(120).nullable().optional(),
-  canonicalUrl: z.url().nullable().optional(),
-  scheduledAt: z.iso.datetime().nullable().optional(),
-  categoryIds: z.array(z.string().uuid()).default([]),
+  excerpt: z.string().max(500),
+  contentMarkdown: z.string(),
+  coverImageUrl: z.url().nullable(),
+  coverImageAlt: z.string().max(180).nullable(),
+  status: postStatus,
+  locale: z.string().min(2).max(10),
+  featured: z.boolean(),
+  seoTitle: z.string().max(70).nullable(),
+  seoDescription: z.string().max(180).nullable(),
+  focusKeyword: z.string().max(120).nullable(),
+  canonicalUrl: z.url().nullable(),
+  scheduledAt: z.iso.datetime().nullable(),
+  categoryIds: z.array(z.string().uuid()),
+};
+
+export const postCreateInput = z.object({
+  blogId: z.string().uuid(),
+  ...postMutableFields,
+  excerpt: postMutableFields.excerpt.optional(),
+  contentMarkdown: postMutableFields.contentMarkdown.default(""),
+  coverImageUrl: postMutableFields.coverImageUrl.optional(),
+  coverImageAlt: postMutableFields.coverImageAlt.optional(),
+  status: postMutableFields.status.default("draft"),
+  locale: postMutableFields.locale.default("en"),
+  featured: postMutableFields.featured.default(false),
+  seoTitle: postMutableFields.seoTitle.optional(),
+  seoDescription: postMutableFields.seoDescription.optional(),
+  focusKeyword: postMutableFields.focusKeyword.optional(),
+  canonicalUrl: postMutableFields.canonicalUrl.optional(),
+  scheduledAt: postMutableFields.scheduledAt.optional(),
+  categoryIds: postMutableFields.categoryIds.default([]),
 });
 
-export const postUpdateInput = postCreateInput.omit({ blogId: true }).partial();
+export const postUpdateInput = z.object(postMutableFields).partial();
 
 export const blogOutput = z.object({
   id: z.string().uuid(),
