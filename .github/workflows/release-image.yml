@@ -39,6 +39,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@v6
+        id: image
         with:
           context: .
           push: true
@@ -51,6 +52,22 @@ jobs:
           labels: |
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+      - name: Verify published image
+        env:
+          IMAGE: ${{ steps.release.outputs.image }}
+          DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          reference="$IMAGE@$DIGEST"
+          docker pull "$reference"
+          test "$(docker image inspect "$reference" --format '{{.Os}}/{{.Architecture}}')" = "linux/amd64"
+          test "$(docker image inspect "$reference" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$GITHUB_SHA"
+          docker run --rm --entrypoint /bin/sh "$reference" -ec '
+            test -f /app/apps/web/server.js
+            test -f /app/apps/worker/dist/index.mjs
+            test -f /app/apps/worker/dist/migrate.mjs
+            test -d /app/packages/db/drizzle
+          '
+          echo "Verified $reference"
 
   stable:
     if: github.event_name == 'workflow_dispatch'
