@@ -1,6 +1,6 @@
 FROM node:26-alpine AS base
 ENV PNPM_HOME=/pnpm
-ENV PATH=$PNPM_HOME:$PATH
+ENV PATH=$PNPM_HOME/bin:$PATH
 RUN wget -qO- https://get.pnpm.io/install.sh | \
     env ENV=/root/.shrc SHELL="$(which sh)" PNPM_VERSION=11.20.0 sh -
 WORKDIR /app
