@@ -42,7 +42,7 @@
   "devDependencies": {
     "@prosewire/config": "workspace:*",
     "@prosewire/contract": "workspace:*",
-    "@types/node": "^24.0.0",
+    "@types/node": "^26.2.0",
     "eslint": "9.39.4",
     "tsdown": "^0.22.0",
     "typescript": "^6.0.3",

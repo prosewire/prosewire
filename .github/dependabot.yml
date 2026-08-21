@@ -10,6 +10,15 @@ updates:
         dependency-type: production
       development-dependencies:
         dependency-type: development
+    ignore:
+      # Effect's language service currently supports TypeScript 5 and 6.
+      - dependency-name: typescript
+        versions: [">=7 <8"]
+      # Next.js 16's ESLint plugin does not yet declare ESLint 10 support.
+      - dependency-name: eslint
+        versions: [">=10 <11"]
+      - dependency-name: "@eslint/js"
+        versions: [">=10 <11"]
 
   - package-ecosystem: github-actions
     directory: /

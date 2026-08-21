@@ -22,7 +22,7 @@
   "devDependencies": {
     "@effect/vitest": "4.0.0-rc.110",
     "@prosewire/config": "workspace:*",
-    "@types/node": "^24.0.0",
+    "@types/node": "^26.2.0",
     "@types/nodemailer": "^8.0.1",
     "eslint": "9.39.4",
     "tsdown": "^0.22.0",
