@@ -19,11 +19,13 @@ function inspect(format) {
 
 const manifest = inspect("{{json .Manifest}}");
 const images = inspect("{{json .Image}}");
+const imagesByPlatform =
+  images.os && images.architecture ? { [`${images.os}/${images.architecture}`]: images } : images;
 const expectedDigest = reference.includes("@") ? reference.split("@").at(-1) : undefined;
 if (expectedDigest) assert.equal(manifest.digest, expectedDigest);
 
 for (const platform of platforms) {
-  const image = images[platform];
+  const image = imagesByPlatform[platform];
   assert.ok(image, `${reference} has no ${platform} image`);
   assert.equal(`${image.os}/${image.architecture}`, platform);
   const labels = image.config?.Labels ?? image.config?.labels ?? {};

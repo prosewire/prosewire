@@ -1,5 +1,13 @@
 # @prosewire/cli
 
+## 0.2.1
+
+### Patch Changes
+
+- Publish the SDK, CLI, and MCP packages through npm trusted publishing.
+- Updated dependencies
+  - @prosewire/sdk@0.2.1
+
 ## 0.2.0
 
 ### Patch Changes
