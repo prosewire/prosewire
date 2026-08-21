@@ -43,6 +43,13 @@ export const create = Effect.fn("PublicContent.create")(function* () {
       if (!blog) return undefined;
       return yield* content.getPublicRedirect(blog.id, fromPath);
     }),
+    redirects: Effect.fn("PublicContent.redirects")(function* (
+      blogSlug: BlogSlug,
+    ) {
+      const blog = yield* content.getPublicBlog(blogSlug);
+      if (!blog) return null;
+      return yield* content.getPublicRedirects(blog.id);
+    }),
     author: Effect.fn("PublicContent.author")(function* (
       blogSlug: BlogSlug,
       authorSlug: string,

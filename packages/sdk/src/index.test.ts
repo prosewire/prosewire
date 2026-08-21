@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { createClient, createPublicClient } from "./index.ts";
+import {
+  createClient,
+  createPublicClient,
+  type ProsewireRequestError,
+} from "./index.ts";
 
 const blog = {
   id: "11111111-1111-4111-8111-111111111111",
@@ -53,20 +57,22 @@ const privatePost = {
 
 describe("Prosewire SDK", () => {
   it("calls the typed API with a normalized URL and bearer key", async () => {
-    const request = vi.fn((input: Parameters<typeof fetch>[0], init?: RequestInit) => {
-      const headers = new Headers(input instanceof Request ? input.headers : init?.headers);
-      const url =
-        typeof input === "string"
-          ? input
-          : input instanceof URL
-            ? input.href
-            : input.url;
-      expect(url).toBe(
-        "https://content.example/api/v1/blogs",
-      );
-      expect(headers.get("authorization")).toBe("Bearer pw_test_key");
-      return Promise.resolve(Response.json([]));
-    });
+    const request = vi.fn(
+      (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+        const headers = new Headers(
+          input instanceof Request ? input.headers : init?.headers,
+        );
+        const url =
+          typeof input === "string"
+            ? input
+            : input instanceof URL
+              ? input.href
+              : input.url;
+        expect(url).toBe("https://content.example/api/v1/blogs");
+        expect(headers.get("authorization")).toBe("Bearer pw_test_key");
+        return Promise.resolve(Response.json([]));
+      },
+    );
     const client = createClient({
       baseUrl: "https://content.example/",
       apiKey: "pw_test_key",
@@ -79,55 +85,74 @@ describe("Prosewire SDK", () => {
 
   it("exposes every private API operation through the Promise facade", async () => {
     const requests: Request[] = [];
-    const request = vi.fn((
-      input: Parameters<typeof fetch>[0],
-      init?: RequestInit,
-    ) => {
-      const outgoing = input instanceof Request ? input : new Request(input, init);
-      requests.push(outgoing);
-      const url = new URL(outgoing.url);
+    const request = vi.fn(
+      (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+        const outgoing =
+          input instanceof Request ? input : new Request(input, init);
+        requests.push(outgoing);
+        const url = new URL(outgoing.url);
 
-      if (url.pathname.endsWith("/health")) {
-        return Promise.resolve(Response.json({ status: "ok", version: "1.0.0" }));
-      }
-      if (outgoing.method === "GET" && url.pathname.endsWith("/posts")) {
-        return Promise.resolve(Response.json({
-          items: [privatePost],
-          total: 1,
-          page: 2,
-          pageSize: 10,
-        }));
-      }
-      if (outgoing.method === "DELETE") {
-        return Promise.resolve(Response.json({ ok: true }));
-      }
-      return Promise.resolve(Response.json(privatePost));
-    });
+        if (url.pathname.endsWith("/health")) {
+          return Promise.resolve(
+            Response.json({ status: "ok", version: "1.0.0" }),
+          );
+        }
+        if (outgoing.method === "GET" && url.pathname.endsWith("/posts")) {
+          return Promise.resolve(
+            Response.json({
+              items: [privatePost],
+              total: 1,
+              page: 2,
+              pageSize: 10,
+            }),
+          );
+        }
+        if (outgoing.method === "DELETE") {
+          return Promise.resolve(Response.json({ ok: true }));
+        }
+        return Promise.resolve(Response.json(privatePost));
+      },
+    );
     const client = createClient({
       baseUrl: "https://content.example",
       fetch: request,
     });
 
-    await expect(client.health()).resolves.toEqual({ status: "ok", version: "1.0.0" });
-    await expect(client.posts.list({ status: "draft", page: 2, pageSize: 10 }))
-      .resolves.toMatchObject({ total: 1, page: 2, pageSize: 10 });
-    await expect(client.posts.get({ params: { id: privatePost.id } }))
-      .resolves.toMatchObject({ id: privatePost.id });
-    await expect(client.posts.create({
-      blogId: blog.id,
-      authorId: privatePost.author.id,
-      title: "Draft",
-      slug: "draft",
-    })).resolves.toMatchObject({ id: privatePost.id });
-    await expect(client.posts.update({
-      params: { id: privatePost.id },
-      body: { title: "Updated" },
-    })).resolves.toMatchObject({ id: privatePost.id });
-    await expect(client.posts.archive({ params: { id: privatePost.id } }))
-      .resolves.toEqual({ ok: true });
+    await expect(client.health()).resolves.toEqual({
+      status: "ok",
+      version: "1.0.0",
+    });
+    await expect(
+      client.posts.list({ status: "draft", page: 2, pageSize: 10 }),
+    ).resolves.toMatchObject({ total: 1, page: 2, pageSize: 10 });
+    await expect(
+      client.posts.get({ params: { id: privatePost.id } }),
+    ).resolves.toMatchObject({ id: privatePost.id });
+    await expect(
+      client.posts.create({
+        blogId: blog.id,
+        authorId: privatePost.author.id,
+        title: "Draft",
+        slug: "draft",
+      }),
+    ).resolves.toMatchObject({ id: privatePost.id });
+    await expect(
+      client.posts.update({
+        params: { id: privatePost.id },
+        body: { title: "Updated" },
+      }),
+    ).resolves.toMatchObject({ id: privatePost.id });
+    await expect(
+      client.posts.archive({ params: { id: privatePost.id } }),
+    ).resolves.toEqual({ ok: true });
 
     expect(requests.map(({ method }) => method)).toEqual([
-      "GET", "GET", "GET", "POST", "PATCH", "DELETE",
+      "GET",
+      "GET",
+      "GET",
+      "POST",
+      "PATCH",
+      "DELETE",
     ]);
     expect(requests[1]?.url).toContain("status=draft&page=2&pageSize=10");
     await expect(requests[3]?.json()).resolves.toMatchObject({
@@ -155,12 +180,14 @@ describe("Prosewire SDK", () => {
       if (url.endsWith("/a%2Fb")) {
         return Promise.resolve(Response.json({ blog, post }));
       }
-      return Promise.resolve(Response.json({
-        blog,
-        posts: [post],
-        categories: [],
-        pagination: { page: 2, pageSize: 12, hasMore: false },
-      }));
+      return Promise.resolve(
+        Response.json({
+          blog,
+          posts: [post],
+          categories: [],
+          pagination: { page: 2, pageSize: 12, hasMore: false },
+        }),
+      );
     });
     const client = createPublicClient({
       baseUrl: "https://content.example/",
@@ -183,7 +210,9 @@ describe("Prosewire SDK", () => {
     expect(requestedUrls[1]).toBe(
       "https://content.example/api/public/field%20notes/posts/a%2Fb",
     );
-    await expect(client.getRendered("/a story")).resolves.toContain("Published");
+    await expect(client.getRendered("/a story")).resolves.toContain(
+      "Published",
+    );
   });
 
   it("rejects malformed public API responses", async () => {
@@ -196,15 +225,89 @@ describe("Prosewire SDK", () => {
     await expect(client.listPosts()).rejects.toThrow();
   });
 
+  it("paginates all public posts without depending on a bound client method", async () => {
+    const request = vi.fn((input: Parameters<typeof fetch>[0]) => {
+      const url = new URL(String(input));
+      const page = Number(url.searchParams.get("page"));
+      return Promise.resolve(
+        Response.json({
+          blog,
+          posts: [
+            { ...post, id: `${page}2222222-2222-4222-8222-222222222222` },
+          ],
+          categories: [],
+          pagination: { page, pageSize: 100, hasMore: page === 1 },
+        }),
+      );
+    });
+    const { listAllPosts } = createPublicClient({
+      baseUrl: "https://content.example",
+      blog: "fieldnotes",
+      fetch: request,
+    });
+
+    await expect(listAllPosts()).resolves.toHaveLength(2);
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(String(request.mock.calls[1]?.[0])).toContain("page=2&pageSize=100");
+  });
+
+  it("distinguishes canonical posts, redirects, and missing posts", async () => {
+    const request = vi.fn((input: Parameters<typeof fetch>[0]) => {
+      const url = String(input);
+      if (url.endsWith("/missing")) {
+        return Promise.resolve(new Response("missing", { status: 404 }));
+      }
+      return Promise.resolve(Response.json({ blog, post }));
+    });
+    const client = createPublicClient({
+      baseUrl: "https://content.example",
+      blog: "fieldnotes",
+      fetch: request,
+    });
+
+    await expect(client.resolvePost("published")).resolves.toMatchObject({
+      status: "found",
+    });
+    await expect(client.resolvePost("old-slug")).resolves.toMatchObject({
+      status: "redirect",
+      slug: "published",
+    });
+    await expect(client.resolvePost("missing")).resolves.toEqual({
+      status: "not-found",
+    });
+  });
+
+  it("loads the redirect manifest used by static framework builds", async () => {
+    const redirects = [
+      { fromPath: "old-slug", toPath: "published", statusCode: 301 },
+    ];
+    const client = createPublicClient({
+      baseUrl: "https://content.example",
+      blog: "fieldnotes",
+      fetch: vi.fn().mockResolvedValue(Response.json(redirects)),
+    });
+
+    await expect(client.listRedirects()).resolves.toEqual(redirects);
+  });
+
   it("throws useful errors for failed public requests", async () => {
     const client = createPublicClient({
       baseUrl: "https://content.example",
       blog: "fieldnotes",
-      fetch: vi.fn().mockResolvedValue(new Response("missing", { status: 404 })),
+      fetch: vi
+        .fn()
+        .mockResolvedValue(new Response("missing", { status: 404 })),
     });
 
-    await expect(client.listPosts()).rejects.toThrow("Prosewire request failed (404)");
-    await expect(client.getPost("missing")).rejects.toThrow("Prosewire request failed (404)");
-    await expect(client.getRendered()).rejects.toThrow("Prosewire request failed (404)");
+    await expect(client.listPosts()).rejects.toMatchObject({
+      name: "ProsewireRequestError",
+      status: 404,
+    } satisfies Partial<ProsewireRequestError>);
+    await expect(client.getPost("missing")).rejects.toThrow(
+      "Prosewire request failed (404)",
+    );
+    await expect(client.getRendered()).rejects.toThrow(
+      "Prosewire request failed (404)",
+    );
   });
 });

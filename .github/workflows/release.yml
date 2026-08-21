@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Plain semver shared by SDK, CLI, and MCP
+        description: Expected version shared by SDK, CLI, and MCP
         required: true
       ref:
         description: Immutable commit contained in origin/main
@@ -52,6 +52,7 @@ jobs:
       PROSEWIRE_PUBLIC_URL: http://localhost:3000
       NEXT_PUBLIC_PROSEWIRE_PUBLIC_URL: http://localhost:3000
       PROSEWIRE_EXPOSE_TESTING_API: "1"
+      PUBLIC_PACKAGE_DIRECTORIES: sdk cli mcp next astro create-prosewire
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -81,10 +82,29 @@ jobs:
           # shellcheck disable=SC2016
           node -e '
             const fs = require("node:fs");
+            const directories = process.env.PUBLIC_PACKAGE_DIRECTORIES.split(/\s+/);
             const expected = process.env.VERSION;
-            for (const name of ["sdk", "cli", "mcp"]) {
-              const actual = JSON.parse(fs.readFileSync(`packages/${name}/package.json`)).version;
-              if (actual !== expected) throw new Error(`@prosewire/${name} is ${actual}, expected ${expected}`);
+            const manifests = new Map();
+            for (const directory of directories) {
+              const manifest = JSON.parse(fs.readFileSync(`packages/${directory}/package.json`));
+              if (!/^\d+\.\d+\.\d+$/.test(manifest.version)) {
+                throw new Error(`${manifest.name} has invalid version ${manifest.version}`);
+              }
+              manifests.set(directory, manifest);
+            }
+            for (const directory of ["sdk", "cli", "mcp"]) {
+              const manifest = manifests.get(directory);
+              if (manifest.version !== expected) {
+                throw new Error(`${manifest.name} is ${manifest.version}, expected ${expected}`);
+              }
+            }
+            const frameworkVersions = new Set(
+              ["next", "astro", "create-prosewire"].map(
+                (directory) => manifests.get(directory).version,
+              ),
+            );
+            if (frameworkVersions.size !== 1) {
+              throw new Error("Next.js, Astro, and create-prosewire versions are not aligned");
             }
           '
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
@@ -111,23 +131,29 @@ jobs:
       - run: pnpm test:acceptance
       - name: Detect an idempotent rerun
         id: registry
-        env:
-          VERSION: ${{ inputs.version }}
         run: |
-          published=0
-          for package in @prosewire/sdk @prosewire/cli @prosewire/mcp; do
-            if npm view "$package@$VERSION" version --json >/dev/null 2>&1; then
-              published=$((published + 1))
+          missing=0
+          total=0
+          while IFS= read -r package_spec; do
+            total=$((total + 1))
+            if npm view "$package_spec" version --json >/dev/null 2>&1; then
+              echo "$package_spec already exists."
+            else
+              echo "$package_spec needs publication."
+              missing=$((missing + 1))
             fi
-          done
-          if [ "$published" -ne 0 ] && [ "$published" -ne 3 ]; then
-            echo "Only $published of 3 packages already exist at $VERSION; refusing a partial release" >&2
-            exit 1
-          fi
-          if [ "$published" -eq 3 ]; then
-            echo "All packages already exist at $VERSION; publication is a no-op."
+          done < <(node -e '
+            const fs = require("node:fs");
+            for (const directory of process.env.PUBLIC_PACKAGE_DIRECTORIES.split(/\s+/)) {
+              const manifest = JSON.parse(fs.readFileSync(`packages/${directory}/package.json`));
+              console.log(`${manifest.name}@${manifest.version}`);
+            }
+          ')
+          if [ "$missing" -eq 0 ]; then
+            echo "All $total public package versions already exist; publication is a no-op."
             echo "already_published=true" >> "$GITHUB_OUTPUT"
           else
+            echo "$missing of $total public package versions need publication."
             echo "already_published=false" >> "$GITHUB_OUTPUT"
           fi
       - name: Publish with npm trusted publishing
@@ -136,22 +162,27 @@ jobs:
           NPM_CONFIG_PROVENANCE: "true"
         run: pnpm release
       - name: Verify registry versions
-        env:
-          VERSION: ${{ inputs.version }}
         run: |
           for _attempt in {1..12}; do
             ready=true
-            for package in @prosewire/sdk @prosewire/cli @prosewire/mcp; do
-              actual="$(npm view "$package@$VERSION" version 2>/dev/null || true)"
-              if [ "$actual" != "$VERSION" ]; then
+            while IFS= read -r package_spec; do
+              actual="$(npm view "$package_spec" version 2>/dev/null || true)"
+              expected="${package_spec##*@}"
+              if [ "$actual" != "$expected" ]; then
                 ready=false
               fi
-            done
+            done < <(node -e '
+              const fs = require("node:fs");
+              for (const directory of process.env.PUBLIC_PACKAGE_DIRECTORIES.split(/\s+/)) {
+                const manifest = JSON.parse(fs.readFileSync(`packages/${directory}/package.json`));
+                console.log(`${manifest.name}@${manifest.version}`);
+              }
+            ')
             if [ "$ready" = true ]; then
-              echo "Verified SDK, CLI, and MCP $VERSION on npm."
+              echo "Verified all public package versions on npm."
               exit 0
             fi
             sleep 5
           done
-          echo "Published packages were not consistently visible on npm" >&2
+          echo "Public package versions were not consistently visible on npm" >&2
           exit 1

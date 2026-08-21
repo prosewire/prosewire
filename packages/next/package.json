@@ -1,0 +1,89 @@
+{
+  "name": "@prosewire/next",
+  "version": "0.2.1",
+  "license": "Apache-2.0",
+  "type": "module",
+  "description": "Headless Prosewire readers for the Next.js App Router and Pages Router.",
+  "keywords": [
+    "prosewire",
+    "publishing",
+    "nextjs",
+    "cms"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/prosewire/prosewire.git",
+    "directory": "packages/next"
+  },
+  "homepage": "https://github.com/prosewire/prosewire#readme",
+  "bugs": {
+    "url": "https://github.com/prosewire/prosewire/issues"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    },
+    "./app": {
+      "types": "./dist/app.d.mts",
+      "import": "./dist/app.mjs",
+      "default": "./dist/app.mjs"
+    },
+    "./pages": {
+      "types": "./dist/pages.d.mts",
+      "import": "./dist/pages.mjs",
+      "default": "./dist/pages.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "lint": "biome lint src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "prepublishOnly": "tsdown"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "dependencies": {
+    "@prosewire/sdk": "workspace:^"
+  },
+  "peerDependencies": {
+    "next": ">=14 <17",
+    "react": ">=18.2 <20",
+    "react-dom": ">=18.2 <20"
+  },
+  "devDependencies": {
+    "@prosewire/config": "workspace:*",
+    "@types/node": "^26.2.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "next": "16.3.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "tsdown": "^0.22.0",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "vitest": "^4.1.11"
+  },
+  "tsdown": {
+    "entry": [
+      "src/index.ts",
+      "src/app.tsx",
+      "src/pages.tsx"
+    ]
+  }
+}

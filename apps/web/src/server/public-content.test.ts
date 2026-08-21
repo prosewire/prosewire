@@ -26,6 +26,7 @@ function layer(seen: PublicPostOptions[]) {
       getPublicPost: () => Effect.succeed(testPublicPost),
       getPublicAuthor: () => Effect.succeed(testAuthor),
       getPublicRedirect: () => Effect.succeed("new-slug"),
+      getPublicRedirects: () => Effect.succeed([]),
       recordPostView: () => Effect.succeed(true),
     }),
     Layer.succeed(WebConfig, {
@@ -63,6 +64,7 @@ describe("PublicContent", () => {
       const service = yield* PublicContent.Service;
       const author = yield* service.author(slug, "ada");
       const redirect = yield* service.redirect(slug, "old-slug");
+      const redirects = yield* service.redirects(slug);
       const accepted = yield* service.recordView(
         testPostId,
         "44444444-4444-4444-8444-444444444444",
@@ -72,6 +74,7 @@ describe("PublicContent", () => {
       expect(author?.posts).toHaveLength(1);
       expect(seen).toContainEqual({ authorId: testAuthor.id, limit: null });
       expect(redirect).toBe("new-slug");
+      expect(redirects).toEqual([]);
       expect(accepted).toBe(true);
     }).pipe(Effect.provide(layer(seen)));
   });

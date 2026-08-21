@@ -10,6 +10,7 @@ order: 5
 ```http
 GET /api/public/:blog/posts
 GET /api/public/:blog/posts/:slug
+GET /api/public/:blog/redirects
 ```
 
 The list endpoint accepts these query parameters:
@@ -30,6 +31,8 @@ curl --fail \
 ```
 
 Individual post requests return `blog` and `post`. A request for an old published slug receives a permanent redirect after that slug changes. Missing publications and posts return 404.
+
+The redirects endpoint returns the publication's old and canonical slug pairs. Static framework integrations use this manifest to prebuild legacy paths instead of waiting for the first request.
 
 Public JSON allows cross-origin reads and is sent with shared-cache guidance of 60 seconds plus stale revalidation. Do not use public endpoints for draft previews.
 

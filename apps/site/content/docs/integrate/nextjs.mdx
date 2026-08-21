@@ -1,0 +1,81 @@
+---
+title: Add Prosewire to Next.js
+description: Add a native Prosewire reader to the App Router or Pages Router without giving up control of the markup or styles.
+section: Integrate
+order: 1
+---
+
+## Five-minute setup
+
+Run the scaffolder from the root of an existing Next.js project:
+
+```shell
+pnpm create prosewire@latest \
+  --url https://publish.example.com \
+  --blog fieldnotes \
+  --route /blog
+```
+
+It detects the App Router or Pages Router, installs `@prosewire/next`, and creates a shared configuration plus thin index and article routes. It refuses to replace existing files. If both routers exist, add `--router app` or `--router pages`.
+
+In a monorepo, run the command from the workspace root. A single Next.js or Astro app is selected automatically. When the workspace has multiple supported apps, add `--cwd apps/web`. The dependency is written to that app, but installation uses the workspace package manager at the root, so the command does not create a nested lockfile.
+
+The generated reader needs no API key. Only published content whose publication time has arrived is available through the public client.
+
+## App Router shape
+
+```typescript
+// src/lib/prosewire.ts
+import { createProsewireApp } from "@prosewire/next/app";
+
+export const blog = createProsewireApp({
+  baseUrl: "https://publish.example.com",
+  publication: "fieldnotes",
+  basePath: "/blog",
+  siteUrl: "https://www.example.com",
+  revalidate: 60,
+});
+```
+
+```typescript
+// src/app/blog/[slug]/page.tsx
+import { blog } from "@/lib/prosewire";
+
+export const generateMetadata = blog.post.generateMetadata;
+export default blog.post.Page;
+```
+
+The index route uses `blog.index.Page` and `blog.index.generateMetadata`. Fetches use Next.js revalidation and a publication-specific cache tag. Old slugs become permanent redirects, and missing posts use the framework 404 boundary.
+
+## Pages Router shape
+
+Use `createProsewirePages` from `@prosewire/next/pages`. The returned index exposes `Page` and `getStaticProps`; the article route exposes `Page`, `getStaticPaths`, and `getStaticProps`. Published posts and known old slugs are prebuilt, with blocking fallback and ISR for new content.
+
+## Own the styling
+
+The defaults are server components made from semantic `main`, `article`, `header`, `nav`, and heading elements. They ship no CSS, inline layout, design tokens, or client-side runtime. Every useful element has a stable `pw-*` class and a `data-prosewire` hook:
+
+```css
+.pw-root { max-width: 70ch; margin-inline: auto; }
+.pw-post-title { font: 700 3rem/1.05 var(--font-display); }
+.pw-post-body { color: var(--text); }
+```
+
+For complete markup control, pass your own typed renderers:
+
+```typescript
+const blog = createProsewireApp({
+  baseUrl,
+  publication: "fieldnotes",
+  components: {
+    IndexPage: MyPostIndex,
+    PostPage: MyArticle,
+  },
+});
+```
+
+The renderers receive public publication and post data plus `basePath`; `blog.client` exposes the same data methods when you want to build routes from scratch.
+
+## Give setup to an agent
+
+Add `--agent` to the scaffolder command to print a repository-aware setup prompt without changing files. Use `--cwd apps/web --agent` to name a monorepo target. The prompt tells the agent to detect the router, use the framework package, preserve the existing layout and styles, avoid management secrets, and verify the production build.

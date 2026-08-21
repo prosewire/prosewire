@@ -1,0 +1,55 @@
+---
+/// <reference path="../virtual.d.ts" />
+import { createPublicClient, type PublicPostResolution } from "@prosewire/sdk";
+import PostArticle from "../components/PostArticle.astro";
+import {
+  basePath,
+  baseUrl,
+  publication,
+  siteUrl,
+} from "virtual:prosewire/config";
+
+export async function getStaticPaths() {
+  const client = createPublicClient({ baseUrl, blog: publication });
+  const [posts, redirects] = await Promise.all([
+    client.listAllPosts(),
+    client.listRedirects(),
+  ]);
+  return [
+    ...posts.map((post) => ({ params: { slug: post.slug } })),
+    ...redirects.map((redirect) => ({ params: { slug: redirect.fromPath } })),
+  ];
+}
+
+const client = createPublicClient({ baseUrl, blog: publication });
+const result: PublicPostResolution = await client.resolvePost(
+  Astro.params.slug ?? "",
+);
+if (result.status === "not-found")
+  return new Response("Not found", { status: 404 });
+if (result.status === "redirect")
+  return Astro.redirect(
+    `${basePath === "/" ? "" : basePath}/${encodeURIComponent(result.slug)}`,
+    301,
+  );
+const canonicalUrl =
+  result.post.canonicalUrl ??
+  (siteUrl
+    ? new URL(
+        `${basePath === "/" ? "" : basePath}/${encodeURIComponent(result.post.slug)}`,
+        siteUrl,
+      ).toString()
+    : undefined);
+---
+
+<!doctype html>
+<html lang={result.post.locale}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>{result.post.seoTitle ?? result.post.title}</title>
+    <meta name="description" content={result.post.seoDescription ?? result.post.excerpt} />
+    {canonicalUrl && <link rel="canonical" href={canonicalUrl} />}
+  </head>
+  <body><PostArticle blog={result.blog} post={result.post} basePath={basePath} canonicalUrl={canonicalUrl} /></body>
+</html>

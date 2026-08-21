@@ -1,0 +1,45 @@
+---
+import type { PublicBlog, PublicPost } from "@prosewire/sdk";
+
+interface Props {
+  blog: PublicBlog;
+  post: PublicPost;
+  basePath: string;
+  canonicalUrl?: string;
+}
+
+const { blog, post, basePath, canonicalUrl } = Astro.props;
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  headline: post.title,
+  description: post.excerpt,
+  datePublished: post.publishedAt,
+  dateModified: post.updatedAt,
+  mainEntityOfPage: canonicalUrl,
+  author: { "@type": "Person", name: post.author.name },
+  publisher: { "@type": "Organization", name: blog.name },
+};
+---
+
+<main class="pw-root pw-post" data-prosewire="post">
+  <script type="application/ld+json" set:html={JSON.stringify(jsonLd).replace(/</g, "\\u003c")} />
+  <article>
+    <header class="pw-post-header" data-prosewire-part="post-header">
+      <a class="pw-back-link" href={basePath}>All posts</a>
+      <h1 class="pw-post-title">{post.title}</h1>
+      {post.excerpt && <p class="pw-post-excerpt">{post.excerpt}</p>}
+      <p class="pw-post-meta">
+        <span class="pw-post-author">{post.author.name}</span>
+        <span class="pw-post-reading-time"> · {post.readingMinutes} min read</span>
+      </p>
+    </header>
+    <div class="pw-post-body" data-prosewire-part="post-body" set:html={post.contentHtml} />
+    {post.author.bio && (
+      <footer class="pw-author" data-prosewire-part="author">
+        <h2 class="pw-author-name">{post.author.name}</h2>
+        <p class="pw-author-bio">{post.author.bio}</p>
+      </footer>
+    )}
+  </article>
+</main>
