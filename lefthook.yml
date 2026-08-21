@@ -1,12 +1,14 @@
 pre-commit:
+  commands:
+    biome:
+      run: pnpm exec biome check --write --staged --no-errors-on-unmatched
+      stage_fixed: true
+
+pre-push:
   parallel: true
   commands:
-    lint:
-      glob: "*.{js,jsx,ts,tsx,mjs,cjs,json,jsonc,css}"
-      run: pnpm lint
-    typecheck:
-      glob: "*.{ts,tsx}"
-      run: pnpm -r --if-present --silent run typecheck
-    test:
-      glob: "*.{ts,tsx}"
-      run: pnpm -r --if-present --silent run test
+    quality:
+      run: pnpm test:pre-push
+    workflows:
+      glob: ".github/workflows/*.{yml,yaml}"
+      run: pnpm lint:workflows
