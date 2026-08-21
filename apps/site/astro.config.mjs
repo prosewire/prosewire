@@ -12,7 +12,7 @@ import {
 } from "fumadocs-core/mdx-plugins";
 import { defineConfig } from "astro/config";
 
-const site = process.env.SITE_URL ?? "https://prosewire-site.akntech.workers.dev";
+const site = process.env.SITE_URL ?? "http://localhost:4321";
 
 export default defineConfig({
   site,

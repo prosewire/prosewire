@@ -70,6 +70,58 @@ describe("web infrastructure", () => {
     }
   });
 
+  it("accepts the documented authentication secret in development", async () => {
+    const developmentConfig = Layer.succeed(
+      ConfigProvider.ConfigProvider,
+      ConfigProvider.fromUnknown({
+        NODE_ENV: "development",
+        DATABASE_URL: "postgres://localhost/prosewire",
+        BETTER_AUTH_SECRET:
+          "local-development-secret-change-before-production",
+      }),
+    );
+    const runtime = ManagedRuntime.make(
+      WebConfig.layer.pipe(Layer.provide(developmentConfig)),
+    );
+
+    try {
+      const config = await runtime.runPromise(WebConfig);
+      expect(config.environment).toBe("development");
+      expect(Redacted.value(config.authSecret)).toBe(
+        "local-development-secret-change-before-production",
+      );
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
+  it.each([
+    "local-development-secret-change-before-production",
+    "please-change-this-to-at-least-32-characters",
+    "replace-with-a-unique-secret-of-at-least-32-characters",
+    "replace-with-at-least-32-random-characters",
+  ])("rejects the known production authentication placeholder %s", async (authSecret) => {
+    const productionConfig = Layer.succeed(
+      ConfigProvider.ConfigProvider,
+      ConfigProvider.fromUnknown({
+        NODE_ENV: "production",
+        DATABASE_URL: "postgres://localhost/prosewire",
+        BETTER_AUTH_SECRET: authSecret,
+      }),
+    );
+    const runtime = ManagedRuntime.make(
+      WebConfig.layer.pipe(Layer.provide(productionConfig)),
+    );
+
+    try {
+      await expect(runtime.runPromise(WebConfig)).rejects.toThrow(
+        /BETTER_AUTH_SECRET/,
+      );
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
   it("rejects insecure bootstrap credentials", async () => {
     const placeholderConfig = Layer.succeed(
       ConfigProvider.ConfigProvider,

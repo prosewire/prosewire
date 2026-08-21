@@ -19,8 +19,6 @@
 </p>
 
 <p align="center">
-  <a href="https://prosewire-site.akntech.workers.dev">Website</a> ·
-  <a href="https://prosewire-site.akntech.workers.dev/docs/">Docs</a> ·
   <a href="#why-prosewire">Why Prosewire</a> ·
   <a href="#features">Features</a> ·
   <a href="#quick-start">Quick Start</a> ·

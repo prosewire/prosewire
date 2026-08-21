@@ -1,13 +1,26 @@
 {
   "name": "@prosewire/sdk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "license": "Apache-2.0",
   "type": "module",
   "description": "Typed client for the Prosewire content API.",
+  "keywords": [
+    "prosewire",
+    "publishing",
+    "cms",
+    "typescript"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/prosewire/prosewire.git",
     "directory": "packages/sdk"
+  },
+  "homepage": "https://github.com/prosewire/prosewire#readme",
+  "bugs": {
+    "url": "https://github.com/prosewire/prosewire/issues"
+  },
+  "engines": {
+    "node": ">=24"
   },
   "main": "./dist/index.mjs",
   "module": "./dist/index.mjs",
@@ -21,7 +34,8 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "build": "tsdown",
@@ -32,7 +46,8 @@
     "prepublishOnly": "tsdown"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   },
   "dependencies": {
     "effect": "4.0.0-rc.110"

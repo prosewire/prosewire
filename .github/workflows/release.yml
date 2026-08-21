@@ -2,22 +2,156 @@ name: Release packages
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: Plain semver shared by SDK, CLI, and MCP
+        required: true
+      ref:
+        description: Immutable commit contained in origin/main
+        required: true
 
 permissions:
-  contents: write
+  contents: read
   id-token: write
+
+concurrency:
+  group: release-packages-${{ inputs.version }}
+  cancel-in-progress: false
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: prosewire_acceptance
+          POSTGRES_USER: prosewire
+          POSTGRES_PASSWORD: prosewire
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U prosewire -d prosewire_acceptance"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://prosewire:prosewire@localhost:5432/prosewire_acceptance
+      REDIS_URL: redis://localhost:6379
+      BETTER_AUTH_SECRET: release-ci-only-secret-with-at-least-32-characters
+      PROSEWIRE_PUBLIC_URL: http://localhost:3000
+      NEXT_PUBLIC_PROSEWIRE_PUBLIC_URL: http://localhost:3000
+      PROSEWIRE_EXPOSE_TESTING_API: "1"
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+      - name: Validate immutable release source
+        env:
+          RELEASE_REF: ${{ inputs.ref }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "version must be plain semver (for example, 1.2.3)" >&2
+            exit 1
+          fi
+          if [[ ! "$RELEASE_REF" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "ref must be a full 40-character commit SHA" >&2
+            exit 1
+          fi
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          commit_sha="$(git rev-parse HEAD)"
+          test "$commit_sha" = "$RELEASE_REF"
+          if ! git merge-base --is-ancestor "$commit_sha" origin/main; then
+            echo "$commit_sha is not contained in origin/main" >&2
+            exit 1
+          fi
+          # JavaScript template literals are intentional.
+          # shellcheck disable=SC2016
+          node -e '
+            const fs = require("node:fs");
+            const expected = process.env.VERSION;
+            for (const name of ["sdk", "cli", "mcp"]) {
+              const actual = JSON.parse(fs.readFileSync(`packages/${name}/package.json`)).version;
+              if (actual !== expected) throw new Error(`@prosewire/${name} is ${actual}, expected ${expected}`);
+            }
+          '
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
           cache: pnpm
           registry-url: https://registry.npmjs.org
+      - name: Install pinned npm with trusted-publishing support
+        run: npm install --global npm@11.6.2
       - run: pnpm install --frozen-lockfile
-      - run: pnpm lint && pnpm typecheck && pnpm test
-      - run: pnpm release
+      - run: pnpm audit:prod
+      - run: pnpm db:migrate
+      - run: pnpm lint
+      - run: pnpm lint:workflows
+      - run: pnpm scan:secrets
+      - run: pnpm typecheck
+      - run: pnpm test:coverage
+      - run: pnpm test:packages
+      - run: pnpm build
+      - run: pnpm test:docs
+      - run: pnpm release:preflight
+      - run: pnpm --filter @prosewire/web exec playwright install --with-deps chromium
+      - run: pnpm test:acceptance
+      - name: Detect an idempotent rerun
+        id: registry
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          published=0
+          for package in @prosewire/sdk @prosewire/cli @prosewire/mcp; do
+            if npm view "$package@$VERSION" version --json >/dev/null 2>&1; then
+              published=$((published + 1))
+            fi
+          done
+          if [ "$published" -ne 0 ] && [ "$published" -ne 3 ]; then
+            echo "Only $published of 3 packages already exist at $VERSION; refusing a partial release" >&2
+            exit 1
+          fi
+          if [ "$published" -eq 3 ]; then
+            echo "All packages already exist at $VERSION; publication is a no-op."
+            echo "already_published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "already_published=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Publish with npm trusted publishing
+        if: steps.registry.outputs.already_published != 'true'
+        env:
+          NPM_CONFIG_PROVENANCE: "true"
+        run: pnpm release
+      - name: Verify registry versions
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          for _attempt in {1..12}; do
+            ready=true
+            for package in @prosewire/sdk @prosewire/cli @prosewire/mcp; do
+              actual="$(npm view "$package@$VERSION" version 2>/dev/null || true)"
+              if [ "$actual" != "$VERSION" ]; then
+                ready=false
+              fi
+            done
+            if [ "$ready" = true ]; then
+              echo "Verified SDK, CLI, and MCP $VERSION on npm."
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Published packages were not consistently visible on npm" >&2
+          exit 1

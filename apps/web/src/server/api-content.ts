@@ -5,6 +5,7 @@ import { toApiPost } from "./api-content-models.ts";
 import { Database } from "./database.ts";
 import { BlogId, type PostId } from "./domain.ts";
 import { PostErrors } from "./post-errors.ts";
+import { version } from "./version.ts";
 
 export interface PostListInput {
   readonly search?: string | undefined;
@@ -21,7 +22,7 @@ export const create = Effect.fn("ApiContent.create")(function* () {
       yield* database.execute("health.ready", (client) =>
         client.execute(sql`select 1`),
       );
-      return { status: "ok" as const, version: "0.1.0" };
+      return { status: "ok" as const, version };
     }),
     listBlogs: Effect.fn("ApiContent.listBlogs")(function* (blogId: BlogId) {
       const rows = yield* database.execute("blog.listApi", (client) =>

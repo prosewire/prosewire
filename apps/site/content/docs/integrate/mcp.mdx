@@ -1,0 +1,46 @@
+---
+title: Connect the MCP server
+description: Give an MCP client scoped Prosewire tools with explicit read, mutation, and destructive-operation metadata.
+section: Integrate
+order: 6
+---
+
+## Install
+
+```shell
+pnpm add --global @prosewire/mcp
+```
+
+The MCP server supports Node.js 24 or newer and communicates over stdio.
+
+## Configure a client
+
+Create a publication-scoped key in **Settings → Developer**. Start with
+`content:read`; add `content:write` only when the client must change content.
+
+```json
+{
+  "mcpServers": {
+    "prosewire": {
+      "command": "prosewire-mcp",
+      "env": {
+        "PROSEWIRE_API_URL": "https://your-prosewire-deployment",
+        "PROSEWIRE_API_KEY": "pw_live_..."
+      }
+    }
+  }
+}
+```
+
+Do not commit client configuration containing a real key.
+
+## Tool safety
+
+| Tools | Classification | Behavior |
+| --- | --- | --- |
+| `publication_get`, `posts_list`, `posts_get` | Read-only | Retrieve publication or post data without persistence |
+| `posts_create`, `posts_update` | Mutating | Write content and require client approval |
+| `posts_archive` | Destructive | Remove a post from public surfaces and require client approval |
+
+The server advertises these annotations to MCP clients. Confirm the target post
+and intended change before approving any mutation, especially an archive.

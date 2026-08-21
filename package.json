@@ -1,6 +1,6 @@
 {
   "name": "prosewire",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "license": "Apache-2.0",
   "packageManager": "pnpm@11.20.0+sha512.9a6f330a95b66446ea088faf1521405a8a01f07fde7124cc9958dfed52d4bb436737e65b08f85f37b46fcba375092558ac51262b816844b22f63406ed166bfee",
@@ -23,14 +23,19 @@
     "test:coverage": "turbo run test:coverage",
     "audit:prod": "pnpm audit --prod --audit-level=high",
     "test:acceptance": "pnpm --filter @prosewire/web test:acceptance",
+    "test:docs": "SITE_URL=https://prosewire.test pnpm --filter @prosewire/site build && node scripts/validate-docs.mjs https://prosewire.test",
+    "test:image": "scripts/container-runtime-smoke.sh prosewire:release-readiness",
     "db:generate": "pnpm --filter @prosewire/db generate",
     "db:migrate": "pnpm --filter @prosewire/db migrate",
     "db:push": "pnpm --filter @prosewire/db push",
     "db:studio": "pnpm --filter @prosewire/db studio",
     "prepare": "(lefthook install || true) && effect-tsgo patch",
     "changeset": "changeset",
-    "version-packages": "changeset version",
-    "release": "pnpm test:packages && changeset publish"
+    "version-packages": "changeset version && node scripts/sync-package-versions.mjs",
+    "release:preflight": "node scripts/release-preflight.mjs && pnpm test:packages",
+    "lint:workflows": "scripts/workflow-lint.sh",
+    "scan:secrets": "scripts/secret-scan.sh",
+    "release": "pnpm release:preflight && changeset publish"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.9",

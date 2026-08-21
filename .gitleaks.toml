@@ -1,0 +1,15 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Documented local and test-only placeholder values"
+regexTarget = "secret"
+regexes = [
+  '''local-development-secret-change-before-production''',
+  '''please-change-this-to-at-least-32-characters''',
+  '''replace-with-a-unique-secret-of-at-least-32-characters''',
+  '''replace-with-at-least-32-random-characters''',
+  '''ci-only-secret-with-at-least-32-characters''',
+  '''release-ci-only-secret-with-at-least-32-characters''',
+  '''runtime-smoke-secret-unique-to-this-test-only''',
+]

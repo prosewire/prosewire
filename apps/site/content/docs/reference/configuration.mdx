@@ -16,6 +16,16 @@ NEXT_PUBLIC_PROSEWIRE_PUBLIC_URL=https://publish.example.com
 
 The public URL must be the external HTTPS origin seen by browsers. The web and worker must use the same Postgres database.
 
+The separate Astro documentation site uses `SITE_URL` for canonical links, its
+sitemap, and `robots.txt`. Local development defaults to `http://localhost:4321`.
+A deployment build must supply a verified public HTTPS origin:
+
+```shell
+SITE_URL=https://your-verified-docs-origin pnpm --filter @prosewire/site build:production
+```
+
+The production build rejects missing, local, reserved, or known dead origins.
+
 `PROSEWIRE_ANALYTICS_RETENTION_DAYS` controls raw page-view retention and defaults to 365. The worker deletes older events daily.
 
 ## Account bootstrap and email

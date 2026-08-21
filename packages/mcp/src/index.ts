@@ -12,6 +12,7 @@ import {
 } from "effect";
 import { McpProtocol, McpServer } from "effect/unstable/ai";
 import { createProsewireMcpServer } from "./server.ts";
+import { version } from "./version.ts";
 
 const configuration = Config.all({
   baseUrl: Config.string("PROSEWIRE_API_URL").pipe(
@@ -37,7 +38,7 @@ const program = Effect.gen(function* () {
     Layer.provide(
       McpServer.layerStdio({
         name: "prosewire",
-        version: "0.1.0",
+        version,
         description:
           "Manage the publication scoped to PROSEWIRE_API_KEY through typed Effect tools.",
         protocols: [

@@ -8,12 +8,13 @@
   },
   "scripts": {
     "dev": "astro dev --host 0.0.0.0",
-    "build": "astro build",
+    "build": "node ../../scripts/check-site-origin.mjs && astro build",
+    "build:production": "node ../../scripts/check-site-origin.mjs --production && astro build",
     "preview": "astro preview --host 0.0.0.0",
     "lint": "astro sync && biome lint .",
     "typecheck": "astro check",
-    "deploy": "pnpm build && wrangler deploy",
-    "deploy:dry": "pnpm build && wrangler deploy --dry-run"
+    "deploy": "pnpm build:production && wrangler deploy",
+    "deploy:dry": "pnpm build:production && wrangler deploy --dry-run"
   },
   "dependencies": {
     "@astrojs/markdown-remark": "^7.2.3",

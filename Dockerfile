@@ -1,8 +1,7 @@
-FROM node:26-alpine AS base
+FROM node:26-alpine@sha256:aadf416b2cdce311a8811ba3f0608a61b77dbf997500e2eafe781b51f6a0b019 AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME/bin:$PATH
-RUN wget -qO- https://get.pnpm.io/install.sh | \
-    env ENV=/root/.shrc SHELL="$(which sh)" PNPM_VERSION=11.20.0 sh -
+RUN npm install --global pnpm@11.20.0 && pnpm --version
 WORKDIR /app
 
 FROM base AS dependencies
@@ -23,7 +22,7 @@ FROM dependencies AS builder
 COPY . .
 RUN pnpm --filter @prosewire/web... build && pnpm --filter @prosewire/worker build
 
-FROM node:26-alpine AS runner
+FROM node:26-alpine@sha256:aadf416b2cdce311a8811ba3f0608a61b77dbf997500e2eafe781b51f6a0b019 AS runner
 ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0 \
     PORT=3000 \

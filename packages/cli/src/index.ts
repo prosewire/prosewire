@@ -4,9 +4,10 @@ import { Effect } from "effect";
 import { Command } from "effect/unstable/cli";
 import { createProgram } from "./program.ts";
 import { nodeServicesLayer } from "./node-services.ts";
+import { version } from "./version.ts";
 
 createProgram().pipe(
-  Command.run({ version: "0.1.0" }),
+  Command.run({ version }),
   Effect.provide(nodeServicesLayer),
   NodeRuntime.runMain,
 );
