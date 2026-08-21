@@ -125,7 +125,6 @@ jobs:
       - run: pnpm test:coverage
       - run: pnpm test:packages
       - run: pnpm build
-      - run: pnpm test:docs
       - run: pnpm release:preflight
       - run: pnpm --filter @prosewire/web exec playwright install --with-deps chromium
       - run: pnpm test:acceptance
@@ -145,8 +144,8 @@ jobs:
           done < <(node -e '
             const fs = require("node:fs");
             for (const directory of process.env.PUBLIC_PACKAGE_DIRECTORIES.split(/\s+/)) {
-              const manifest = JSON.parse(fs.readFileSync(`packages/${directory}/package.json`));
-              console.log(`${manifest.name}@${manifest.version}`);
+              const manifest = JSON.parse(fs.readFileSync("packages/" + directory + "/package.json"));
+              console.log(manifest.name + "@" + manifest.version);
             }
           ')
           if [ "$missing" -eq 0 ]; then
@@ -174,8 +173,8 @@ jobs:
             done < <(node -e '
               const fs = require("node:fs");
               for (const directory of process.env.PUBLIC_PACKAGE_DIRECTORIES.split(/\s+/)) {
-                const manifest = JSON.parse(fs.readFileSync(`packages/${directory}/package.json`));
-                console.log(`${manifest.name}@${manifest.version}`);
+                const manifest = JSON.parse(fs.readFileSync("packages/" + directory + "/package.json"));
+                console.log(manifest.name + "@" + manifest.version);
               }
             ')
             if [ "$ready" = true ]; then

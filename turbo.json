@@ -4,7 +4,7 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "env": ["PROSEWIRE_EXPOSE_TESTING_API", "SITE_URL"],
+      "env": ["PROSEWIRE_EXPOSE_TESTING_API", "SITE_URL", "WORKERS_CI"],
       "outputs": [".next/**", "!.next/cache/**", "dist/**"]
     },
     "dev": {

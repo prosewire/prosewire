@@ -8,8 +8,8 @@
   },
   "scripts": {
     "dev": "astro dev --host 0.0.0.0",
-    "build": "node ../../scripts/check-site-origin.mjs && astro build",
-    "build:production": "node ../../scripts/check-site-origin.mjs --production && astro build",
+    "build": "node ../../scripts/check-site-origin.mjs && astro build && node ../../scripts/validate-docs.mjs",
+    "build:production": "node ../../scripts/check-site-origin.mjs --production && astro build && node ../../scripts/validate-docs.mjs",
     "preview": "astro preview --host 0.0.0.0",
     "lint": "astro sync && biome lint .",
     "typecheck": "astro check",
