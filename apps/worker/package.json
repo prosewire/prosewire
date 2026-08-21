@@ -8,7 +8,7 @@
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
     "build": "tsdown --config tsdown.config.ts",
-    "lint": "eslint src",
+    "lint": "biome lint src tsdown.config.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
@@ -22,12 +22,11 @@
   "devDependencies": {
     "@effect/vitest": "4.0.0-rc.110",
     "@prosewire/config": "workspace:*",
-    "@types/node": "^24.0.0",
+    "@types/node": "^26.2.0",
     "@types/nodemailer": "^8.0.1",
-    "eslint": "9.39.4",
     "tsdown": "^0.22.0",
     "tsx": "^4.21.0",
-    "typescript": "^6.0.3",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
     "vitest": "^4.1.11"
   }
 }

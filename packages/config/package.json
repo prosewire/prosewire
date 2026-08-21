@@ -5,25 +5,12 @@
   "license": "Apache-2.0",
   "type": "module",
   "exports": {
-    "./eslint": {
-      "types": "./eslint/index.d.ts",
-      "default": "./eslint/index.js"
-    },
-    "./eslint/next": "./eslint/next.js",
     "./typescript/base.json": "./typescript/base.json",
     "./typescript/nextjs.json": "./typescript/nextjs.json",
     "./typescript/node.json": "./typescript/node.json",
     "./typescript/library.json": "./typescript/library.json"
   },
   "devDependencies": {
-    "@eslint/js": "9.39.4",
-    "@next/eslint-plugin-next": "^16.3.1",
-    "eslint": "9.39.4",
-    "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-react": "^7.37.5",
-    "eslint-plugin-react-hooks": "^7.0.1",
-    "globals": "^17.6.0",
-    "typescript": "^6.0.3",
-    "typescript-eslint": "^8.59.2"
+    "typescript": "npm:@typescript/typescript6@^6.0.2"
   }
 }

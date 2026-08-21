@@ -11,7 +11,7 @@
   },
   "scripts": {
     "build": "tsc --noEmit",
-    "lint": "eslint src drizzle.config.ts",
+    "lint": "biome lint src drizzle.config.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
@@ -26,11 +26,10 @@
   },
   "devDependencies": {
     "@prosewire/config": "workspace:*",
-    "@types/node": "^24.0.0",
+    "@types/node": "^26.2.0",
     "@types/pg": "^8.20.0",
     "drizzle-kit": "^0.31.10",
-    "eslint": "9.39.4",
-    "typescript": "^6.0.3",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
     "vitest": "^4.1.11"
   }
 }

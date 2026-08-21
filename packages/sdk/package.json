@@ -19,10 +19,13 @@
       "default": "./dist/index.mjs"
     }
   },
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsdown",
-    "lint": "eslint src",
+    "lint": "biome lint src",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
@@ -37,10 +40,9 @@
   "devDependencies": {
     "@prosewire/config": "workspace:*",
     "@prosewire/contract": "workspace:*",
-    "@types/node": "^24.0.0",
-    "eslint": "9.39.4",
+    "@types/node": "^26.2.0",
     "tsdown": "^0.22.0",
-    "typescript": "^6.0.3",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
     "vitest": "^4.1.11"
   },
   "tsdown": {
@@ -48,9 +50,13 @@
       "eager": true
     },
     "deps": {
-      "alwaysBundle": ["@prosewire/contract"],
+      "alwaysBundle": [
+        "@prosewire/contract"
+      ],
       "dts": {
-        "alwaysBundle": ["@prosewire/contract"]
+        "alwaysBundle": [
+          "@prosewire/contract"
+        ]
       }
     }
   }
