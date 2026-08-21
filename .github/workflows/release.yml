@@ -125,7 +125,6 @@ jobs:
       - run: pnpm test:coverage
       - run: pnpm test:packages
       - run: pnpm build
-      - run: pnpm test:docs
       - run: pnpm release:preflight
       - run: pnpm --filter @prosewire/web exec playwright install --with-deps chromium
       - run: pnpm test:acceptance

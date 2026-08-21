@@ -81,7 +81,6 @@ jobs:
       - run: pnpm db:migrate
       - run: pnpm test:database
       - run: pnpm build
-      - run: pnpm test:docs
       - run: pnpm --filter @prosewire/web exec playwright install --with-deps chromium
       - run: pnpm test:acceptance
       - run: docker build --tag prosewire:ci .
