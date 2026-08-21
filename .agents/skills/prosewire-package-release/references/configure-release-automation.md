@@ -15,6 +15,11 @@ The repository uses Changesets v3. Keep these pieces connected:
   runtime-reported versions.
 - `pnpm release` runs the repository preflight before `changeset publish`.
 
+If the Changesets files are missing, add `@changesets/cli` as a root
+development dependency and run `pnpm changeset init` once. Do not reinitialize
+an existing `.changeset` directory. Review the generated config instead of
+accepting defaults that conflict with the current linked groups or `main`.
+
 Do not put `pnpm release:preflight` unconditionally before the Changesets
 action. Pending Changesets are valid on `main` and must reach the action so it
 can create the version PR. The publish script runs the preflight after the
@@ -90,7 +95,8 @@ agreement. Run `pnpm test:packages` after any package or packaging change.
 
 An npm package must exist before npm can attach a trusted publisher. Use the
 new-package reference for the first publication. For an existing package,
-configure the current workflow with:
+use a current npm CLI and confirm `npm trust github --help` works. Configure the
+current workflow with:
 
 ```bash
 npm trust github <package-name> \

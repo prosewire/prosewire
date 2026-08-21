@@ -6,10 +6,11 @@ publication.
 
 ## Repository changes
 
-1. Create the package manifest and public files. Match the metadata requirements
-   in the configuration reference. Add a README, changelog, license, build,
-   declarations, exports, and binaries where applicable.
-2. Decide whether the package versions independently or belongs in an existing
+1. Create the package manifest and public files. Match the
+   [npm metadata requirements](configure-release-automation.md#npm-package-configuration).
+   Add a README, changelog, license, build, declarations, exports, and binaries
+   where applicable.
+2. Decide whether to version the package independently or add it to an existing
    linked group in `.changeset/config.json`. Preserve actual compatibility
    requirements rather than grouping by convenience.
 3. Add its directory to `PUBLIC_PACKAGE_DIRECTORIES` in
