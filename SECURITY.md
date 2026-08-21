@@ -3,9 +3,9 @@
 ## Supported versions
 
 Prosewire provides security fixes for the latest patch of the current minor
-release. The initial public release line is `0.2.x`; versions before `0.2.0`
-are not supported. Before `0.2.0` is published, fixes land on `main` and are
-included in the release candidate.
+release. The current public release line is `0.2.x`; versions before `0.2.0`
+are not supported. Unreleased fixes land on `main`, but `main` is not a stable
+release channel.
 
 | Version | Supported |
 | --- | --- |
@@ -13,6 +13,14 @@ included in the release candidate.
 | `< 0.2.0` | No |
 
 This table will be updated when a newer release line replaces `0.2.x`.
+
+## What to report
+
+Report vulnerabilities in Prosewire application code, published npm packages,
+container images, authentication or authorization boundaries, content
+sanitization, and release infrastructure. General support requests and feature
+proposals belong in GitHub issues and should not include secrets or private
+customer data.
 
 ## Report a vulnerability privately
 
@@ -24,3 +32,6 @@ sending them and ask for a secure transfer channel in the initial message.
 
 The maintainer will acknowledge the report, validate it, coordinate a fix, and
 publish disclosure and upgrade guidance when affected artifacts are available.
+Please allow time for a fix to reach supported packages or images before public
+disclosure. This project does not offer a bug-bounty program or a guaranteed
+response-time SLA.

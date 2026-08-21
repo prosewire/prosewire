@@ -1,60 +1,87 @@
 ---
 title: Configuration map
-description: Runtime, authentication, email, and multi-instance settings for a Prosewire deployment.
+description: Runtime, authentication, email, bootstrap, worker, and documentation-site settings for Prosewire.
 section: Reference
 order: 8
 ---
 
-## Required services and origin
+Keep production configuration in the deployment platform's secret store. Do not commit a populated `.env` file or bake secrets into an image.
 
-```dotenv
-DATABASE_URL=postgres://…
-BETTER_AUTH_SECRET=replace-with-at-least-32-random-characters
-PROSEWIRE_PUBLIC_URL=https://publish.example.com
-NEXT_PUBLIC_PROSEWIRE_PUBLIC_URL=https://publish.example.com
-```
+## Runtime and database
 
-The public URL must be the external HTTPS origin seen by browsers. The web and worker must use the same Postgres database.
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `DATABASE_URL` | Yes | Postgres connection used by migrations, web, and worker |
+| `PROSEWIRE_PUBLIC_URL` | Production | External origin used by the server for links such as invitations |
+| `NEXT_PUBLIC_PROSEWIRE_PUBLIC_URL` | Production | Matching browser-visible origin used by the authentication client |
+| `PROSEWIRE_DEFAULT_BLOG` | No | Development default publication slug; defaults to `fieldnotes` |
+| `PROSEWIRE_MIGRATIONS_DIR` | Container default | Override the directory containing committed Drizzle migrations |
+| `POSTGRES_PASSWORD` | Default Compose only | Password interpolated into the bundled Postgres service and application URL |
 
-The separate Astro documentation site uses `SITE_URL` for canonical links, its
-sitemap, and `robots.txt`. Local development defaults to `http://localhost:4321`.
-A deployment build must supply a verified public HTTPS origin:
+Use the same `DATABASE_URL` for the migration, web, and worker processes. In Compose, choose a URL-safe `POSTGRES_PASSWORD` because it is interpolated into a connection URL.
 
-```shell
-SITE_URL=https://your-verified-docs-origin pnpm --filter @prosewire/site build:production
-```
+The two public URL values should be the same external HTTPS origin seen by users. Do not include a path suffix.
 
-The production build rejects missing, local, reserved, or known dead origins.
+## Authentication and email
 
-`PROSEWIRE_ANALYTICS_RETENTION_DAYS` controls raw page-view retention and defaults to 365. The worker deletes older events daily.
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `BETTER_AUTH_SECRET` | Yes | Unique authentication secret of at least 32 characters |
+| `PROSEWIRE_ALLOW_SIGN_UP` | No | Enables open account registration; defaults to `false` |
+| `SMTP_URL` | Production invitations | SMTP or SMTPS connection URL |
+| `EMAIL_FROM` | Production email | Sender identity; defaults to a localhost address in development |
 
-## Account bootstrap and email
+Enable `PROSEWIRE_ALLOW_SIGN_UP=true` only to create the first owner or when open registration is intentional. Set it back to `false` and replace web replicas after bootstrap. A valid, unexpired invitation still allows its invited email address to create an account.
 
-```dotenv
-PROSEWIRE_ALLOW_SIGN_UP=true
-SMTP_URL=smtps://user:password@smtp.example.com:465
-EMAIL_FROM=Prosewire <no-reply@example.com>
-```
-
-Production sign-up is disabled unless `PROSEWIRE_ALLOW_SIGN_UP=true`. Enable it to create the first owner, complete onboarding, then disable it unless open registration is intended. A valid, unexpired invitation link still allows the invited email address to create an account. SMTP is required in production for team invitations.
+Test SMTP delivery and invitation links from the public origin before onboarding a team.
 
 ## Rolling and multi-instance deployments
 
-```dotenv
-NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=<base64-encoded-32-byte-key>
-NEXT_DEPLOYMENT_ID=release-2026-08-20
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` | Multi-instance production | Stable base64-encoded 32-byte key shared by web replicas and releases |
+| `NEXT_DEPLOYMENT_ID` | Production | Release identifier shared by every web replica serving the same build |
+
+Generate the server-action key with `openssl rand -base64 32` and store it as a secret. Rotating it during a rollout can break requests created by a different replica or release.
+
+Use an immutable version, commit, or digest as `NEXT_DEPLOYMENT_ID`. Change it when the deployed web assets change, not per replica or restart.
+
+## Worker retention
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `PROSEWIRE_ANALYTICS_RETENTION_DAYS` | No | Positive integer controlling raw page-view retention; defaults to 365 |
+
+The worker removes raw view events older than the configured period. Aggregate metrics and your infrastructure's backup retention are separate concerns.
+
+## Development seed only
+
+| Variable | Required in development | Purpose |
+| --- | --- | --- |
+| `ADMIN_EMAIL` | Yes | Email for the local seeded administrator |
+| `ADMIN_PASSWORD` | Yes | Unique password of at least 12 characters |
+| `PROSEWIRE_SEED_API_KEY` | No | One-time local key of at least 24 characters with read and write scopes |
+
+The example values are local-only. Development web startup runs migrations and seed logic; production web startup does neither. Production uses the one-shot migration command and account bootstrap flow instead.
+
+## Development and test controls
+
+`PROSEWIRE_ALLOWED_DEV_ORIGINS` is a comma-separated Next.js development-origin allowlist. `PROSEWIRE_EXPOSE_TESTING_API=1` exposes framework testing support in production builds and is reserved for controlled acceptance tests; never enable it on a public deployment.
+
+## Documentation site
+
+The separate Astro landing page and documentation site uses `SITE_URL` for canonical links, its sitemap, and `robots.txt`:
+
+```shell
+SITE_URL=https://docs.example.com pnpm --filter @prosewire/site build:production
 ```
 
-Use one stable server-action encryption key across every web replica and release. Give each release a deployment ID at container runtime so clients do not mix incompatible assets while a rollout is in progress. Every replica serving the same release must use the same ID.
+A production build rejects a missing, local, reserved, or known dead origin. `SITE_URL` configures the documentation site only; it does not configure the Prosewire publishing application.
 
-## Local-only seed
+## Security checks
 
-`ADMIN_EMAIL`, `ADMIN_PASSWORD`, and `PROSEWIRE_DEFAULT_BLOG` are read only by the development seed. Production web startup never migrates or seeds the database.
-
-## Security notes
-
-- Never commit production environment files
-- Keep Postgres on a private network
+- Use unique values per environment
+- Keep Postgres on a private network and require TLS for remote connections
 - Store API tokens as hashes and use the narrowest read/write scope
 - Rotate a compromised API key by creating a replacement, changing the consumer, then revoking the old key
 - Back up Postgres and test a restore before launch

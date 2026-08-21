@@ -1,63 +1,69 @@
-# Feature research and coverage
+# Product coverage and known gaps
 
-Research snapshot: 19 August 2026.
+This map describes behavior available on the current `main` branch. It is a
+product-status reference, not a roadmap promise. A capability is marked partial
+when the underlying model exists but an important user-facing workflow is still
+missing.
 
-## Customer outcomes from testimonials and reviews
+## Authoring and editorial workflow
 
-Public reviews consistently emphasize five outcomes:
-
-1. A blog that is much stronger than a website builder's native blog.
-2. Setup that does not require a WordPress subdomain or plugin stack.
-3. Actionable SEO guidance during writing.
-4. Useful author, category, scheduling, video, and product-embed workflows.
-5. Responsive migration and setup help.
-
-The most useful negative signals are equally concrete:
-
-- Price is frequently described as steep or seriously overpriced.
-- Bulk editing is a requested missing capability.
-- Image placement and gallery workflows can feel awkward.
-
-Prosewire therefore treats self-hosting, bulk operations, portable content, and image metadata as core capabilities rather than paid upgrades.
-
-## Pricing-page inventory
-
-| Capability | Prosewire status |
+| Capability | Coverage |
 | --- | --- |
-| Unlimited posts | Implemented |
-| Multiple workspaces and publications | Implemented with explicit dashboard selectors and isolated public/integration surfaces |
-| Multiple users and authors | Workspace membership, email invitations, and publication-specific public authors implemented |
-| Fixed and granular roles | Owner, admin, editor, author, and viewer enforced at dashboard and API mutation boundaries |
-| Version history and user revision tracking | Revision snapshots and actor tracking implemented; history/restore UI planned |
-| Audit log | Implemented for workspace, membership, publication, content, scheduler, and API-key mutations with dashboard visibility |
-| Link monitoring | Planned |
-| Offsite backups | Deployment concern; documented database ownership, automation planned |
-| SSO | Planned adapter |
-| Two-factor authentication | Better Auth foundation present; 2FA plugin planned |
-| Portable export | Versioned JSON with revisions and relationships, plus CSV |
-| White-glove migration | Not applicable to the OSS core; import tools are planned |
-| Staging environment | Supported through separate instances; dashboard workflow planned |
-| AI topic planning | Planned as an optional provider integration |
-| AI discovery / mention guidance | Deterministic structure checks implemented |
-| Real-time SEO analyzer | Implemented |
-| Text-to-speech | Planned as an optional provider integration |
-| Author pages and E-E-A-T fields | Implemented |
-| XML sitemap and schema | Implemented |
-| Analytics dashboard | First-party view events and dashboard implemented; GA4 adapter planned |
-| Reusable snippets | Data model and library implemented; editor insertion UI is next |
-| CTA buttons | Markdown/HTML capable; dedicated block UI planned |
-| YouTube and Vimeo | Sanitized embeds supported in rendered content |
-| Product embeds | Custom HTML capable; store-specific blocks planned |
-| FAQ builder | Semantic Markdown supported; dedicated FAQ block/schema planned |
-| Automatic table of contents | Implemented |
-| Instant search | Implemented with Postgres full-text search |
-| Related posts | Implemented |
-| Scheduled posts | Implemented with interruptible Effect schedules and atomic Postgres updates |
-| Pinned posts | Implemented as featured posts |
-| Localization | Per-blog and per-post locale implemented; translation UI planned |
-| Rich copy/paste | Plain Markdown editor today; structured paste pipeline planned |
-| Template inheritance and custom CSS | Implemented through semantic classes and scoped CSS |
-| Shopify / WordPress / CSV imports | Planned; portable JSON and CSV exports are implemented |
-| Zapier automation | REST API supports automation; packaged Zapier app planned |
-| SDK, MCP, rendered API, raw API | Implemented |
-| Bulk post operations | Bulk archive implemented; more bulk fields planned |
+| Draft, schedule, publish, archive, and republish | Implemented in the dashboard and management API |
+| Markdown editor, live preview, excerpt, and reading time | Implemented |
+| Content and search checks | Implemented as deterministic guidance; not a guarantee of ranking or accessibility compliance |
+| Cover image URL and alt text | Implemented as metadata; no media library or upload workflow |
+| Featured or pinned posts | Implemented as one `featured` flag used by the public homepage |
+| Revisions | Snapshots and actor/version data are stored; history browsing and one-click restore UI are not implemented |
+| Bulk operations | Bulk archive is implemented; bulk editing of other fields is not |
+| Reusable snippets | Stored and visible in the content library; editor insertion UI is not implemented |
+| Localization | Publication and post locale fields are implemented; translation management is not |
+| Import | Not implemented |
+
+## Publishing and discovery
+
+| Capability | Coverage |
+| --- | --- |
+| Public reader and author pages | Implemented with server rendering |
+| Public visibility rules | Drafts, archived posts, and future scheduled posts are excluded from public surfaces |
+| Slugs and redirects | Slugs are unique per publication; changing a published slug creates a permanent redirect |
+| Search and categories | Implemented on the reader and public JSON list endpoint |
+| Related posts and table of contents | Implemented in the public article reader |
+| RSS, XML sitemap, canonical metadata, and JSON-LD | Implemented |
+| Custom CSS | Implemented per publication for rendered surfaces |
+| Analytics | First-party view events, overview metrics, and raw-event retention are implemented; external analytics adapters are not |
+
+## Teams and tenancy
+
+| Capability | Coverage |
+| --- | --- |
+| Multiple workspaces and publications | Implemented with explicit dashboard selectors and publication-isolated APIs |
+| Roles | Owner, admin, editor, author, and viewer are enforced at dashboard and private API boundaries |
+| Invitations | Email invitations, 48-hour expiry, acceptance, and cancellation are implemented |
+| Audit history | Dashboard visibility and records for workspace, membership, publication, content, scheduler, and API-key mutations are implemented |
+| Owner transfer and workspace deletion | Permission concepts exist, but complete dashboard workflows are not implemented |
+| SSO and two-factor authentication | Not implemented |
+
+## Delivery and automation
+
+| Surface | Coverage |
+| --- | --- |
+| JavaScript embed | Implemented without an iframe; loads a publication index or one article |
+| Rendered HTML API | Implemented with sanitized post content and stable `pw-*` classes |
+| Public JSON API | Implemented for published lists and individual posts |
+| Private management API | Implemented for health, publication listing, and post list/get/create/update/archive |
+| TypeScript SDK | Promise and Effect clients are published on the `0.2.x` line |
+| CLI | Public read commands and authenticated create/update/archive commands are published |
+| MCP server | Read, mutating, and destructive tools are published with operation metadata and approval requirements |
+| Portable export | Versioned JSON includes publication relationships and revisions; CSV covers posts and related identifiers |
+
+## Operations
+
+| Capability | Coverage |
+| --- | --- |
+| Local development | Node.js, pnpm, and Docker workflow with migrations and development seed |
+| Source-based self-hosting | Docker Compose runs Postgres, a one-shot migration, web, and worker services |
+| Managed infrastructure | A Compose topology is provided for an externally built image, Postgres, SMTP, and a load balancer |
+| Scheduled publishing | Worker polling and atomic database updates support multiple replicas |
+| Backups and restore | Postgres ownership and verification steps are documented; automated offsite backups are deployment-owned |
+| Stable public container | Release automation exists, but documentation does not assume registry access until a public image is independently verified |

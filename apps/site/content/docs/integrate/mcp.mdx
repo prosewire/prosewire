@@ -34,6 +34,8 @@ Create a publication-scoped key in **Settings → Developer**. Start with
 
 Do not commit client configuration containing a real key.
 
+Restart the MCP client after changing the command or environment. If the server exits during startup, run `prosewire-mcp` in a shell with the same environment to surface configuration or connectivity errors.
+
 ## Tool safety
 
 | Tools | Classification | Behavior |
@@ -42,5 +44,6 @@ Do not commit client configuration containing a real key.
 | `posts_create`, `posts_update` | Mutating | Write content and require client approval |
 | `posts_archive` | Destructive | Remove a post from public surfaces and require client approval |
 
-The server advertises these annotations to MCP clients. Confirm the target post
-and intended change before approving any mutation, especially an archive.
+The server advertises read-only, idempotent, destructive, and approval metadata to MCP clients. Client support for those annotations varies, so confirm the target post and intended change before approving any mutation, especially an archive.
+
+The API key determines the publication boundary. The optional `blog` argument on `posts_list` cannot broaden that boundary to another publication.

@@ -14,6 +14,8 @@ prosewire --help
 
 The CLI supports Node.js 24 or newer.
 
+Use `--url` to override `PROSEWIRE_API_URL`, `--blog` to override `PROSEWIRE_BLOG`, and `--key` to override `PROSEWIRE_API_KEY`. The URL defaults to `http://localhost:3000`; a publication slug is always required for public reads.
+
 ## Read public content
 
 ```shell
@@ -44,3 +46,31 @@ prosewire archive 00000000-0000-4000-8000-000000000000 --yes
 the post from public surfaces; it refuses to run without explicit `--yes`
 confirmation. All private commands are limited to the publication and scopes of
 the supplied key.
+
+## JSON request files
+
+Create accepts the management API's post-create shape. `blogId` and `authorId` are UUIDs, not slugs:
+
+```json
+{
+  "blogId": "00000000-0000-4000-8000-000000000000",
+  "authorId": "00000000-0000-4000-8000-000000000001",
+  "title": "Shipping with confidence",
+  "slug": "shipping-with-confidence",
+  "contentMarkdown": "## Start here\n\nWrite the useful part first.",
+  "status": "draft",
+  "locale": "en"
+}
+```
+
+Update accepts a partial post body, for example:
+
+```json
+{
+  "seoTitle": "Shipping with confidence",
+  "seoDescription": "A practical release checklist.",
+  "status": "published"
+}
+```
+
+Use an existing authenticated post response or portable export to resolve publication and author IDs. The current management API does not expose a standalone author-list endpoint.

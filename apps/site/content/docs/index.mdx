@@ -5,22 +5,28 @@ section: Start here
 order: 0
 ---
 
-Prosewire is open-source publishing infrastructure that gives editorial teams a focused workspace and gives developers several native delivery surfaces.
+Prosewire is open-source, self-hostable publishing infrastructure. Editorial teams get a focused workspace; developers can embed a reader, fetch rendered HTML or JSON, or use typed automation clients.
 
 ## Start with the quickstart
 
-Bring up the dashboard, worker, and Postgres, then publish your first article.
+Bring up Postgres, the dashboard, and the worker, then publish your first article with the local development account.
 
 [Run Prosewire locally →](/docs/getting-started/)
 
-## Choose an integration
+## Choose how content reaches your site
 
-Add a complete reader with one script, fetch sanitized HTML, consume public JSON, or build with the typed TypeScript SDK.
+Compare the embed, rendered HTML, public JSON, TypeScript SDK, CLI, and MCP server by use case and trust boundary.
 
-[Explore the JavaScript embed →](/docs/integrate/javascript/)
+[Choose an integration →](/docs/integrate/)
 
 ## Own the stack
 
-Deploy the complete runtime on your infrastructure and keep content portable.
+Run migrations, web, worker, and Postgres on infrastructure you control. Production startup does not seed development users or sample content.
 
 [Read the self-hosting guide →](/docs/self-host/docker/)
+
+## Operate with explicit boundaries
+
+Understand publication states, public visibility, revisions, redirects, exports, configuration, backups, and upgrade checks before serving production traffic.
+
+[Review the content lifecycle →](/docs/operate/content-lifecycle/)
