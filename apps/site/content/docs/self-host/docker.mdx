@@ -1,56 +1,106 @@
 ---
 title: Self-host with Docker Compose
-description: Run the web app, worker, migrations, and Postgres as one portable stack.
+description: Build from source and run migrations, web, worker, and Postgres as one portable stack.
 section: Operate
 order: 6
 ---
 
+This guide builds the current source checkout. Use an immutable release tag or commit for production; do not deploy a moving branch without recording the exact commit.
+
 ## Prepare configuration
 
-Copy the example environment file. Set a URL-safe database password, a random authentication secret, the external HTTPS origin, and SMTP credentials before exposing the service.
+Clone the repository, copy the example environment, and replace every local-only credential before exposing the service:
 
 ```shell
+git clone https://github.com/prosewire/prosewire.git
+cd prosewire
 cp .env.example .env
-# Edit .env
 ```
 
-Postgres is private to the Compose network. Only the web port is published. The migration service is a one-shot container and must complete before the web or worker starts.
+At minimum, set:
+
+- A URL-safe, unique `POSTGRES_PASSWORD`
+- A unique `BETTER_AUTH_SECRET` of at least 32 characters
+- Matching external HTTPS origins in `PROSEWIRE_PUBLIC_URL` and `NEXT_PUBLIC_PROSEWIRE_PUBLIC_URL`
+- A stable `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`
+- `SMTP_URL` and `EMAIL_FROM` for invitations
+- A deployment-specific `NEXT_DEPLOYMENT_ID`
+
+Generate secrets with a cryptographically secure tool, for example:
+
+```shell
+openssl rand -hex 32
+openssl rand -base64 32
+```
+
+Read the [configuration map](/docs/reference/configuration/) before starting.
+
+## Understand the Compose topology
+
+The default Compose file contains four services:
+
+| Service | Purpose | Exposed publicly |
+| --- | --- | --- |
+| `postgres` | Persistent application database | No |
+| `migrate` | One-shot committed schema migration | No |
+| `web` | Dashboard, APIs, embed, and public reader | Port 3000 |
+| `worker` | Scheduled publishing and analytics retention | No |
+
+The web and worker wait for the migration service to complete. Production startup does not create the development administrator, API key, publication, or sample posts.
 
 ## Start and bootstrap
 
 ```shell
 docker compose up -d --build
 docker compose ps
-docker compose logs -f migrate web worker
+docker compose logs migrate web worker
 ```
 
-Set `PROSEWIRE_ALLOW_SIGN_UP=true` for the first start, visit the public URL, create the first account and workspace, then set it to `false` and recreate the web container:
+Confirm that `migrate` exited successfully and that the health endpoint responds:
+
+```shell
+curl --fail https://publish.example.com/api/health
+```
+
+For the first account only, set `PROSEWIRE_ALLOW_SIGN_UP=true`, start the stack, visit the public URL, and create the owner account and first workspace. Then set the value to `false` and recreate the web container:
 
 ```shell
 docker compose up -d --force-recreate web
 ```
 
-Production startup never creates the development admin, local API key, or sample posts.
+Disabling open registration does not block valid, unexpired workspace invitations.
 
 ## Upgrade safely
 
-1. Back up Postgres.
-2. Check out the intended immutable release tag and build its image.
-3. Run `docker compose up -d --build`. The migration container finishes before application replicas move to the new schema.
-4. Check `/api/health`, worker logs, sign-in, one authenticated export, and a scheduled post.
+1. Back up Postgres and record the running image or source commit.
+2. Read package and repository changelogs for the target version.
+3. Check out the intended immutable release tag or commit.
+4. Run `docker compose build`, then `docker compose up -d`.
+5. Confirm the migration completed before web and worker become healthy.
+6. Verify `/api/health`, sign-in, one published reader page, one authenticated export, worker logs, and a scheduled post.
 
-Keep the web, worker, and migration commands on the same image version. Do not run different schema generations at the same time.
+Keep web, worker, and migrations on the same source version. Do not run different schema generations at the same time. If a migration is not backward compatible, rollback requires a tested database restore as well as the previous application image.
 
 ## Back up and restore
 
-Back up the Postgres database with your normal managed-service snapshot or `pg_dump` workflow. Test restoring Postgres into a separate environment and verify posts, authors, redirects, memberships, and audit entries.
+Back up Postgres with managed snapshots or `pg_dump`. A Compose-hosted example is:
+
+```shell
+docker compose exec -T postgres pg_dump -U prosewire -d prosewire --format=custom > prosewire.dump
+```
+
+Store backups outside the application host, encrypt them when appropriate, and define a retention policy. Test restoration into a separate database and verify posts, authors, redirects, memberships, audit entries, exports, and public visibility before calling the backup usable.
+
+Portable JSON and CSV exports improve content portability but are not substitutes for a database backup because Prosewire does not currently provide a full import workflow.
 
 ## Production checklist
 
 - Terminate HTTPS at a trusted reverse proxy or load balancer
-- Keep Postgres off the public internet
-- Use a long, unique Better Auth secret and stable server-action encryption key
+- Keep Postgres off the public internet and encrypt remote database connections
+- Keep authentication, database, SMTP, API-key, and server-action secrets out of images and source control
 - Configure SMTP and test an invitation before onboarding the team
-- Pin an immutable image version instead of `latest`
-- Run at least one worker replica; multiple replicas coordinate through atomic Postgres updates and transactions
+- Keep `PROSEWIRE_ALLOW_SIGN_UP=false` after bootstrap unless open registration is intentional
+- Pin an immutable source commit or image digest instead of `latest`
+- Run at least one worker replica; multiple replicas coordinate through Postgres
+- Monitor migration exit status, web health, worker failures, disk usage, and database capacity
 - Verify a database restore and content export before launch

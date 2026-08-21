@@ -11,8 +11,8 @@ code.
 - [ ] Run `pnpm release:preflight` and every required CI, package, docs,
       acceptance, secret-scan, workflow, and image smoke check.
 - [ ] Confirm the intended release commit is contained in `origin/main`.
-- [ ] Confirm the public website is available before restoring website/docs
-      links in the repository.
+- [ ] Confirm `https://prosewire.com` and its documentation routes resolve over
+      HTTPS before publishing repository or package links to them.
 - [ ] **External — GitHub:** required CI checks and branch protection are
       enabled for `main`.
 - [ ] **External — npm:** trusted publishing is configured for
@@ -40,3 +40,14 @@ code.
       then verify canonical URLs, sitemap, `robots.txt`, docs links, and health.
 - [ ] Verify release notes, checksums/digests, changelogs, README commands, and a
       clean install from the public registries.
+
+## Abort and recovery rules
+
+- Do not reuse a package version after any registry has accepted it. Repair a
+  partial release with a new patch version and document the affected artifacts.
+- Do not create a stable image tag or GitHub release for a digest that has not
+  passed manifest, architecture, file-layout, migration, and runtime checks.
+- If a production migration cannot be rolled back safely, restore the tested
+  database backup together with the previous application digest.
+- Keep deployment separate from package and image publication. A successful
+  artifact release does not authorize a production rollout.

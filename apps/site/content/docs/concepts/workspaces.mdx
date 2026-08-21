@@ -15,14 +15,18 @@ The dashboard stores the active workspace in the authenticated session and the a
 
 | Role | Capabilities |
 | --- | --- |
-| Owner | Full workspace, member, publication, content, integration, audit, and ownership control |
-| Admin | Workspace, member, publication, content, integration, and audit control; cannot delete the workspace |
+| Owner | Workspace settings, members, publications, content, integrations, analytics, and audit history |
+| Admin | Workspace settings, members, publications, content, integrations, analytics, and audit history |
 | Editor | Create, edit, schedule, publish, and archive all content; read analytics and integration details |
 | Author | Create drafts and edit only posts they created; read analytics and integration details |
 | Viewer | Read dashboard content, analytics, and integration details without mutations |
 
-Invitations are sent by email, expire after 48 hours, and can be canceled before acceptance. Owner transfer and workspace deletion are deliberately separate from routine role editing.
+Invitations are sent by email, expire after 48 hours, and can be canceled before acceptance. The current dashboard does not expose owner transfer or workspace deletion. The owner cannot be reassigned, demoted, or removed through routine role editing.
+
+Public author profiles are separate from workspace memberships. A member can have an author profile for one publication without that profile automatically applying to every publication in the workspace.
 
 ## Integration isolation
 
 Private API keys belong to one publication. A key may have `content:read`, `content:write`, or both scopes. Selecting a different publication in the dashboard does not broaden an existing key.
+
+Read-only public JSON, rendered HTML, RSS, sitemap, and reader routes do not require an API key and only expose content that has reached its publication time.

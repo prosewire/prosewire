@@ -5,9 +5,9 @@ section: Start here
 order: 1
 ---
 
-## Prerequisites
+This guide is for local development from source. For a production instance, use the [Docker Compose guide](/docs/self-host/docker/) and do not reuse the example credentials.
 
-You need Node.js 24 or newer, pnpm 11 or newer, Docker, and Git.
+## Prerequisites
 
 - Node.js 24+
 - pnpm 11+
@@ -16,7 +16,7 @@ You need Node.js 24 or newer, pnpm 11 or newer, Docker, and Git.
 
 ## Clone and start
 
-Clone the repository, install the workspace, start its supporting services, then run the web app.
+Clone the repository, install the workspace, start Postgres, then run all development processes.
 
 ```shell
 git clone https://github.com/prosewire/prosewire.git
@@ -29,9 +29,11 @@ pnpm dev
 
 > The first boot applies the committed database migrations and seeds a local workspace.
 
+`pnpm dev` starts the web app, background worker, and documentation site through the workspace task runner. Use `pnpm dev:web` when only the dashboard and APIs are needed.
+
 ## Open the dashboard
 
-Visit `http://localhost:3000` and sign in with the local development account.
+Visit `http://localhost:3000` and sign in with the local development account:
 
 ```text
 Email:    admin@prosewire.local
@@ -46,3 +48,27 @@ Password: prosewire-local-dev
 4. Open the Fieldnotes blog to verify the public, server-rendered article.
 
 Use the workspace and publication selectors in the sidebar to move between tenants. Development seeds one owner and one publication; additional publications can be created in **Settings**.
+
+## Verify the runtime
+
+Check that the web process can reach Postgres:
+
+```shell
+curl --fail http://localhost:3000/api/health
+```
+
+The response should report `"status":"ok"`. Then open the Fieldnotes reader from the dashboard and confirm the published sample posts appear while the draft and future scheduled post remain private.
+
+## Stop local services
+
+Stop `pnpm dev` with `Ctrl+C`, then stop the supporting container:
+
+```shell
+docker compose -f docker-compose.yml -f docker-compose.dev.yml down
+```
+
+The named Postgres volume is retained. Add `--volumes` only when you intentionally want to delete local database data.
+
+## Local configuration is not production configuration
+
+The example authentication secret, Postgres password, administrator account, and optional seed key are development values. Production web startup does not run migrations or create the local administrator, API key, or sample posts. See the [configuration map](/docs/reference/configuration/) before deploying.

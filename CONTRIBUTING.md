@@ -28,6 +28,19 @@ Pull requests should explain the problem, the approach, verification evidence,
 and any deliberate limitation. Maintainers may ask for a branch to be rebased
 or updated when `main` changes.
 
+## Documentation and copy
+
+- Run `pnpm test:docs` for changes to the README, MDX documentation, navigation,
+  metadata, or landing-page copy.
+- Run `pnpm --filter @prosewire/site typecheck` when changing Astro or MDX files.
+- Keep examples runnable against the current public contract. Use placeholders
+  for origins, UUIDs, and credentials; never paste a working key.
+- Describe planned or partial behavior as such. Do not present a data model or
+  internal capability as a finished dashboard workflow.
+- Documentation-only changes do not need a Changeset unless they alter the
+  packaged README or describe a public package behavior change that must ship
+  with a new package version.
+
 ## Security and releases
 
 Do not commit credentials, `.env` files, generated build output, package

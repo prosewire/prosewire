@@ -1,4 +1,4 @@
 {
   "title": "Integrate",
-  "pages": ["javascript", "typescript", "cli", "mcp", "http-api"]
+  "pages": ["index", "javascript", "typescript", "http-api", "cli", "mcp"]
 }

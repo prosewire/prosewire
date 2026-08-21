@@ -1,6 +1,6 @@
 ---
 title: Use raw JSON or rendered HTML
-description: Choose a structured response for custom rendering or sanitized HTML for quick composition.
+description: Read published content without authentication or use the scoped management API for server-side publishing operations.
 section: Integrate
 order: 5
 ---
@@ -12,7 +12,26 @@ GET /api/public/:blog/posts
 GET /api/public/:blog/posts/:slug
 ```
 
-The list endpoint accepts `page`, `pageSize` (maximum 100), `search`, and `category`. Its response includes `pagination.page`, `pagination.pageSize`, and `pagination.hasMore`, alongside author and category relationships. The legacy `limit` query parameter remains an alias for `pageSize`.
+The list endpoint accepts these query parameters:
+
+| Parameter | Meaning |
+| --- | --- |
+| `page` | One-based page number; defaults to 1 |
+| `pageSize` | Results per page, capped at 100 |
+| `search` | Full-text search across published content |
+| `category` | Category slug filter |
+| `limit` | Deprecated alias for `pageSize` |
+
+The list response contains `blog`, `posts`, `categories`, and `pagination`. Each post includes sanitized `contentHtml`, source `contentMarkdown`, author and category relationships, reading time, canonical metadata, and publication timestamps. Public clients therefore receive the full published body, not only a summary.
+
+```shell
+curl --fail \
+  "https://publish.example.com/api/public/fieldnotes/posts?page=1&pageSize=10"
+```
+
+Individual post requests return `blog` and `post`. A request for an old published slug receives a permanent redirect after that slug changes. Missing publications and posts return 404.
+
+Public JSON allows cross-origin reads and is sent with shared-cache guidance of 60 seconds plus stale revalidation. Do not use public endpoints for draft previews.
 
 ## Rendered HTML
 
@@ -21,8 +40,30 @@ GET /api/rendered/:blog
 GET /api/rendered/:blog/:slug
 ```
 
-Rendered routes return sanitized, semantic HTML. They are useful when the host wants server-rendered content without adopting Prosewire’s JavaScript loader.
+The publication route returns a semantic card listing. The post route returns a semantic article with sanitized body HTML, author information, stable `pw-*` classes, and the publication's scoped custom CSS. Use these routes when the host wants ready-made markup but must control where and when it is fetched.
 
-## Private operations
+The rendered endpoint is also public, cross-origin readable, and cacheable. It returns fragments rather than a complete HTML document.
 
-Authenticated publishing operations use scoped API keys and the shared Effect HttpApi/OpenAPI contract. Mutations create audit records, and destructive agent operations carry explicit risk metadata.
+## Private management API
+
+Private operations live under `/api/v1` and use a publication-scoped bearer token:
+
+```http
+Authorization: Bearer pw_live_...
+```
+
+| Method | Path | Required scope | Behavior |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/health` | None | Database readiness and application version |
+| `GET` | `/api/v1/blogs` | `content:read` | Return the publication selected by the key |
+| `GET` | `/api/v1/posts` | `content:read` | List posts, including non-public states |
+| `GET` | `/api/v1/posts/:id` | `content:read` | Retrieve one post by UUID |
+| `POST` | `/api/v1/posts` | `content:write` | Create a post |
+| `PATCH` | `/api/v1/posts/:id` | `content:write` | Update supplied fields |
+| `DELETE` | `/api/v1/posts/:id` | `content:write` | Archive the post; it does not delete the row |
+
+The private list accepts `search`, `status`, `page`, and `pageSize`. Create requires `blogId`, `authorId`, `title`, and `slug`; optional fields have the same limits enforced by the SDK and CLI. Slugs contain lowercase letters, numbers, and single hyphens, with a maximum length of 120 characters.
+
+Create and update operations render and sanitize Markdown before persistence. Mutations create audit records. Expect 400 for invalid input, 401 for a missing or invalid key, 403 for an insufficient scope or publication boundary, 404 for a missing post, and 500 when the service cannot complete the operation.
+
+Keep management tokens on trusted servers. Browser applications should use the public JSON or rendered endpoints unless they are backed by a server that holds the token.

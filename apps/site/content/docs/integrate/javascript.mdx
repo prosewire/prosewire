@@ -31,8 +31,24 @@ Add `data-path` when the host application already knows which article it needs.
 ></script>
 ```
 
+`data-path` accepts one post slug. Leave it out to render the publication listing.
+
+## Observe loading and failure states
+
+The loader sets `aria-busy="true"` on the mount point while it fetches content. On success it removes that attribute and dispatches a bubbling `prosewire:ready` event from the mount point:
+
+```javascript
+document.querySelector("[data-prosewire]")?.addEventListener("prosewire:ready", () => {
+  console.log("Prosewire content is ready");
+});
+```
+
+If the request fails, the mount point shows an alert reading “Unable to load this publication.” Monitor browser errors and the deployment's `/api/health` endpoint when diagnosing failures.
+
 ## Style the reader
 
 The embed returns semantic HTML with stable `pw-*` classes. Define typography, color, and spacing in the host site so the reader looks native instead of boxed into a vendor theme.
 
-> Public HTML is sanitized before it reaches the reader and remains usable without JavaScript enhancement.
+> Public HTML is sanitized before it reaches the reader. The embed itself requires JavaScript; use the rendered HTML endpoint during server rendering when the page must work without the loader.
+
+The embed request is public, allows cross-origin reads, and may be cached. Never place drafts, secrets, or management credentials in embed attributes.

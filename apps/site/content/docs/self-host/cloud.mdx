@@ -1,40 +1,60 @@
 ---
 title: Deploy with managed services
-description: Run the portable Prosewire image with external Postgres, SMTP, and a cloud load balancer.
+description: Run an immutable Prosewire image with external Postgres, SMTP, and a load balancer.
 section: Operate
 order: 7
 ---
 
+This guide assumes you build the repository's Dockerfile and push the resulting image to a registry your runtime can access. It does not assume that a public Prosewire image or `latest` tag is available.
+
 ## Runtime topology
 
-A cloud deployment has three commands from the same image:
+A cloud deployment runs three commands from the same immutable image:
 
 | Process | Command | Scaling |
 | --- | --- | --- |
-| Migration | `node apps/worker/dist/migrate.mjs` | One job per release |
+| Migration | `node apps/worker/dist/migrate.mjs` | Exactly one successful job per release |
 | Web | `node apps/web/server.js` | One or more replicas |
 | Worker | `node apps/worker/dist/index.mjs` | One or more replicas |
 
-Provide managed Postgres through `DATABASE_URL`. Run the migration job to completion before replacing web and worker replicas.
+Provide Postgres through `DATABASE_URL`. Run the migration job to completion before replacing web and worker replicas. Do not let an orchestrator repeatedly restart a completed migration as a long-running service.
 
-## Compose against cloud services
+## Build and publish an image
+
+Build from an immutable release tag or commit, then push a versioned tag to your registry:
+
+```shell
+docker build --tag registry.example.com/team/prosewire:0.2.0 .
+docker push registry.example.com/team/prosewire:0.2.0
+```
+
+Record the resulting digest and deploy by digest when the platform supports it.
+
+## Use the cloud Compose topology
 
 The repository includes `docker-compose.cloud.yml` for a host that connects to external services:
 
 ```shell
-PROSEWIRE_IMAGE=ghcr.io/your-org/prosewire:v0.2.0 \
+PROSEWIRE_IMAGE=registry.example.com/team/prosewire:0.2.0 \
   docker compose -f docker-compose.cloud.yml up -d
 ```
 
-Your `.env` must contain the external database, public origin, authentication, server-action, and SMTP settings. The cloud file does not provision stateful services.
+Your `.env` must contain the external database, public origins, authentication secret, server-action encryption key, deployment ID, and SMTP settings. The cloud file does not provision Postgres, SMTP, TLS, backups, or a load balancer.
+
+## Bootstrap the first owner
+
+Set `PROSEWIRE_ALLOW_SIGN_UP=true` only while creating the first account and workspace. After onboarding, set it to `false` and replace every web replica. Invitation-based account creation continues to work when open registration is disabled.
 
 ## Platform requirements
 
-- Preserve the same `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` across web replicas and releases
+- Preserve the same `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` across web replicas and rolling releases
+- Set one `NEXT_DEPLOYMENT_ID` for every replica of the same release
 - Route traffic only after `/api/health` returns 200
-- Allow graceful termination so in-flight requests finish
-- Run web and worker from the same immutable image digest
-- Back up Postgres independently of the application lifecycle
-- Keep Postgres connections encrypted and network-restricted
+- Allow graceful termination so in-flight requests can finish
+- Run web, worker, and migration from the same immutable image digest
+- Back up Postgres independently of the application lifecycle and test restoration
+- Encrypt and network-restrict Postgres connections
+- Keep at least one worker replica running for scheduled publishing and retention
+- Capture migration, web, and worker logs in the platform's logging system
 
-No managed Prosewire control plane or billing service is required; the container is self-contained apart from Postgres and SMTP.
+No managed Prosewire control plane or billing service is required. The runtime is self-contained apart from Postgres, SMTP, TLS termination, and the infrastructure services you choose.

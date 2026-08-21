@@ -5,26 +5,30 @@ section: Start here
 order: 2
 ---
 
-## The contract stays in the center
+## The management contract stays in the center
 
-Prosewire keeps its Effect Schemas and HttpApi declarations in a shared contract package. The server and generated Effect client consume that contract instead of reimplementing transport behavior independently.
+Prosewire keeps its private management schemas and HTTP API declarations in a shared contract package. The server, TypeScript SDK, CLI, and MCP server consume that contract instead of reimplementing request and response shapes independently.
 
-This makes draft visibility, scheduled publication, audit records, and destructive-operation safeguards consistent whether a person uses the dashboard or an agent uses MCP.
+The public JSON and rendered HTML endpoints use the same publication queries and visibility rules. Drafts, archived posts, and future scheduled posts remain private on every public surface.
 
 ## Tenant boundaries
 
 A Better Auth organization is a Prosewire workspace. Workspace membership carries one of five roles: owner, admin, editor, author, or viewer. Publications belong to exactly one workspace; content, public URLs, API keys, exports, and analytics remain publication-scoped.
 
-Authorization is repeated next to every server mutation and private API operation. Submitted publication, author, category, member, and invitation identifiers are resolved against the caller's workspace before writes begin. Authors can edit only posts they created, while editors can review and publish across the workspace.
+Authorization is checked beside every server mutation and private API operation. Submitted publication, author, category, member, and invitation identifiers are resolved against the caller's workspace before writes begin. Authors can edit only posts they created, while editors can review and publish across the workspace.
 
 ## Choose your delivery surface
 
-- JavaScript embed for the fastest integration
-- Rendered HTML for server or client composition
-- Public JSON for custom reading experiences
-- TypeScript SDK for typed application code
-- CLI and MCP for automation and agent workflows
+- **JavaScript embed** for the smallest integration change
+- **Rendered HTML** for server or client composition
+- **Public JSON** for a custom reading experience
+- **TypeScript SDK** for typed public and management clients
+- **CLI and MCP** for automation and agent workflows
+
+Read [Choose an integration](/docs/integrate/) for authentication and rendering trade-offs.
 
 ## Own the runtime
 
-The web app and worker run against your Postgres database. Interruptible Effect schedules trigger background work, while atomic Postgres transactions coordinate concurrent worker replicas. Content remains exportable and public pages remain readable without client-side JavaScript.
+The web app and worker run against your Postgres database. The worker checks for due scheduled posts and expired raw analytics events. Atomic Postgres transactions coordinate concurrent worker replicas. Content remains exportable, and the built-in public reader remains readable without client-side JavaScript.
+
+Production uses a separate one-shot migration process before web and worker replicas start. The web process does not migrate or seed in production.

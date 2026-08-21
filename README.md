@@ -19,22 +19,25 @@
 </p>
 
 <p align="center">
+  <a href="https://prosewire.com">Website</a> ·
+  <a href="https://prosewire.com/docs/">Documentation</a> ·
   <a href="#why-prosewire">Why Prosewire</a> ·
   <a href="#features">Features</a> ·
   <a href="#quick-start">Quick Start</a> ·
   <a href="#integrate">Integrate</a> ·
+  <a href="#project-status">Project Status</a> ·
   <a href="#platform">Platform</a> ·
   <a href="#contributing">Contributing</a> ·
   <a href="#license">License</a>
 </p>
 
-Prosewire is an embedded publishing platform for teams that want a serious blog without rebuilding their existing site around a traditional CMS. Authors get a focused editorial dashboard; readers get fast, server-rendered pages; developers can choose a JavaScript embed, rendered HTML, public JSON, or a typed TypeScript client.
+Prosewire is an embedded publishing platform for teams that want a capable blog without rebuilding their existing site around a traditional CMS. Authors get a focused editorial dashboard; readers get server-rendered pages; developers can choose a JavaScript embed, rendered HTML, public JSON, or a typed TypeScript client.
 
 The entire stack is portable and Apache-2.0 licensed. Run it locally, self-host it, customize the reader, and export your content whenever you need it.
 
 ## Why Prosewire
 
-**Built for publishing.** Draft, schedule, revise, localize, organize, and archive content from one editorial workspace. SEO and AI-discovery checks are part of the writing flow rather than an afterthought.
+**Built for publishing.** Draft, schedule, revise, localize, organize, and archive content from one editorial workspace. Deterministic content and search checks stay beside the draft instead of hiding in a separate tool.
 
 **Fits the site you already have.** Add a complete reader with one script, fetch rendered HTML, or build a native experience in Next.js, Astro, or another framework with the public API and SDK.
 
@@ -45,13 +48,13 @@ The entire stack is portable and Apache-2.0 licensed. Run it locally, self-host 
 ## Features
 
 - **Editorial workflow** — drafts, scheduled publishing, featured posts, archives, saved revisions, reusable snippets, authors, credentials, categories, and localization
-- **Writing experience** — Markdown formatting controls, live preview, cover-image metadata, reading time, and real-time content checks
+- **Writing experience** — Markdown formatting controls, live preview, cover-image metadata, reading time, and deterministic content checks
 - **Discovery** — canonical URLs, automatic slug redirects, search, related posts, table of contents, RSS, XML sitemap, and JSON-LD
 - **Reader experience** — server-rendered blog and author pages, reading progress, view events, and custom CSS
 - **Integration surfaces** — JavaScript embed without an iframe, rendered HTML API, public JSON API, private Effect HttpApi/OpenAPI contract, TypeScript SDK, CLI, and MCP server
 - **Operations** — Better Auth sessions, scoped hashed API keys, audit records, portable JSON and CSV exports, Postgres 17, Effect schedules, and Docker Compose
 
-See [the feature coverage map](docs/feature-coverage.md) for detailed behavior and current coverage.
+See [the product coverage map](docs/feature-coverage.md) for implemented behavior, partial workflows, and known gaps.
 
 ## Quick Start
 
@@ -62,18 +65,17 @@ git clone https://github.com/prosewire/prosewire.git
 cd prosewire
 cp .env.example .env
 pnpm install
-docker compose up -d postgres
+pnpm dev:services
 pnpm dev
 ```
 
-Open <http://localhost:3000>. The first boot runs the committed Drizzle migrations and seeds a local workspace.
+Open <http://localhost:3000>. In development, the first web boot runs the committed Drizzle migrations and seeds a local workspace, publication, author, and sample posts.
 
-The first boot creates the administrator from `ADMIN_EMAIL` and `ADMIN_PASSWORD`.
-The example file contains local-only credentials so the documented sign-in works immediately. Replace the database password, authentication secret, email, and administrator password before using the configuration outside local development.
+Sign in with `admin@prosewire.local` and `prosewire-local-dev`. These values come from `.env.example` and are intentionally local-only. Replace the database password, authentication secret, administrator email, and administrator password before using the configuration outside local development.
 
-To provision an initial API key, set `PROSEWIRE_SEED_API_KEY` to a unique value
-of at least 24 characters before the first boot. The stored key is hashed and
-receives explicit `content:read` and `content:write` scopes.
+To provision an initial development API key, set `PROSEWIRE_SEED_API_KEY` to a unique value of at least 24 characters before the first boot. Prosewire stores its hash and grants explicit `content:read` and `content:write` scopes.
+
+For the complete local walkthrough, shutdown command, and production distinction, read [Run Prosewire locally](https://prosewire.com/docs/getting-started/). Production deployments use the one-shot migration process and do not run the development seed.
 
 ## Integrate
 
@@ -110,6 +112,14 @@ const article = await content.getPost("shipping-with-confidence");
 
 Public content is also available directly from `/api/public/:blog/posts`, while `/api/rendered/:blog/:path` returns sanitized HTML.
 
+Start with the [integration documentation](https://prosewire.com/docs/integrate/javascript/), or go directly to the package documentation for the [SDK](packages/sdk/README.md), [CLI](packages/cli/README.md), or [MCP server](packages/mcp/README.md).
+
+## Project Status
+
+The public SDK, CLI, and MCP packages are on the `0.2.x` release line. Prosewire is usable, but its public contracts may still change before `1.0`. Pin package and container versions, review changelogs before upgrading, and back up Postgres before applying migrations.
+
+The repository does not currently provide a dashboard workflow for revision restore, content import, owner transfer, or workspace deletion. Those gaps are called out in the [product coverage map](docs/feature-coverage.md) instead of being presented as finished behavior.
+
 ## Platform
 
 Prosewire keeps its product surfaces in one TypeScript monorepo:
@@ -130,11 +140,14 @@ packages/config    Shared TypeScript and ESLint configuration
 Useful development commands:
 
 ```bash
+pnpm dev
 pnpm dev:web
+pnpm dev:site
 pnpm db:studio
 pnpm lint
 pnpm typecheck
 pnpm test
+pnpm test:docs
 pnpm build
 ```
 
@@ -142,7 +155,7 @@ pnpm build
 
 1. Fork the repository and branch from `main`.
 2. Run `pnpm install`; Lefthook installs automatically.
-3. Make your change and run the relevant quality gates.
+3. Make your change and run the relevant quality gates; documentation changes should run `pnpm test:docs`.
 4. Add a Changeset when public SDK, CLI, or MCP behavior changes.
 5. Open a pull request.
 

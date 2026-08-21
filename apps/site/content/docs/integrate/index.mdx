@@ -1,0 +1,27 @@
+---
+title: Choose an integration
+description: Match Prosewire's reader, embed, APIs, SDK, CLI, or MCP server to the job and trust boundary.
+section: Integrate
+order: 0
+---
+
+Every delivery surface reads the same publication data, but they solve different problems.
+
+| Surface | Best for | Authentication | Rendering owner |
+| --- | --- | --- | --- |
+| Built-in reader | A complete hosted blog and article experience | None for published content | Prosewire |
+| JavaScript embed | Adding a publication to an existing page with minimal code | None for published content | Prosewire markup, host-site styles |
+| Rendered HTML | Composing sanitized article or listing markup on a server or client | None for published content | Prosewire markup, caller placement |
+| Public JSON | Building a fully custom reader | None for published content | Your application |
+| TypeScript SDK | Typed public reads or server-side management operations | None for public reads; scoped key for management | Your application |
+| CLI | Shell scripts and deliberate operator workflows | None for public reads; scoped key for mutations | Not applicable |
+| MCP server | Agent-assisted publication management | Scoped key | MCP client |
+
+## Start with the narrowest surface
+
+- Choose the [JavaScript embed](/docs/integrate/javascript/) when the host page can load a script and Prosewire's semantic markup is sufficient.
+- Choose [rendered HTML or public JSON](/docs/integrate/http-api/) when the host must control fetching, caching, or rendering.
+- Choose the [TypeScript SDK](/docs/integrate/typescript/) for typed application code.
+- Choose the [CLI](/docs/integrate/cli/) or [MCP server](/docs/integrate/mcp/) for operator and agent workflows.
+
+Public surfaces never return drafts, archived posts, or scheduled posts whose publication time has not arrived. Management keys belong to one publication; grant `content:write` only when a consumer must mutate content.

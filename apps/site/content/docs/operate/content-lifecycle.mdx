@@ -11,17 +11,17 @@ order: 7
 - **Scheduled** — private until its publication time arrives
 - **Published** — available to public readers and APIs
 - **Archived** — removed from public listings
-- **Restored** — returned to its prior working state with history intact
+`restored` is not a separate stored status. An archived post can be returned to draft, scheduled, or published through the editor or management API.
 
 ## Revisions and slugs
 
 Prosewire creates revisions before destructive content changes. Slugs are unique within a blog, and when a published slug changes, the old public URL redirects to the new canonical URL.
 
-Revision snapshots retain the editor and version for auditability. A dashboard history-and-restore interface is planned; today, restoring an archived post means changing its status through the editor or management API.
+Revision snapshots retain the actor and version for auditability. The current dashboard does not provide revision browsing or one-click revision restore. Changing an archived post back to a working status does not delete its revision history.
 
 ## Portable exports
 
-The posts screen provides a versioned JSON export containing publication metadata, authors, categories, snippets, redirects, full posts, and revision snapshots. CSV remains available for spreadsheet interoperability.
+The posts screen provides a versioned JSON export containing publication metadata, authors, categories, snippets, redirects, full posts, and revision snapshots. CSV contains post fields plus author and category identifiers for spreadsheet interoperability. Prosewire does not currently provide an import workflow, so test your own restore process before relying on exports as a backup.
 
 ## Discovery follows publication
 

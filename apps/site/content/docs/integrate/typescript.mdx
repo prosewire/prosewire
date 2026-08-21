@@ -11,8 +11,8 @@ order: 4
 pnpm add @prosewire/sdk
 ```
 
-The package supports Node.js 24 or newer and ships ESM JavaScript plus bundled
-TypeScript declarations.
+The package declares Node.js 24 or newer, ships ESM JavaScript plus bundled
+TypeScript declarations, and uses `fetch` for HTTP requests.
 
 ## Create a client
 
@@ -30,6 +30,7 @@ const content = createPublicClient({
 ```typescript
 const posts = await content.listPosts({ page: 1, pageSize: 10 });
 const article = await content.getPost("shipping-with-confidence");
+const html = await content.getRendered("shipping-with-confidence");
 ```
 
 Public queries only return published content whose publication time has arrived. Drafts and future scheduled posts stay private.
@@ -41,6 +42,8 @@ Public queries only return published content whose publication time has arrived.
 - Authors and categories
 - Locale and search metadata
 - Reading time and page metadata
+
+`listPosts` accepts `search`, `category`, `page`, and `pageSize`; `pageSize` is capped at 100. The older `limit` option remains a deprecated alias. A non-success HTTP response rejects with an error that includes the response status.
 
 ## Use the management API
 
@@ -65,3 +68,17 @@ const drafts = await management.posts.list({ status: "draft" });
 
 Never expose a management key in browser JavaScript. Public content clients do
 not need authentication.
+
+The Promise client exposes these management operations:
+
+```typescript
+await management.health();
+await management.blogs.list();
+await management.posts.list({ page: 1, pageSize: 20 });
+await management.posts.get({ params: { id: postId } });
+await management.posts.create(input);
+await management.posts.update({ params: { id: postId }, body: patch });
+await management.posts.archive({ params: { id: postId } });
+```
+
+`createEffectClient` exposes the same operations as Effects. Create and update inputs are validated by the shared contract; see [Use raw JSON or rendered HTML](/docs/integrate/http-api/) for field limits and HTTP behavior.

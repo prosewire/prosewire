@@ -2,13 +2,15 @@
 
 An MCP server for managing a Prosewire publication through its typed API.
 
+The package is on the `0.2.x` release line and requires Node.js 24 or newer.
+
+Full guide: [Connect the MCP server](https://prosewire.com/docs/integrate/mcp/)
+
 ## Install
 
 ```sh
 pnpm add --global @prosewire/mcp
 ```
-
-Node.js 24 or newer is supported.
 
 ## Configure and run
 
@@ -29,6 +31,8 @@ The `publication_get`, `posts_list`, and `posts_get` tools are read-only.
 public surfaces. The server publishes those safety annotations to MCP clients;
 clients should still confirm the exact mutation with the user.
 
+The key fixes the server to one publication. A tool argument cannot broaden that boundary. Grant `content:write` only when create, update, or archive tools are required.
+
 ## MCP client configuration
 
 ```json
@@ -46,3 +50,5 @@ clients should still confirm the exact mutation with the user.
 ```
 
 Do not commit MCP client configuration containing a real API key.
+
+Restart the MCP client after changing configuration. To diagnose startup failures, run `prosewire-mcp` in a shell with the same environment and verify the deployment URL and key without printing the key.
