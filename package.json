@@ -32,13 +32,13 @@
     "release": "pnpm test:packages && changeset publish"
   },
   "devDependencies": {
-    "@changesets/cli": "^2.31.0",
+    "@changesets/cli": "^3.0.0",
     "@effect/language-service": "^0.87.2",
     "@vitest/coverage-v8": "^4.1.11",
-    "eslint": "^9.39.4",
+    "eslint": "^10.8.1",
     "lefthook": "^2.1.6",
     "turbo": "^2.10.11",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.11"
   }
 }
