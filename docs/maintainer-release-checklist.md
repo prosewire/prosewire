@@ -1,20 +1,20 @@
 # Maintainer release checklist
 
-Use this checklist after a version PR is merged. Items labeled **External**
-require GitHub, npm, GHCR, or Cloudflare access and are not changed by repository
-code.
+Use this checklist while reviewing and merging the version PR created by the
+package workflow. Items labeled **External** require GitHub, npm, GHCR, or
+Cloudflare access and are not changed by repository code.
 
 ## Before merge
 
-- [ ] Run `pnpm version-packages`; confirm SDK, CLI, and MCP versions,
-      changelogs, internal packed dependency ranges, and consumed Changesets.
+- [ ] Review the version PR; confirm SDK, CLI, and MCP versions, changelogs,
+      internal packed dependency ranges, and consumed Changesets.
 - [ ] Run `pnpm release:preflight` and every required CI, package, docs,
       acceptance, secret-scan, workflow, and image smoke check.
 - [ ] Confirm the intended release commit is contained in `origin/main`.
 - [ ] Confirm `https://prosewire.com` and its documentation routes resolve over
       HTTPS before publishing repository or package links to them.
-- [ ] **External — GitHub:** required CI checks and branch protection are
-      enabled for `main`.
+- [ ] **External — GitHub:** Actions may create pull requests, and required CI
+      checks and branch protection are enabled for `main`.
 - [ ] **External — npm:** trusted publishing is configured for
       `@prosewire/sdk`, `@prosewire/cli`, and `@prosewire/mcp`, scoped to the
       package release workflow and repository.
@@ -25,9 +25,8 @@ code.
 
 ## Publish and verify
 
-- [ ] Dispatch the package workflow with the plain version and immutable commit
-      from `main`; confirm npm provenance, metadata, imports, declarations, and
-      binaries for every package.
+- [ ] Merge the version PR; confirm the package workflow publishes from `main`
+      with npm provenance and verifies every expected package version.
 - [ ] Dispatch the stable image workflow with the same immutable commit; record
       the digest and verify both `linux/amd64` and `linux/arm64`, OCI labels,
       migrations, web, worker, required files, and `/api/health`.

@@ -1,21 +1,17 @@
 name: Release packages
 
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: Expected version shared by SDK, CLI, and MCP
-        required: true
-      ref:
-        description: Immutable commit contained in origin/main
-        required: true
+  push:
+    branches:
+      - main
 
 permissions:
-  contents: read
+  contents: write
   id-token: write
+  pull-requests: write
 
 concurrency:
-  group: release-packages-${{ inputs.version }}
+  group: release-packages-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -56,57 +52,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.ref }}
           fetch-depth: 0
-      - name: Validate immutable release source
-        env:
-          RELEASE_REF: ${{ inputs.ref }}
-          VERSION: ${{ inputs.version }}
-        run: |
-          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "version must be plain semver (for example, 1.2.3)" >&2
-            exit 1
-          fi
-          if [[ ! "$RELEASE_REF" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "ref must be a full 40-character commit SHA" >&2
-            exit 1
-          fi
-          git fetch --no-tags origin main:refs/remotes/origin/main
-          commit_sha="$(git rev-parse HEAD)"
-          test "$commit_sha" = "$RELEASE_REF"
-          if ! git merge-base --is-ancestor "$commit_sha" origin/main; then
-            echo "$commit_sha is not contained in origin/main" >&2
-            exit 1
-          fi
-          # JavaScript template literals are intentional.
-          # shellcheck disable=SC2016
-          node -e '
-            const fs = require("node:fs");
-            const directories = process.env.PUBLIC_PACKAGE_DIRECTORIES.split(/\s+/);
-            const expected = process.env.VERSION;
-            const manifests = new Map();
-            for (const directory of directories) {
-              const manifest = JSON.parse(fs.readFileSync(`packages/${directory}/package.json`));
-              if (!/^\d+\.\d+\.\d+$/.test(manifest.version)) {
-                throw new Error(`${manifest.name} has invalid version ${manifest.version}`);
-              }
-              manifests.set(directory, manifest);
-            }
-            for (const directory of ["sdk", "cli", "mcp"]) {
-              const manifest = manifests.get(directory);
-              if (manifest.version !== expected) {
-                throw new Error(`${manifest.name} is ${manifest.version}, expected ${expected}`);
-              }
-            }
-            const frameworkVersions = new Set(
-              ["next", "astro", "create-prosewire"].map(
-                (directory) => manifests.get(directory).version,
-              ),
-            );
-            if (frameworkVersions.size !== 1) {
-              throw new Error("Next.js, Astro, and create-prosewire versions are not aligned");
-            }
-          '
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -125,42 +71,20 @@ jobs:
       - run: pnpm test:coverage
       - run: pnpm test:packages
       - run: pnpm build
-      - run: pnpm release:preflight
       - run: pnpm --filter @prosewire/web exec playwright install --with-deps chromium
       - run: pnpm test:acceptance
-      - name: Detect an idempotent rerun
-        id: registry
-        run: |
-          missing=0
-          total=0
-          while IFS= read -r package_spec; do
-            total=$((total + 1))
-            if npm view "$package_spec" version --json >/dev/null 2>&1; then
-              echo "$package_spec already exists."
-            else
-              echo "$package_spec needs publication."
-              missing=$((missing + 1))
-            fi
-          done < <(node -e '
-            const fs = require("node:fs");
-            for (const directory of process.env.PUBLIC_PACKAGE_DIRECTORIES.split(/\s+/)) {
-              const manifest = JSON.parse(fs.readFileSync("packages/" + directory + "/package.json"));
-              console.log(manifest.name + "@" + manifest.version);
-            }
-          ')
-          if [ "$missing" -eq 0 ]; then
-            echo "All $total public package versions already exist; publication is a no-op."
-            echo "already_published=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "$missing of $total public package versions need publication."
-            echo "already_published=false" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Publish with npm trusted publishing
-        if: steps.registry.outputs.already_published != 'true'
+      - name: Create version pull request or publish packages
+        id: changesets
+        uses: changesets/action@8488615a623b1b9c987934bb89eae8af6a946ac1 # v2.1.1
+        with:
+          version-script: pnpm version-packages
+          publish-script: pnpm release
+          create-github-releases: false
+          push-git-tags: false
         env:
           NPM_CONFIG_PROVENANCE: "true"
-        run: pnpm release
       - name: Verify registry versions
+        if: steps.changesets.outputs.published == 'true'
         run: |
           for _attempt in {1..12}; do
             ready=true
