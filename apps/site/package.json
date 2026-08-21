@@ -10,7 +10,7 @@
     "dev": "astro dev --host 0.0.0.0",
     "build": "astro build",
     "preview": "astro preview --host 0.0.0.0",
-    "lint": "eslint src --ext .ts,.tsx",
+    "lint": "astro sync && eslint src --ext .ts,.tsx",
     "typecheck": "astro check",
     "deploy": "pnpm build && wrangler deploy",
     "deploy:dry": "pnpm build && wrangler deploy --dry-run"
