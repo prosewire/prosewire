@@ -10,7 +10,7 @@
     "dev": "astro dev --host 0.0.0.0",
     "build": "astro build",
     "preview": "astro preview --host 0.0.0.0",
-    "lint": "astro sync && eslint src --ext .ts,.tsx",
+    "lint": "astro sync && biome lint .",
     "typecheck": "astro check",
     "deploy": "pnpm build && wrangler deploy",
     "deploy:dry": "pnpm build && wrangler deploy --dry-run"
@@ -34,7 +34,6 @@
     "@types/node": "^26.2.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
-    "eslint": "9.39.4",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "wrangler": "^4.124.0"
   }

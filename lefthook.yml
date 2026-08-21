@@ -2,8 +2,8 @@ pre-commit:
   parallel: true
   commands:
     lint:
-      glob: "*.{js,jsx,ts,tsx,mjs,cjs}"
-      run: pnpm -r --if-present --silent run lint
+      glob: "*.{js,jsx,ts,tsx,mjs,cjs,json,jsonc,css}"
+      run: pnpm lint
     typecheck:
       glob: "*.{ts,tsx}"
       run: pnpm -r --if-present --silent run typecheck

@@ -22,10 +22,13 @@
   "bin": {
     "prosewire-mcp": "./dist/index.mjs"
   },
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsdown",
-    "lint": "eslint src",
+    "lint": "biome lint src",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
@@ -43,15 +46,19 @@
     "@prosewire/config": "workspace:*",
     "@prosewire/contract": "workspace:*",
     "@types/node": "^26.2.0",
-    "eslint": "9.39.4",
     "tsdown": "^0.22.0",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "vitest": "^4.1.11"
   },
   "tsdown": {
-    "entry": ["src/index.ts", "src/server.ts"],
+    "entry": [
+      "src/index.ts",
+      "src/server.ts"
+    ],
     "deps": {
-      "alwaysBundle": ["@prosewire/contract"]
+      "alwaysBundle": [
+        "@prosewire/contract"
+      ]
     }
   }
 }

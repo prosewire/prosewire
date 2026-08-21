@@ -13,7 +13,6 @@ export function processSingleton<A>(key: string, create: () => A): A {
   const singletons = registry();
   if (singletons.has(key)) {
     // The key is the runtime type invariant for this process-owned registry.
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion
     return singletons.get(key) as A;
   }
   const value = create();

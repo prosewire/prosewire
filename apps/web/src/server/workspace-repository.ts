@@ -30,7 +30,6 @@ import {
 } from "./transactional-access.ts";
 
 const EditableRole = Schema.Literals(["admin", "editor", "author", "viewer"]);
-type EditableRole = typeof EditableRole.Type;
 
 export class InvalidWorkspaceInput extends Schema.TaggedError<InvalidWorkspaceInput>()(
   "InvalidWorkspaceInput",

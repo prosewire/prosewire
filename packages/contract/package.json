@@ -12,7 +12,7 @@
   },
   "scripts": {
     "build": "tsc --noEmit",
-    "lint": "eslint src",
+    "lint": "biome lint src",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
@@ -23,7 +23,6 @@
   "devDependencies": {
     "@prosewire/config": "workspace:*",
     "@types/node": "^26.2.0",
-    "eslint": "9.39.4",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "vitest": "^4.1.11"
   }

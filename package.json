@@ -15,7 +15,8 @@
     "dev:web:workspace": "pnpm --filter @prosewire/web dev",
     "dev:site": "pnpm --filter @prosewire/site dev",
     "dev:services": "docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres",
-    "lint": "turbo run lint",
+    "lint": "biome lint .",
+    "format": "biome check --write .",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test && pnpm test:packages",
     "test:packages": "node scripts/package-tarball-smoke.mjs",
@@ -32,11 +33,11 @@
     "release": "pnpm test:packages && changeset publish"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.9",
     "@changesets/cli": "^3.0.1",
     "@effect/tsgo": "^0.36.5",
     "@typescript/native": "npm:typescript@^7.0.2",
     "@vitest/coverage-v8": "^4.1.11",
-    "eslint": "^9.39.4",
     "lefthook": "^2.1.6",
     "turbo": "^2.10.11",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
