@@ -18,7 +18,10 @@ function privateClient(
 function publicClient(overrides: Partial<PublicContentClient> = {}): PublicContentClient {
   return {
     listPosts: vi.fn().mockResolvedValue({ posts: [{ title: "Published" }] }),
+    listAllPosts: vi.fn().mockResolvedValue([]),
     getPost: vi.fn().mockResolvedValue({ post: { slug: "published" } }),
+    resolvePost: vi.fn().mockResolvedValue({ status: "not-found" }),
+    listRedirects: vi.fn().mockResolvedValue([]),
     getRendered: vi.fn().mockResolvedValue("<article />"),
     ...overrides,
   };

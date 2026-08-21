@@ -198,6 +198,12 @@ export const publicPostResult = Schema.Struct({
   post: publicPostOutput,
 });
 
+export const publicRedirectOutput = Schema.Struct({
+  fromPath: Schema.String,
+  toPath: Schema.String,
+  statusCode: Schema.Literals([301, 302, 307, 308]),
+});
+
 export const paginatedPosts = Schema.Struct({
   items: Schema.Array(postOutput),
   total: Schema.Int,
@@ -214,6 +220,7 @@ export type PublicCategory = typeof categoryOutput.Type;
 export type PublicPost = typeof publicPostOutput.Type;
 export type PublicPostPage = typeof publicPostPage.Type;
 export type PublicPostResult = typeof publicPostResult.Type;
+export type PublicRedirect = typeof publicRedirectOutput.Type;
 export type PostCreateInput = typeof postCreateInput.Type;
 export type PostCreateEncodedInput = typeof postCreateInput.Encoded;
 export type PostUpdateInput = typeof postUpdateInput.Type;

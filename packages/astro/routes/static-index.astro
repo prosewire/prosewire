@@ -1,0 +1,28 @@
+---
+/// <reference path="../virtual.d.ts" />
+import { createPublicClient } from "@prosewire/sdk";
+import PostList from "../components/PostList.astro";
+import { basePath, baseUrl, publication } from "virtual:prosewire/config";
+
+const client = createPublicClient({ baseUrl, blog: publication });
+const [firstPage, posts] = await Promise.all([
+  client.listPosts({ page: 1, pageSize: 100 }),
+  client.listAllPosts(),
+]);
+const result = {
+  ...firstPage,
+  posts,
+  pagination: { page: 1, pageSize: posts.length, hasMore: false },
+};
+---
+
+<!doctype html>
+<html lang={result.blog.locale}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>{result.blog.name}</title>
+    <meta name="description" content={result.blog.description} />
+  </head>
+  <body><PostList result={result} basePath={basePath} queryControls={false} /></body>
+</html>

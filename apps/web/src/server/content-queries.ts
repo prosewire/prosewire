@@ -451,6 +451,18 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
     },
   );
 
+  const getPublicRedirects = Effect.fn("ContentQueries.getPublicRedirects")(
+    function* (blogId: BlogId) {
+      const rows = yield* execute("redirect.listPublic", (client) =>
+        client.query.redirect.findMany({
+          where: eq(schema.redirect.blogId, blogId),
+          orderBy: [asc(schema.redirect.fromPath)],
+        }),
+      );
+      return rows.map(toRedirect);
+    },
+  );
+
   const recordPostView = Effect.fn("ContentQueries.recordPostView")(function* (
     postId: PostId,
     eventId: string,
@@ -498,6 +510,7 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
     getPublicPosts,
     getPublicPost,
     getPublicRedirect,
+    getPublicRedirects,
     recordPostView,
   };
 });

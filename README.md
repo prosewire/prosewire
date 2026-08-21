@@ -51,7 +51,7 @@ The entire stack is portable and Apache-2.0 licensed. Run it locally, self-host 
 - **Writing experience** — Markdown formatting controls, live preview, cover-image metadata, reading time, and deterministic content checks
 - **Discovery** — canonical URLs, automatic slug redirects, search, related posts, table of contents, RSS, XML sitemap, and JSON-LD
 - **Reader experience** — server-rendered blog and author pages, reading progress, view events, and custom CSS
-- **Integration surfaces** — JavaScript embed without an iframe, rendered HTML API, public JSON API, private Effect HttpApi/OpenAPI contract, TypeScript SDK, CLI, and MCP server
+- **Integration surfaces** — headless Next.js and Astro readers, a safe scaffolding CLI, JavaScript embed without an iframe, rendered HTML, public JSON, TypeScript SDK, CLI, and MCP server
 - **Operations** — Better Auth sessions, scoped hashed API keys, audit records, portable JSON and CSV exports, Postgres 17, Effect schedules, and Docker Compose
 
 See [the product coverage map](docs/feature-coverage.md) for implemented behavior, partial workflows, and known gaps.
@@ -78,6 +78,19 @@ To provision an initial development API key, set `PROSEWIRE_SEED_API_KEY` to a u
 For the complete local walkthrough, shutdown command, and production distinction, read [Run Prosewire locally](https://prosewire.com/docs/getting-started/). Production deployments use the one-shot migration process and do not run the development seed.
 
 ## Integrate
+
+### Next.js or Astro in five minutes
+
+Run the scaffolder inside an existing project. It detects Next.js App Router, Next.js Pages Router, or Astro and writes thin native routes. In a monorepo, run it from the workspace root; it selects a single supported app automatically or accepts `--cwd apps/web` when there are several.
+
+```bash
+pnpm create prosewire@latest \
+  --url https://your-prosewire-deployment \
+  --blog fieldnotes \
+  --route /blog
+```
+
+The framework packages ship semantic `pw-*` markup with no stylesheet or client runtime. Style the hooks, replace the typed render components, or use the public client directly. Pass `--agent` to print the setup instructions for a coding agent without changing files.
 
 ### JavaScript embed
 
@@ -112,7 +125,7 @@ const article = await content.getPost("shipping-with-confidence");
 
 Public content is also available directly from `/api/public/:blog/posts`, while `/api/rendered/:blog/:path` returns sanitized HTML.
 
-Start with the [integration documentation](https://prosewire.com/docs/integrate/javascript/), or go directly to the package documentation for the [SDK](packages/sdk/README.md), [CLI](packages/cli/README.md), or [MCP server](packages/mcp/README.md).
+Start with the [integration documentation](https://prosewire.com/docs/integrate/), or go directly to the package documentation for [Next.js](packages/next/README.md), [Astro](packages/astro/README.md), the [SDK](packages/sdk/README.md), [CLI](packages/cli/README.md), or [MCP server](packages/mcp/README.md).
 
 ## Project Status
 
@@ -132,6 +145,9 @@ packages/db        Postgres 17 schema and Drizzle migrations
 packages/core      Rendering, sanitization, slugs, reading time, and SEO checks
 packages/contract  Effect Schema and HttpApi contract
 packages/sdk       Typed private API and public-content clients
+packages/next      Headless App Router and Pages Router readers
+packages/astro     Static and server-rendered Astro integration
+packages/create-prosewire  Framework detection and safe route scaffolding
 packages/cli       Command-line publishing client
 packages/mcp       Agent-facing MCP server
 packages/config    Shared TypeScript and ESLint configuration

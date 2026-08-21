@@ -1,0 +1,48 @@
+---
+import type { PublicPostPage } from "@prosewire/sdk";
+
+interface Props {
+  result: PublicPostPage;
+  basePath: string;
+  queryControls?: boolean;
+}
+
+const { result, basePath, queryControls = true } = Astro.props;
+const { blog, posts, categories, pagination } = result;
+const postPath = (slug: string) =>
+  `${basePath === "/" ? "" : basePath}/${encodeURIComponent(slug)}`;
+---
+
+<main class="pw-root pw-index" data-prosewire="index">
+  <header class="pw-index-header" data-prosewire-part="index-header">
+    <h1 class="pw-index-title">{blog.name}</h1>
+    {blog.description && <p class="pw-index-description">{blog.description}</p>}
+  </header>
+  {queryControls && categories.length > 0 && (
+    <nav class="pw-categories" aria-label="Post categories">
+      <a class="pw-category" href={basePath}>All posts</a>
+      {categories.map((category) => (
+        <a class="pw-category" href={`${basePath}?category=${encodeURIComponent(category.slug)}`}>
+          {category.name}
+        </a>
+      ))}
+    </nav>
+  )}
+  <div class="pw-post-list" data-prosewire-part="post-list">
+    {posts.map((post) => (
+      <article class="pw-post-card" data-prosewire-part="post-card">
+        <p class="pw-post-card-meta">{post.author.name}</p>
+        <h2 class="pw-post-card-title">
+          <a href={postPath(post.slug)}>{post.title}</a>
+        </h2>
+        {post.excerpt && <p class="pw-post-card-excerpt">{post.excerpt}</p>}
+      </article>
+    ))}
+  </div>
+  {queryControls && (
+    <nav class="pw-pagination" aria-label="Post pages">
+      {pagination.page > 1 && <a href={`${basePath}?page=${pagination.page - 1}`}>Newer posts</a>}
+      {pagination.hasMore && <a href={`${basePath}?page=${pagination.page + 1}`}>Older posts</a>}
+    </nav>
+  )}
+</main>

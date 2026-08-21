@@ -1,4 +1,13 @@
 {
   "title": "Integrate",
-  "pages": ["index", "javascript", "typescript", "http-api", "cli", "mcp"]
+  "pages": [
+    "index",
+    "nextjs",
+    "astro",
+    "javascript",
+    "typescript",
+    "http-api",
+    "cli",
+    "mcp"
+  ]
 }

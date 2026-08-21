@@ -9,6 +9,8 @@ Every delivery surface reads the same publication data, but they solve different
 
 | Surface | Best for | Authentication | Rendering owner |
 | --- | --- | --- | --- |
+| Next.js package | Native App Router or Pages Router routes in about five minutes | None | Your application, with optional unstyled defaults |
+| Astro integration | Native static or server-rendered Astro routes in about five minutes | None | Your application, with optional unstyled defaults |
 | Built-in reader | A complete hosted blog and article experience | None for published content | Prosewire |
 | JavaScript embed | Adding a publication to an existing page with minimal code | None for published content | Prosewire markup, host-site styles |
 | Rendered HTML | Composing sanitized article or listing markup on a server or client | None for published content | Prosewire markup, caller placement |
@@ -19,6 +21,8 @@ Every delivery surface reads the same publication data, but they solve different
 
 ## Start with the narrowest surface
 
+- Choose the [Next.js package](/docs/integrate/nextjs/) for App Router metadata and caching or Pages Router ISR.
+- Choose the [Astro integration](/docs/integrate/astro/) for injected routes or components that fit an existing layout.
 - Choose the [JavaScript embed](/docs/integrate/javascript/) when the host page can load a script and Prosewire's semantic markup is sufficient.
 - Choose [rendered HTML or public JSON](/docs/integrate/http-api/) when the host must control fetching, caching, or rendering.
 - Choose the [TypeScript SDK](/docs/integrate/typescript/) for typed application code.

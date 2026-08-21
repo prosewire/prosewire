@@ -1,0 +1,71 @@
+---
+title: Add Prosewire to Astro
+description: Add a native static or server-rendered Prosewire reader with injected routes or unstyled components.
+section: Integrate
+order: 2
+---
+
+## Five-minute setup
+
+From an existing Astro project, run:
+
+```shell
+pnpm create prosewire@latest \
+  --url https://publish.example.com \
+  --blog fieldnotes \
+  --route /blog
+```
+
+The scaffolder detects static or server output, installs `@prosewire/astro`, and writes pages that can be wrapped in the project's existing layouts. It refuses to overwrite an existing route.
+
+In a monorepo, run the command from the workspace root. The scaffolder selects the app automatically when there is only one supported app. Otherwise, pass `--cwd apps/docs`. It updates that app's manifest and runs installation from the workspace root with the detected package manager, avoiding a nested lockfile.
+
+For the smallest manual setup, register the integration:
+
+```javascript
+import { defineConfig } from "astro/config";
+import prosewire from "@prosewire/astro";
+
+export default defineConfig({
+  integrations: [
+    prosewire({
+      baseUrl: "https://publish.example.com",
+      publication: "fieldnotes",
+      basePath: "/blog",
+      siteUrl: "https://www.example.com",
+    }),
+  ],
+});
+```
+
+This injects `/blog` and `/blog/[slug]`. Static sites fetch all published content and known slug redirects during the build. Server output fetches per request and sets shared-cache headers. Neither mode needs an API key.
+
+## Own the layout and markup
+
+Injected routes are useful for an immediate reader. Set `injectRoutes: false` when the publication should live inside your own pages and layouts:
+
+```astro
+---
+import PostArticle from "@prosewire/astro/components/PostArticle.astro";
+import { createProsewire } from "@prosewire/astro";
+import SiteLayout from "../../layouts/SiteLayout.astro";
+
+const content = createProsewire({
+  baseUrl: "https://publish.example.com",
+  publication: "fieldnotes",
+});
+const result = await content.resolvePost(Astro.params.slug ?? "");
+if (result.status === "not-found") return new Response("Not found", { status: 404 });
+if (result.status === "redirect") return Astro.redirect(`/blog/${result.slug}`, 301);
+---
+
+<SiteLayout title={result.post.title}>
+  <PostArticle blog={result.blog} post={result.post} basePath="/blog" />
+</SiteLayout>
+```
+
+`PostList.astro` and `PostArticle.astro` contain semantic markup, stable `pw-*` classes, and `data-prosewire` hooks. They ship no stylesheet, inline layout, or client-side JavaScript. Import them as a starting point, style their hooks, copy their small markup into your own component, or use `createProsewire` directly.
+
+## Give setup to an agent
+
+Run the same scaffold command with `--agent` to print a safe setup prompt instead of writing files. Add `--cwd apps/docs` to identify a monorepo target. It asks the agent to preserve the host site's layout and styles and verify the production build.

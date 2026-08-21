@@ -4,14 +4,16 @@ import {
   type PostCreateInput,
   type PostStatus,
   type PostUpdateInput,
-  type PublicBlog,
   type PublicAuthor,
+  type PublicBlog,
   type PublicCategory,
   type PublicPost,
   type PublicPostPage,
   type PublicPostResult,
+  type PublicRedirect,
   publicPostPage,
   publicPostResult,
+  publicRedirectOutput,
 } from "@prosewire/contract";
 import { Effect, Schema } from "effect";
 import {
@@ -54,9 +56,7 @@ export function createEffectClient(options: ProsewireClientOptions) {
     HttpApiClient.make(api, {
       baseUrl,
       transformClient: options.apiKey
-        ? HttpClient.mapRequest(
-            HttpClientRequest.bearerToken(options.apiKey),
-          )
+        ? HttpClient.mapRequest(HttpClientRequest.bearerToken(options.apiKey))
         : undefined,
     }).pipe(Effect.provide(FetchHttpClient.layer)),
   );
@@ -133,6 +133,7 @@ export type {
   PublicPost,
   PublicPostPage,
   PublicPostResult,
+  PublicRedirect,
 };
 
 export interface PublicListInput {
@@ -146,8 +147,30 @@ export interface PublicListInput {
 
 export interface PublicContentClient {
   listPosts(input?: PublicListInput): Promise<PublicPostPage>;
+  listAllPosts(
+    input?: Omit<PublicListInput, "page" | "pageSize" | "limit">,
+  ): Promise<ReadonlyArray<PublicPost>>;
   getPost(slug: string): Promise<PublicPostResult>;
+  resolvePost(slug: string): Promise<PublicPostResolution>;
+  listRedirects(): Promise<ReadonlyArray<PublicRedirect>>;
   getRendered(path?: string): Promise<string>;
+}
+
+export type PublicPostResolution =
+  | ({ status: "found" } & PublicPostResult)
+  | ({ status: "redirect"; slug: string } & PublicPostResult)
+  | { status: "not-found" };
+
+export class ProsewireRequestError extends Error {
+  readonly status: number;
+  readonly url: string;
+
+  constructor(response: Response) {
+    super(`Prosewire request failed (${String(response.status)})`);
+    this.name = "ProsewireRequestError";
+    this.status = response.status;
+    this.url = response.url;
+  }
 }
 
 async function decodeResponse<S extends Schema.ConstraintDecoder<unknown>>(
@@ -163,28 +186,67 @@ export function createPublicClient(
   const request = options.fetch ?? fetch;
   const base = options.baseUrl.replace(/\/$/, "");
   const blog = encodeURIComponent(options.blog);
+  const postUrl = (slug: string) =>
+    `${base}/api/public/${blog}/posts/${encodeURIComponent(slug)}`;
+  const listPosts = async (input: PublicListInput = {}) => {
+    const query = new URLSearchParams();
+    if (input.search) query.set("search", input.search);
+    if (input.category) query.set("category", input.category);
+    if (input.page) query.set("page", String(input.page));
+    if (input.pageSize) query.set("pageSize", String(input.pageSize));
+    if (input.limit) query.set("limit", String(input.limit));
+    const suffix = query.size ? `?${query.toString()}` : "";
+    const response = await request(`${base}/api/public/${blog}/posts${suffix}`);
+    if (!response.ok) throw new ProsewireRequestError(response);
+    return decodeResponse(publicPostPage, response);
+  };
+  const resolvePost = async (slug: string): Promise<PublicPostResolution> => {
+    const response = await request(postUrl(slug));
+    if (response.status === 404) return { status: "not-found" };
+    if (!response.ok) throw new ProsewireRequestError(response);
+    const result = await decodeResponse(publicPostResult, response);
+    return result.post.slug === slug
+      ? { status: "found", ...result }
+      : { status: "redirect", slug: result.post.slug, ...result };
+  };
   return {
-    async listPosts(input = {}) {
-      const query = new URLSearchParams();
-      if (input.search) query.set("search", input.search);
-      if (input.category) query.set("category", input.category);
-      if (input.page) query.set("page", String(input.page));
-      if (input.pageSize) query.set("pageSize", String(input.pageSize));
-      if (input.limit) query.set("limit", String(input.limit));
-      const suffix = query.size ? `?${query.toString()}` : "";
-      const response = await request(`${base}/api/public/${blog}/posts${suffix}`);
-      if (!response.ok) throw new Error(`Prosewire request failed (${String(response.status)})`);
-      return decodeResponse(publicPostPage, response);
+    listPosts,
+    async listAllPosts(input = {}) {
+      const posts: PublicPost[] = [];
+      let page = 1;
+      while (true) {
+        const result = await listPosts({ ...input, page, pageSize: 100 });
+        posts.push(...result.posts);
+        if (!result.pagination.hasMore) return posts;
+        page += 1;
+      }
     },
     async getPost(slug) {
-      const response = await request(`${base}/api/public/${blog}/posts/${encodeURIComponent(slug)}`);
-      if (!response.ok) throw new Error(`Prosewire request failed (${String(response.status)})`);
-      return decodeResponse(publicPostResult, response);
+      const result = await resolvePost(slug);
+      if (result.status === "not-found") {
+        throw new ProsewireRequestError(new Response(null, { status: 404 }));
+      }
+      return { blog: result.blog, post: result.post };
+    },
+    resolvePost,
+    async listRedirects() {
+      const response = await request(`${base}/api/public/${blog}/redirects`);
+      if (!response.ok) throw new ProsewireRequestError(response);
+      return Schema.decodeUnknownPromise(Schema.Array(publicRedirectOutput))(
+        await response.json(),
+      );
     },
     async getRendered(path = "") {
-      const encodedPath = path.replace(/^\//, "").split("/").filter(Boolean).map(encodeURIComponent).join("/");
-      const response = await request(`${base}/api/rendered/${blog}/${encodedPath}`);
-      if (!response.ok) throw new Error(`Prosewire request failed (${String(response.status)})`);
+      const encodedPath = path
+        .replace(/^\//, "")
+        .split("/")
+        .filter(Boolean)
+        .map(encodeURIComponent)
+        .join("/");
+      const response = await request(
+        `${base}/api/rendered/${blog}/${encodedPath}`,
+      );
+      if (!response.ok) throw new ProsewireRequestError(response);
       return response.text();
     },
   };

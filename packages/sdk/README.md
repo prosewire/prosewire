@@ -40,10 +40,12 @@ const page = await publicContent.listPosts({
 
 console.log(page.posts.map((post) => post.title));
 const article = await publicContent.getPost("welcome");
+const resolution = await publicContent.resolvePost("old-welcome-slug");
+const redirects = await publicContent.listRedirects();
 const html = await publicContent.getRendered("welcome");
 ```
 
-Public clients need no key and only return published content whose publication time has arrived. `pageSize` is capped at 100. The deprecated `limit` option remains an alias for `pageSize`.
+Public clients need no key and only return published content whose publication time has arrived. `pageSize` is capped at 100. `listAllPosts` follows every page for static builds, while `resolvePost` preserves the difference between a canonical post, redirect, and 404. The deprecated `limit` option remains an alias for `pageSize`.
 
 ## Manage a publication
 

@@ -30,6 +30,7 @@ const content = createPublicClient({
 ```typescript
 const posts = await content.listPosts({ page: 1, pageSize: 10 });
 const article = await content.getPost("shipping-with-confidence");
+const resolution = await content.resolvePost("an-older-slug");
 const html = await content.getRendered("shipping-with-confidence");
 ```
 
@@ -44,6 +45,8 @@ Public queries only return published content whose publication time has arrived.
 - Reading time and page metadata
 
 `listPosts` accepts `search`, `category`, `page`, and `pageSize`; `pageSize` is capped at 100. The older `limit` option remains a deprecated alias. A non-success HTTP response rejects with an error that includes the response status.
+
+`listAllPosts` follows pagination for static builds. `resolvePost` distinguishes a canonical post, an old slug that should redirect, and a missing post. `listRedirects` returns the redirect manifest used by framework integrations.
 
 ## Use the management API
 

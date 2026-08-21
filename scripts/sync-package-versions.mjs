@@ -8,7 +8,7 @@ const sdkManifest = JSON.parse(
   await readFile(join(root, "packages", "sdk", "package.json"), "utf8"),
 );
 
-for (const directory of ["cli", "mcp"]) {
+for (const directory of ["cli", "mcp", "create-prosewire"]) {
   const manifestPath = join(root, "packages", directory, "package.json");
   const versionPath = join(root, "packages", directory, "src", "version.ts");
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
@@ -37,6 +37,7 @@ const nextWebVersion = webVersion.replace(
   /export const version = "[^"]+";/,
   `export const version = "${sdkManifest.version}";`,
 );
-if (nextWebVersion !== webVersion) await writeFile(webVersionPath, nextWebVersion);
+if (nextWebVersion !== webVersion)
+  await writeFile(webVersionPath, nextWebVersion);
 
 process.stdout.write("Synchronized public package and runtime versions.\n");

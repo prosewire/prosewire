@@ -16,10 +16,18 @@ export default async function IntegratePage() {
   const { blog, origin, apiKeys, context } = dashboardData(await loadDashboardIntegration());
   const embed = `<div data-prosewire="${blog.slug}"></div>\n<script async src="${origin}/embed.js" data-blog="${blog.slug}"></script>`;
   const sdk = `import { createPublicClient } from "@prosewire/sdk";\n\nconst blog = createPublicClient({\n  baseUrl: "${origin}",\n  blog: "${blog.slug}",\n});\n\nconst posts = await blog.listPosts();`;
+  const scaffold = [
+    "pnpm create prosewire@latest \\",
+    `  --url ${origin} \\`,
+    `  --blog ${blog.slug} \\`,
+    "  --route /blog",
+  ].join("\n");
+  const agent = [`${scaffold} \\`, "  --agent"].join("\n");
   return (
     <main className="mx-auto max-w-[1100px] px-4 py-6 sm:px-7 lg:px-9 lg:py-8">
       <p className="text-xs font-semibold text-[#ef6848]">Developer surfaces</p><h1 className="mt-1 text-3xl font-semibold tracking-[-.04em]">Integrate anywhere</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-[#6e787d]">Start with two lines of HTML, or take complete control through the same typed content contract.</p>
-      <section className="card mt-7 p-5 sm:p-6"><div className="flex items-start gap-3"><span className="grid size-10 place-items-center rounded-xl bg-[#fee9df] text-[#c54a2f]"><Code2 className="size-4.5" /></span><div><h2 className="text-sm font-semibold">JavaScript embed</h2><p className="mt-1 text-xs leading-5 text-[#7a8489]">Renders semantic HTML into the host page and inherits surrounding typography. No iframe.</p></div></div><CodeBlock>{embed}</CodeBlock></section>
+      <section className="card mt-7 p-5 sm:p-6"><div className="flex items-start gap-3"><span className="grid size-10 place-items-center rounded-xl bg-[#fee9df] text-[#c54a2f]"><PackageOpen className="size-4.5" /></span><div><h2 className="text-sm font-semibold">Next.js or Astro in five minutes</h2><p className="mt-1 text-xs leading-5 text-[#7a8489]">Detect the framework, install the native package, and add thin routes. The defaults are semantic and unstyled; replace their typed components whenever you want complete markup control.</p></div></div><CodeBlock>{scaffold}</CodeBlock><p className="mt-4 text-xs leading-5 text-[#7a8489]">Setting this up with a coding agent? Copy the agent-safe command instead.</p><CodeBlock>{agent}</CodeBlock></section>
+      <section className="card mt-4 p-5 sm:p-6"><div className="flex items-start gap-3"><span className="grid size-10 place-items-center rounded-xl bg-[#fee9df] text-[#c54a2f]"><Code2 className="size-4.5" /></span><div><h2 className="text-sm font-semibold">JavaScript embed</h2><p className="mt-1 text-xs leading-5 text-[#7a8489]">Renders semantic HTML into the host page and inherits surrounding typography. No iframe.</p></div></div><CodeBlock>{embed}</CodeBlock></section>
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         <section className="card p-5"><Braces className="size-4.5 text-[#ef6848]" /><h2 className="mt-4 text-sm font-semibold">Raw JSON API</h2><p className="mt-2 text-xs leading-5 text-[#7a8489]">Published posts with authors, categories, HTML, and Markdown.</p><CodeBlock>{`GET ${origin}/api/public/${blog.slug}/posts`}</CodeBlock></section>
         <section className="card p-5"><PackageOpen className="size-4.5 text-[#ef6848]" /><h2 className="mt-4 text-sm font-semibold">Rendered API</h2><p className="mt-2 text-xs leading-5 text-[#7a8489]">Ready-to-place blog indexes and article bodies.</p><CodeBlock>{`GET ${origin}/api/rendered/${blog.slug}/`}</CodeBlock></section>

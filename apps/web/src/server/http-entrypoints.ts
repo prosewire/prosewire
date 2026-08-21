@@ -322,6 +322,36 @@ export async function getPublicPost(
   );
 }
 
+export async function getPublicRedirects(
+  request: Request,
+  context: {
+    readonly params: Promise<{ readonly blog: string }>;
+  },
+): Promise<Response> {
+  const { blog: rawBlog } = await context.params;
+  const blogSlug = parseBlogSlug(rawBlog);
+  if (Option.isNone(blogSlug)) {
+    return json({ error: "Blog not found" }, { status: 404 });
+  }
+  const redirects = await runAppEffect(
+    Effect.flatMap(PublicContent.Service, (content) =>
+      content.redirects(blogSlug.value),
+    ),
+    request.signal,
+  );
+  if (!redirects) {
+    return json({ error: "Blog not found" }, { status: 404 });
+  }
+  return json(
+    redirects.map(({ fromPath, toPath, statusCode }) => ({
+      fromPath,
+      toPath,
+      statusCode,
+    })),
+    { headers: publicHeaders() },
+  );
+}
+
 function renderedStyles(blog: {
   readonly accentColor: string;
   readonly customCss: string;
