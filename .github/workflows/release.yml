@@ -145,8 +145,8 @@ jobs:
           done < <(node -e '
             const fs = require("node:fs");
             for (const directory of process.env.PUBLIC_PACKAGE_DIRECTORIES.split(/\s+/)) {
-              const manifest = JSON.parse(fs.readFileSync(`packages/${directory}/package.json`));
-              console.log(`${manifest.name}@${manifest.version}`);
+              const manifest = JSON.parse(fs.readFileSync("packages/" + directory + "/package.json"));
+              console.log(manifest.name + "@" + manifest.version);
             }
           ')
           if [ "$missing" -eq 0 ]; then
@@ -174,8 +174,8 @@ jobs:
             done < <(node -e '
               const fs = require("node:fs");
               for (const directory of process.env.PUBLIC_PACKAGE_DIRECTORIES.split(/\s+/)) {
-                const manifest = JSON.parse(fs.readFileSync(`packages/${directory}/package.json`));
-                console.log(`${manifest.name}@${manifest.version}`);
+                const manifest = JSON.parse(fs.readFileSync("packages/" + directory + "/package.json"));
+                console.log(manifest.name + "@" + manifest.version);
               }
             ')
             if [ "$ready" = true ]; then
