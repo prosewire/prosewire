@@ -77,6 +77,8 @@ jobs:
             echo "$commit_sha is not contained in origin/main" >&2
             exit 1
           fi
+          # JavaScript template literals are intentional.
+          # shellcheck disable=SC2016
           node -e '
             const fs = require("node:fs");
             const expected = process.env.VERSION;
@@ -137,7 +139,7 @@ jobs:
         env:
           VERSION: ${{ inputs.version }}
         run: |
-          for attempt in {1..12}; do
+          for _attempt in {1..12}; do
             ready=true
             for package in @prosewire/sdk @prosewire/cli @prosewire/mcp; do
               actual="$(npm view "$package@$VERSION" version 2>/dev/null || true)"
