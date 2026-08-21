@@ -33,6 +33,8 @@ jobs:
         run: pnpm exec biome ci --changed --since="$BIOME_BASE_SHA"
       - run: pnpm lint:workflows
       - run: pnpm typecheck
+      - run: pnpm test:coverage
+      - run: pnpm test:packages
 
   integration:
     needs: quality
@@ -77,8 +79,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm db:migrate
-      - run: pnpm test:coverage
-      - run: pnpm test:packages
+      - run: pnpm test:database
       - run: pnpm build
       - run: pnpm test:docs
       - run: pnpm --filter @prosewire/web exec playwright install --with-deps chromium
