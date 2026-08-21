@@ -90,24 +90,29 @@ describe("web infrastructure", () => {
 
   it.effect("preserves successful promise values", () =>
     Effect.gen(function* () {
-      const result = yield* promiseEffect("test", "load post", () => Promise.resolve("post"));
+      const result = yield* promiseEffect(
+        "test.loadPost",
+        () => Promise.resolve("post"),
+        (cause) => cause,
+      );
 
       expect(result).toBe("post");
     }),
   );
 
-  it.effect("maps promise failures to a typed external service error", () => {
+  it.effect("maps promise failures to the caller-owned error", () => {
     const cause = new Error("database unavailable");
 
     return Effect.gen(function* () {
       const error = yield* Effect.flip(
-        promiseEffect("test", "load post", () => Promise.reject(cause)),
+        promiseEffect(
+          "test.loadPost",
+          () => Promise.reject(cause),
+          (failure) => failure,
+        ),
       );
 
-      expect(error._tag).toBe("ExternalServiceError");
-      expect(error.service).toBe("test");
-      expect(error.operation).toBe("load post");
-      expect(error.cause).toBe(cause);
+      expect(error).toBe(cause);
     });
   });
 
@@ -115,10 +120,14 @@ describe("web infrastructure", () => {
     Effect.gen(function* () {
       let receivedSignal: AbortSignal | undefined;
       const fiber = yield* Effect.forkChild(
-        promiseEffect("test", "wait", (signal) => {
-          receivedSignal = signal;
-          return new Promise<never>(() => undefined);
-        }),
+        promiseEffect(
+          "test.wait",
+          (signal) => {
+            receivedSignal = signal;
+            return new Promise<never>(() => undefined);
+          },
+          (cause) => cause,
+        ),
       );
 
       yield* Effect.yieldNow;

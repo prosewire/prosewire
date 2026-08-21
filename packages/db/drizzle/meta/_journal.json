@@ -50,6 +50,13 @@
       "when": 1787207345595,
       "tag": "0006_fixed_doorman",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1787278615058,
+      "tag": "0007_romantic_wraith",
+      "breakpoints": true
     }
   ]
 }

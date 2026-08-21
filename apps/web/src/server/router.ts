@@ -4,6 +4,7 @@ import {
   ApiInputRejected,
   ApiPostNotFound,
   ApiUnavailable,
+  decodePrivateApiRequest,
 } from "@prosewire/contract";
 import {
   archivePost,
@@ -12,8 +13,6 @@ import {
   health,
   listBlogs,
   listPosts,
-  type CreatePostBoundaryInput,
-  type UpdatePostBoundaryInput,
   updatePost,
 } from "./api-entrypoints.ts";
 
@@ -47,89 +46,24 @@ function apiErrorResponse(error: unknown): Response {
   return Response.json(failure, { status: statusByTag[failure._tag] });
 }
 
-async function jsonBody(request: Request): Promise<unknown> {
-  try {
-    return await request.json();
-  } catch {
-    throw new ApiInputRejected({ message: "Invalid JSON request body" });
-  }
-}
-
-function positiveInteger(
-  value: string | null,
-  fallback: number,
-  maximum?: number,
-): number {
-  if (value === null) return fallback;
-  const parsed = Number(value);
-  if (
-    !Number.isInteger(parsed) ||
-    parsed < 1 ||
-    (maximum !== undefined && parsed > maximum)
-  ) {
-    throw new ApiInputRejected({ message: "Invalid pagination parameters" });
-  }
-  return parsed;
-}
-
-function postId(pathname: string): string | undefined {
-  const match = /^\/api\/v1\/posts\/([^/]+)$/.exec(pathname);
-  if (!match?.[1]) return undefined;
-  try {
-    return decodeURIComponent(match[1]);
-  } catch {
-    throw new ApiInputRejected({ message: "Invalid post id" });
-  }
-}
-
 async function dispatch(request: Request): Promise<unknown> {
-  const url = new URL(request.url);
-  const { pathname, searchParams } = url;
-
-  if (request.method === "GET" && pathname === "/api/v1/health") {
-    return health(request);
+  const operation = await decodePrivateApiRequest(request);
+  switch (operation._tag) {
+    case "Health":
+      return health(request);
+    case "ListBlogs":
+      return listBlogs(request);
+    case "ListPosts":
+      return listPosts(request, operation.input);
+    case "GetPost":
+      return getPost(request, operation.id);
+    case "CreatePost":
+      return createPost(request, operation.input);
+    case "UpdatePost":
+      return updatePost(request, operation.id, operation.input);
+    case "ArchivePost":
+      return archivePost(request, operation.id);
   }
-  if (request.method === "GET" && pathname === "/api/v1/blogs") {
-    return listBlogs(request);
-  }
-  if (request.method === "GET" && pathname === "/api/v1/posts") {
-    const status = searchParams.get("status");
-    if (
-      status !== null &&
-      status !== "draft" &&
-      status !== "scheduled" &&
-      status !== "published" &&
-      status !== "archived"
-    ) {
-      throw new ApiInputRejected({ message: "Invalid post status" });
-    }
-    return listPosts(request, {
-      blog: searchParams.get("blog") ?? undefined,
-      search: searchParams.get("search") ?? undefined,
-      status: status ?? undefined,
-      page: positiveInteger(searchParams.get("page"), 1),
-      pageSize: positiveInteger(searchParams.get("pageSize"), 20, 100),
-    });
-  }
-
-  const id = postId(pathname);
-  if (id && request.method === "GET") return getPost(request, id);
-  if (pathname === "/api/v1/posts" && request.method === "POST") {
-    return createPost(
-      request,
-      await jsonBody(request) as CreatePostBoundaryInput,
-    );
-  }
-  if (id && request.method === "PATCH") {
-    return updatePost(
-      request,
-      id,
-      await jsonBody(request) as UpdatePostBoundaryInput,
-    );
-  }
-  if (id && request.method === "DELETE") return archivePost(request, id);
-
-  throw new ApiPostNotFound({ message: "API route not found" });
 }
 
 export async function handlePrivateApi(request: Request): Promise<Response> {

@@ -16,12 +16,14 @@
   "dependencies": {
     "@prosewire/db": "workspace:*",
     "drizzle-orm": "^0.45.2",
-    "effect": "4.0.0-rc.110"
+    "effect": "4.0.0-rc.110",
+    "nodemailer": "^9.0.5"
   },
   "devDependencies": {
     "@effect/vitest": "4.0.0-rc.110",
     "@prosewire/config": "workspace:*",
     "@types/node": "^24.0.0",
+    "@types/nodemailer": "^8.0.1",
     "eslint": "9.39.4",
     "tsdown": "^0.22.0",
     "tsx": "^4.21.0",

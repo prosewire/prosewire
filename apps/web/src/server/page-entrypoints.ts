@@ -17,9 +17,21 @@ import { PublicContent } from "./public-content.ts";
 import type { PublicPostOptions } from "./content-queries.ts";
 import { SessionErrors } from "./session-errors.ts";
 
+export class PageBoundaryError extends Schema.TaggedError<PageBoundaryError>()(
+  "PageBoundaryError",
+  {
+    operation: Schema.String,
+    cause: Schema.Defect(),
+  },
+) {}
+
 const currentActor = Effect.fn("PageEntrypoints.currentActor")(function* () {
   const session = yield* requireDashboardSessionEffect();
-  const cookieStore = yield* promiseEffect("next", "cookies", cookies);
+  const cookieStore = yield* promiseEffect(
+    "next.cookies",
+    cookies,
+    (cause) => new PageBoundaryError({ operation: "read cookies", cause }),
+  );
   const organizationId = Schema.decodeUnknownOption(OrganizationId)(
     session.session.activeOrganizationId,
   );

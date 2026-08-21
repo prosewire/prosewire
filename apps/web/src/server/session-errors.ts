@@ -11,6 +11,14 @@ export class AuthenticationRequired extends Schema.TaggedError<AuthenticationReq
   }
 }
 
-export type Error = AuthenticationRequired;
+export class SessionBoundaryError extends Schema.TaggedError<SessionBoundaryError>()(
+  "SessionBoundaryError",
+  {
+    operation: Schema.String,
+    cause: Schema.Defect(),
+  },
+) {}
+
+export type Error = AuthenticationRequired | SessionBoundaryError;
 
 export * as SessionErrors from "./session-errors";

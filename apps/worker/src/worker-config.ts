@@ -1,5 +1,5 @@
 import { Config, Context, Effect, Layer, Schema } from "effect";
-import type { Redacted } from "effect";
+import type { Option, Redacted } from "effect";
 
 export class WorkerConfigurationError extends Schema.TaggedError<WorkerConfigurationError>()(
   "WorkerConfigurationError",
@@ -15,6 +15,9 @@ export class WorkerConfigurationError extends Schema.TaggedError<WorkerConfigura
 export interface WorkerConfigShape {
   readonly databaseUrl: Redacted.Redacted<string>;
   readonly analyticsRetentionDays: number;
+  readonly smtpUrl: Option.Option<Redacted.Redacted<string>>;
+  readonly emailFrom: string;
+  readonly environment: string;
 }
 
 export class WorkerConfig extends Context.Service<WorkerConfig, WorkerConfigShape>()(
@@ -32,13 +35,26 @@ export class WorkerConfig extends Context.Service<WorkerConfig, WorkerConfigShap
       const analyticsRetentionDays = yield* Config.number(
         "PROSEWIRE_ANALYTICS_RETENTION_DAYS",
       ).pipe(Config.withDefault(365));
+      const smtpUrl = yield* Config.option(Config.redacted("SMTP_URL"));
+      const emailFrom = yield* Config.string("EMAIL_FROM").pipe(
+        Config.withDefault("Prosewire <prosewire@localhost>"),
+      );
+      const environment = yield* Config.string("NODE_ENV").pipe(
+        Config.withDefault("development"),
+      );
       if (!Number.isInteger(analyticsRetentionDays) || analyticsRetentionDays < 1) {
         return yield* new WorkerConfigurationError({
           variable: "PROSEWIRE_ANALYTICS_RETENTION_DAYS",
           cause: new Error("PROSEWIRE_ANALYTICS_RETENTION_DAYS must be positive"),
         });
       }
-      return { databaseUrl, analyticsRetentionDays };
+      return {
+        databaseUrl,
+        analyticsRetentionDays,
+        smtpUrl,
+        emailFrom,
+        environment,
+      };
     }),
   );
 }

@@ -5,15 +5,29 @@ import { promiseEffect } from "@/server/external-effect";
 import { SessionErrors } from "@/server/session-errors";
 
 export const getDashboardSessionEffect = Effect.fn("WebSession.get")(function* () {
-  const requestHeaders = yield* promiseEffect("next", "headers", headers);
+  const requestHeaders = yield* promiseEffect(
+    "next.headers",
+    headers,
+    (cause) =>
+      new SessionErrors.SessionBoundaryError({
+        operation: "read request headers",
+        cause,
+      }),
+  );
   return yield* getSessionWithHeadersEffect(requestHeaders);
 });
 
 export const getSessionWithHeadersEffect = Effect.fn("WebSession.getWithHeaders")(
   function* (requestHeaders: Headers) {
     const auth = yield* getAuth();
-    return yield* promiseEffect("better-auth", "getSession", () =>
-      auth.api.getSession({ headers: requestHeaders }),
+    return yield* promiseEffect(
+      "better-auth.getSession",
+      () => auth.api.getSession({ headers: requestHeaders }),
+      (cause) =>
+        new SessionErrors.SessionBoundaryError({
+          operation: "load session",
+          cause,
+        }),
     );
   },
 );

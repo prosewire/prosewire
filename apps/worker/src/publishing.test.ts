@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Layer, ManagedRuntime, Redacted } from "effect";
+import { Effect, Layer, ManagedRuntime, Option, Redacted } from "effect";
 import type { Db } from "@prosewire/db/client";
 
 import { AnalyticsRetention } from "./analytics-retention.ts";
@@ -63,6 +63,9 @@ describe("publishScheduledPosts", () => {
     const config = Layer.succeed(WorkerConfig, {
       databaseUrl: Redacted.make("postgres://test"),
       analyticsRetentionDays: 365,
+      smtpUrl: Option.none(),
+      emailFrom: "Prosewire <prosewire@localhost>",
+      environment: "test",
     });
     const database = WorkerDatabase.layerWith(() => {
       opened += 1;

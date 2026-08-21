@@ -15,6 +15,18 @@ export class InvalidPost extends Schema.TaggedError<InvalidPost>()(
   { message: Schema.String },
 ) {}
 
-export type Error = PostNotFound | InvalidPost;
+export class PostRenderingFailed extends Schema.TaggedError<PostRenderingFailed>()(
+  "PostRenderingFailed",
+  {
+    operation: Schema.String,
+    cause: Schema.Defect(),
+  },
+) {
+  override get message(): string {
+    return `Unable to render post content during ${this.operation}`;
+  }
+}
+
+export type Error = PostNotFound | InvalidPost | PostRenderingFailed;
 
 export * as PostErrors from "./post-errors";

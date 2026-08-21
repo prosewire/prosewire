@@ -283,14 +283,53 @@ describe("Publishing transitions", () => {
     const existing = {
       id: postId,
       blogId,
+      authorId,
       createdById: actorId,
+      slug: "published-post",
       status: "published" as const,
     };
     let executions = 0;
-    const client = {
-      query: {
-        post: { findFirst: () => Promise.resolve(existing) },
+    let writes = 0;
+    const transaction = {
+      select: () => ({
+        from: (table: unknown) =>
+          table === databaseSchema.blog
+            ? {
+                innerJoin: () => ({
+                  innerJoin: () => ({
+                    where: () => ({
+                      for: () =>
+                        Promise.resolve([
+                          { ...authorizationRow, role: "author" },
+                        ]),
+                    }),
+                  }),
+                }),
+              }
+            : {
+                where: () =>
+                  table === databaseSchema.author
+                    ? Promise.resolve([{ id: authorId }])
+                    : { for: () => Promise.resolve([existing]) },
+              },
+      }),
+      insert: () => {
+        writes += 1;
+        return { values: () => Promise.resolve() };
       },
+      update: () => {
+        writes += 1;
+        return { set: () => ({ where: () => Promise.resolve() }) };
+      },
+      delete: () => {
+        writes += 1;
+        return { where: () => Promise.resolve() };
+      },
+    };
+    const client = {
+      transaction: async (
+        evaluate: (tx: typeof transaction) => Promise<unknown>,
+      ) => await evaluate(transaction),
     } as unknown as Db;
     const dependencies = Layer.mergeAll(
       Layer.succeed(Database, {
@@ -314,17 +353,7 @@ describe("Publishing transitions", () => {
         emailFrom: "Prosewire <prosewire@localhost>",
         environment: "test",
       }),
-      Layer.mock(BlogAccess.Service, {
-        requirePostUpdate: () => Effect.succeed({} as never),
-        requirePublish: () =>
-          Effect.fail(
-            new BlogAccess.BlogAccessDenied({
-              blogId: BlogId.make(blogId),
-              userId: actorId,
-              capability: "content:publish",
-            }),
-          ),
-      }),
+      Layer.mock(BlogAccess.Service, {}),
     );
 
     return Effect.gen(function* () {
@@ -359,6 +388,7 @@ describe("Publishing transitions", () => {
         expect(error.capability).toBe("content:publish");
       }
       expect(executions).toBe(1);
+      expect(writes).toBe(0);
     }).pipe(
       Effect.provide(Publishing.layer.pipe(Layer.provide(dependencies))),
     );

@@ -3,6 +3,7 @@ import { Duration, Effect, Fiber, Ref, Schedule } from "effect";
 import { TestClock } from "effect/testing";
 import {
   analyticsRetentionInterval,
+  emailOutboxInterval,
   publishingInterval,
   repeatScheduled,
 } from "./worker-runtime.ts";
@@ -10,6 +11,7 @@ import {
 describe("Effect worker schedules", () => {
   it("uses the established publishing and retention intervals", () => {
     expect(Duration.toMillis(publishingInterval)).toBe(30_000);
+    expect(Duration.toMillis(emailOutboxInterval)).toBe(30_000);
     expect(Duration.toMillis(analyticsRetentionInterval)).toBe(86_400_000);
   });
 

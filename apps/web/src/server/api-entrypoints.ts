@@ -4,6 +4,8 @@ import {
   ApiInputRejected,
   ApiPostNotFound,
   ApiUnavailable,
+  type PostCreateInput,
+  type PostUpdateInput,
 } from "@prosewire/contract";
 import { Effect, Result, Schema } from "effect";
 import { ApiAccess, type Scope } from "./api-access.ts";
@@ -11,7 +13,6 @@ import { ApiContent, type PostListInput } from "./api-content.ts";
 import { runAppEffect, type AppServices } from "./app-runtime.ts";
 import { DatabaseError } from "./database.ts";
 import { BlogId, PostId } from "./domain.ts";
-import { ExternalServiceError } from "./external-effect.ts";
 import { PostErrors } from "./post-errors.ts";
 import {
   ApiCreatePostInput,
@@ -35,7 +36,10 @@ function toApiError(error: unknown) {
   if (error instanceof PostErrors.InvalidPost) {
     return new ApiInputRejected({ message: error.message });
   }
-  if (error instanceof DatabaseError || error instanceof ExternalServiceError) {
+  if (
+    error instanceof DatabaseError ||
+    error instanceof PostErrors.PostRenderingFailed
+  ) {
     return new ApiUnavailable({ message: error.message });
   }
   throw error;
@@ -129,25 +133,7 @@ export function getPost(request: Request, id: string) {
   );
 }
 
-export interface CreatePostBoundaryInput {
-  readonly blogId: string;
-  readonly authorId: string;
-  readonly title: string;
-  readonly slug: string;
-  readonly excerpt?: string | undefined;
-  readonly contentMarkdown: string;
-  readonly coverImageUrl?: string | null | undefined;
-  readonly coverImageAlt?: string | null | undefined;
-  readonly status: "draft" | "scheduled" | "published" | "archived";
-  readonly locale: string;
-  readonly featured: boolean;
-  readonly seoTitle?: string | null | undefined;
-  readonly seoDescription?: string | null | undefined;
-  readonly focusKeyword?: string | null | undefined;
-  readonly canonicalUrl?: string | null | undefined;
-  readonly scheduledAt?: string | null | undefined;
-  readonly categoryIds: ReadonlyArray<string>;
-}
+export type CreatePostBoundaryInput = PostCreateInput;
 
 export function createPost(request: Request, input: CreatePostBoundaryInput) {
   return runApi(
@@ -164,29 +150,7 @@ export function createPost(request: Request, input: CreatePostBoundaryInput) {
   );
 }
 
-export interface UpdatePostBoundaryInput {
-  readonly authorId?: string | undefined;
-  readonly title?: string | undefined;
-  readonly slug?: string | undefined;
-  readonly excerpt?: string | undefined;
-  readonly contentMarkdown?: string | undefined;
-  readonly coverImageUrl?: string | null | undefined;
-  readonly coverImageAlt?: string | null | undefined;
-  readonly status?:
-    | "draft"
-    | "scheduled"
-    | "published"
-    | "archived"
-    | undefined;
-  readonly locale?: string | undefined;
-  readonly featured?: boolean | undefined;
-  readonly seoTitle?: string | null | undefined;
-  readonly seoDescription?: string | null | undefined;
-  readonly focusKeyword?: string | null | undefined;
-  readonly canonicalUrl?: string | null | undefined;
-  readonly scheduledAt?: string | null | undefined;
-  readonly categoryIds?: ReadonlyArray<string> | undefined;
-}
+export type UpdatePostBoundaryInput = PostUpdateInput;
 
 export function updatePost(
   request: Request,

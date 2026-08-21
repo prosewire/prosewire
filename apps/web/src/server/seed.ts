@@ -1,13 +1,30 @@
 import { createHash } from "node:crypto";
 import { hashPassword } from "better-auth/crypto";
 import { eq } from "drizzle-orm";
-import { Clock, Context, Crypto, Effect, Layer, Option, Redacted } from "effect";
+import {
+  Clock,
+  Context,
+  Crypto,
+  Effect,
+  Layer,
+  Option,
+  Redacted,
+  Schema,
+} from "effect";
 import { createExcerpt, renderMarkdown } from "@prosewire/core";
 import * as schema from "@prosewire/db/schema";
 import { WebConfig } from "./config.ts";
 import { Database } from "./database.ts";
 import { promiseEffect } from "./external-effect.ts";
 import { SeedConfig } from "./seed-config.ts";
+
+export class SeedOperationFailed extends Schema.TaggedError<SeedOperationFailed>()(
+  "SeedOperationFailed",
+  {
+    operation: Schema.String,
+    cause: Schema.Defect(),
+  },
+) {}
 
 const samplePosts = [
   {
@@ -159,9 +176,10 @@ export const create = Effect.fn("Seed.create")(function* () {
       const userId = yield* uuid;
       const accountId = yield* uuid;
       const password = yield* promiseEffect(
-        "better-auth",
-        "hashAdminPassword",
+        "better-auth.hashAdminPassword",
         () => hashPassword(Redacted.value(seedConfig.adminPassword)),
+        (cause) =>
+          new SeedOperationFailed({ operation: "hash admin password", cause }),
       );
       admin = yield* database.execute("seed.createAdmin", (client) =>
         client.transaction(async (tx) => {
@@ -228,8 +246,14 @@ export const create = Effect.fn("Seed.create")(function* () {
     const preparedPosts = yield* Effect.forEach(
       samplePosts,
       (item) =>
-        promiseEffect("markdown", `seedPost.${item.slug}`, () =>
-          renderMarkdown(item.content),
+        promiseEffect(
+          `markdown.seedPost.${item.slug}`,
+          () => renderMarkdown(item.content),
+          (cause) =>
+            new SeedOperationFailed({
+              operation: `render seed post ${item.slug}`,
+              cause,
+            }),
         ).pipe(Effect.map((contentHtml) => ({ item, contentHtml }))),
       { concurrency: "unbounded" },
     );

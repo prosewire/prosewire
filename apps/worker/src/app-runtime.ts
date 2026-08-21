@@ -1,6 +1,7 @@
 import { Layer, ManagedRuntime, type Effect } from "effect";
 import { AnalyticsRetention } from "./analytics-retention.ts";
 import { WorkerDatabase } from "./database.ts";
+import { EmailOutbox } from "./email-outbox.ts";
 import { Publishing } from "./publishing.ts";
 import { PublishingRepository } from "./publishing-repository.ts";
 import { ShutdownSignal } from "./shutdown.ts";
@@ -18,6 +19,10 @@ const retentionLayer = AnalyticsRetention.layer.pipe(
   Layer.provideMerge(databaseLayer),
 );
 
+const emailOutboxLayer = EmailOutbox.layer.pipe(
+  Layer.provideMerge(databaseLayer),
+);
+
 const publishingLayer = Publishing.layer.pipe(Layer.provide(repositoryLayer));
 
 const runtimeLayer = Layer.mergeAll(
@@ -25,6 +30,7 @@ const runtimeLayer = Layer.mergeAll(
   databaseLayer,
   repositoryLayer,
   retentionLayer,
+  emailOutboxLayer,
   publishingLayer,
   ShutdownSignal.layer,
 );
@@ -37,6 +43,7 @@ export type WorkerServices =
   | PublishingRepository.Service
   | Publishing.Service
   | AnalyticsRetention.Service
+  | EmailOutbox.Service
   | ShutdownSignal;
 
 export function runWorkerEffect<A, E>(

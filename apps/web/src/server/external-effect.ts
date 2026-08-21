@@ -1,26 +1,13 @@
-import { Effect, Schema } from "effect";
+import { Effect } from "effect";
 
-export class ExternalServiceError extends Schema.TaggedError<ExternalServiceError>()(
-  "ExternalServiceError",
-  {
-    service: Schema.String,
-    operation: Schema.String,
-    cause: Schema.Defect(),
-  },
-) {
-  override get message(): string {
-    return `${this.service} operation failed: ${this.operation}`;
-  }
-}
-
-export const promiseEffect = <A>(
-  service: string,
-  operation: string,
+export const promiseEffect = <A, E>(
+  span: string,
   evaluate: (signal: AbortSignal) => PromiseLike<A>,
-): Effect.Effect<A, ExternalServiceError> =>
+  onError: (cause: unknown) => E,
+): Effect.Effect<A, E> =>
   Effect.tryPromise({
     try: evaluate,
-    catch: (cause) => new ExternalServiceError({ service, operation, cause }),
-  }).pipe(Effect.withSpan(`${service}.${operation}`));
+    catch: onError,
+  }).pipe(Effect.withSpan(span));
 
 export * as ExternalEffect from "./external-effect";

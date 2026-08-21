@@ -17,6 +17,14 @@ const ViewEvent = Schema.Struct({
   referrer: Schema.optional(Schema.String.check(Schema.isMaxLength(1000))),
 });
 
+export class AuthRequestFailed extends Schema.TaggedError<AuthRequestFailed>()(
+  "AuthRequestFailed",
+  {
+    method: Schema.Literals(["GET", "POST"]),
+    cause: Schema.Defect(),
+  },
+) {}
+
 const parseBlogSlug = (value: string) =>
   Schema.decodeUnknownOption(BlogSlug)(value);
 
@@ -115,7 +123,11 @@ const authHandler = Effect.fn("HttpAuth.handler")(function* () {
 export function authGet(request: Request): Promise<Response> {
   return runAppEffect(
     Effect.flatMap(authHandler(), (handler) =>
-      promiseEffect("better-auth", "GET", () => handler.GET(request)),
+      promiseEffect(
+        "better-auth.GET",
+        () => handler.GET(request),
+        (cause) => new AuthRequestFailed({ method: "GET", cause }),
+      ),
     ),
     request.signal,
   );
@@ -124,7 +136,11 @@ export function authGet(request: Request): Promise<Response> {
 export function authPost(request: Request): Promise<Response> {
   return runAppEffect(
     Effect.flatMap(authHandler(), (handler) =>
-      promiseEffect("better-auth", "POST", () => handler.POST(request)),
+      promiseEffect(
+        "better-auth.POST",
+        () => handler.POST(request),
+        (cause) => new AuthRequestFailed({ method: "POST", cause }),
+      ),
     ),
     request.signal,
   );

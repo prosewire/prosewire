@@ -3,7 +3,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
 import { organization } from "better-auth/plugins";
 import { and, eq, gt } from "drizzle-orm";
-import { Context, Effect, Layer, Redacted, Schema } from "effect";
+import { Clock, Context, Effect, Layer, Redacted, Schema } from "effect";
 import type { Db } from "@prosewire/db/client";
 import * as databaseSchema from "@prosewire/db/schema";
 import {
@@ -60,7 +60,7 @@ export async function requireRegistrationInvitation(
     readonly allowSignUp: boolean;
     readonly email: string;
     readonly invitationId: string | null;
-    readonly now?: Date;
+    readonly now: Date;
   },
 ): Promise<void> {
   if (input.allowSignUp) return;
@@ -75,7 +75,7 @@ export async function requireRegistrationInvitation(
       eq(databaseSchema.invitation.id, invitationId),
       eq(databaseSchema.invitation.email, input.email.toLowerCase()),
       eq(databaseSchema.invitation.status, "pending"),
-      gt(databaseSchema.invitation.expiresAt, input.now ?? new Date()),
+      gt(databaseSchema.invitation.expiresAt, input.now),
     ),
   });
   if (!invitation) {
@@ -91,6 +91,7 @@ function buildAuth(
     readonly secret: string;
     readonly publicUrl: string;
     readonly allowSignUp: boolean;
+    readonly now: () => Date;
   },
 ) {
   return betterAuth({
@@ -126,6 +127,7 @@ function buildAuth(
               email: user.email,
               invitationId:
                 context?.getHeader(invitationRegistrationHeader) ?? null,
+              now: config.now(),
             });
           },
         },
@@ -159,6 +161,7 @@ export class Auth extends Context.Service<Auth, AuthShape>()(
     Effect.gen(function* () {
       const database = yield* Database;
       const config = yield* WebConfig;
+      const clock = yield* Clock.Clock;
       const get = yield* Effect.cached(
         Effect.gen(function* () {
           const client = yield* database.client;
@@ -169,6 +172,7 @@ export class Auth extends Context.Service<Auth, AuthShape>()(
                 publicUrl: config.publicUrl,
                 allowSignUp:
                   config.environment !== "production" || config.allowSignUp,
+                now: () => new Date(clock.currentTimeMillisUnsafe()),
               }),
             catch: (cause) => new AuthInitializationError({ cause }),
           });

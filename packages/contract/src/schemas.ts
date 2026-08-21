@@ -161,4 +161,5 @@ export type Blog = typeof blogOutput.Type;
 export type PostCreateInput = typeof postCreateInput.Type;
 export type PostCreateEncodedInput = typeof postCreateInput.Encoded;
 export type PostUpdateInput = typeof postUpdateInput.Type;
+export type PostUpdateEncodedInput = typeof postUpdateInput.Encoded;
 export type PaginatedPosts = typeof paginatedPosts.Type;

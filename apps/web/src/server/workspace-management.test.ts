@@ -11,7 +11,6 @@ import {
   UserId,
 } from "./domain.ts";
 import { PlatformCrypto } from "./platform-crypto.ts";
-import { TransactionalEmail } from "./transactional-email.ts";
 import {
   InviteMemberInput,
   InvitationMutationInput,
@@ -47,9 +46,6 @@ function dependencies(
   client: Db,
   options: {
     readonly workspaceName?: string;
-    readonly send?: (
-      message: TransactionalEmail.Message,
-    ) => Effect.Effect<undefined, TransactionalEmail.EmailDeliveryError>;
   } = {},
 ) {
   return Layer.mergeAll(
@@ -69,9 +65,6 @@ function dependencies(
             name: options.workspaceName ?? "Workspace",
           },
         } as never),
-    }),
-    Layer.mock(TransactionalEmail.Service, {
-      send: options.send ?? (() => Effect.sync(() => undefined)),
     }),
     PlatformCrypto.layer,
     Layer.succeed(WebConfig, {
@@ -155,7 +148,7 @@ function invitationClient(events: Array<string>, initiallyPending: boolean): Db 
 describe("workspace invitation transitions", () => {
   it.effect("serializes invite creation and escapes untrusted email HTML", () => {
     const events: Array<string> = [];
-    let delivered: TransactionalEmail.Message | undefined;
+    let queued: Record<string, unknown> | undefined;
     const transaction = {
       select: () => ({
         from: () => ({
@@ -182,9 +175,14 @@ describe("workspace invitation transitions", () => {
         }),
       }),
       insert: (table: unknown) => ({
-        values: () => {
+        values: (values: Record<string, unknown>) => {
+          if (table === databaseSchema.emailOutbox) queued = values;
           events.push(
-            table === databaseSchema.invitation ? "invitation" : "audit",
+            table === databaseSchema.invitation
+              ? "invitation"
+              : table === databaseSchema.emailOutbox
+                ? "outbox"
+                : "audit",
           );
           return Promise.resolve();
         },
@@ -217,23 +215,18 @@ describe("workspace invitation transitions", () => {
         "cancel-existing",
         "invitation",
         "audit",
+        "outbox",
       ]);
-      expect(delivered?.html).toContain(
+      expect(queued?.["htmlBody"]).toContain(
         "A &lt;script&gt;alert(1)&lt;/script&gt;",
       );
-      expect(delivered?.html).toContain("Studio &amp; Partners");
-      expect(delivered?.html).not.toContain("<script>");
+      expect(queued?.["htmlBody"]).toContain("Studio &amp; Partners");
+      expect(queued?.["htmlBody"]).not.toContain("<script>");
     }).pipe(
       Effect.provide(
         WorkspaceManagement.layer.pipe(
           Layer.provide(
-            dependencies(client, {
-              workspaceName: "Studio & Partners",
-              send: (message) => {
-                delivered = message;
-                return Effect.sync(() => undefined);
-              },
-            }),
+            dependencies(client, { workspaceName: "Studio & Partners" }),
           ),
         ),
       ),
