@@ -3,6 +3,8 @@ import { Tool } from "effect/unstable/ai";
 import { describe, expect, it, vi } from "vitest";
 import {
   createProsewireMcpHandlers,
+  createProsewireMcpLayer,
+  createProsewireMcpServer,
   type ProsewireMcpClient,
   ProsewireToolkit,
 } from "./server.ts";
@@ -169,5 +171,31 @@ describe("Prosewire Effect MCP server", () => {
       toolkit.handle("posts_archive", { id: "not-a-uuid" })))
       .rejects.toThrow();
     expect(client.posts.archive).not.toHaveBeenCalled();
+  });
+
+  it("preserves SDK error messages and falls back for unknown failures", async () => {
+    const client = mockClient();
+    vi.mocked(client.posts.list)
+      .mockRejectedValueOnce(new Error("SDK unavailable"))
+      .mockRejectedValueOnce("offline");
+
+    await expect(runTool(client, (toolkit) =>
+      toolkit.handle("posts_list", { page: 2, pageSize: 10 })))
+      .rejects.toThrow("SDK unavailable");
+    await expect(runTool(client, (toolkit) =>
+      toolkit.handle("posts_list", { page: 2, pageSize: 10 })))
+      .rejects.toThrow("Prosewire request failed");
+
+    expect(client.posts.list).toHaveBeenNthCalledWith(1, {
+      page: 2,
+      pageSize: 10,
+    });
+  });
+
+  it("builds both MCP server entrypoint aliases", () => {
+    const client = mockClient();
+
+    expect(createProsewireMcpServer(client)).toBeDefined();
+    expect(createProsewireMcpLayer(client, "test-version")).toBeDefined();
   });
 });

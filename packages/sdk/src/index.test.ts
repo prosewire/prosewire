@@ -43,6 +43,14 @@ const post = {
   categories: [],
 } as const;
 
+const privatePost = {
+  ...post,
+  blogId: blog.id,
+  focusKeyword: null,
+  scheduledAt: null,
+  createdAt: "2026-01-01T00:00:00.000Z",
+};
+
 describe("Prosewire SDK", () => {
   it("calls the typed API with a normalized URL and bearer key", async () => {
     const request = vi.fn((input: Parameters<typeof fetch>[0], init?: RequestInit) => {
@@ -67,6 +75,68 @@ describe("Prosewire SDK", () => {
 
     await expect(client.blogs.list()).resolves.toEqual([]);
     expect(request).toHaveBeenCalledOnce();
+  });
+
+  it("exposes every private API operation through the Promise facade", async () => {
+    const requests: Request[] = [];
+    const request = vi.fn((
+      input: Parameters<typeof fetch>[0],
+      init?: RequestInit,
+    ) => {
+      const outgoing = input instanceof Request ? input : new Request(input, init);
+      requests.push(outgoing);
+      const url = new URL(outgoing.url);
+
+      if (url.pathname.endsWith("/health")) {
+        return Promise.resolve(Response.json({ status: "ok", version: "1.0.0" }));
+      }
+      if (outgoing.method === "GET" && url.pathname.endsWith("/posts")) {
+        return Promise.resolve(Response.json({
+          items: [privatePost],
+          total: 1,
+          page: 2,
+          pageSize: 10,
+        }));
+      }
+      if (outgoing.method === "DELETE") {
+        return Promise.resolve(Response.json({ ok: true }));
+      }
+      return Promise.resolve(Response.json(privatePost));
+    });
+    const client = createClient({
+      baseUrl: "https://content.example",
+      fetch: request,
+    });
+
+    await expect(client.health()).resolves.toEqual({ status: "ok", version: "1.0.0" });
+    await expect(client.posts.list({ status: "draft", page: 2, pageSize: 10 }))
+      .resolves.toMatchObject({ total: 1, page: 2, pageSize: 10 });
+    await expect(client.posts.get({ params: { id: privatePost.id } }))
+      .resolves.toMatchObject({ id: privatePost.id });
+    await expect(client.posts.create({
+      blogId: blog.id,
+      authorId: privatePost.author.id,
+      title: "Draft",
+      slug: "draft",
+    })).resolves.toMatchObject({ id: privatePost.id });
+    await expect(client.posts.update({
+      params: { id: privatePost.id },
+      body: { title: "Updated" },
+    })).resolves.toMatchObject({ id: privatePost.id });
+    await expect(client.posts.archive({ params: { id: privatePost.id } }))
+      .resolves.toEqual({ ok: true });
+
+    expect(requests.map(({ method }) => method)).toEqual([
+      "GET", "GET", "GET", "POST", "PATCH", "DELETE",
+    ]);
+    expect(requests[1]?.url).toContain("status=draft&page=2&pageSize=10");
+    await expect(requests[3]?.json()).resolves.toMatchObject({
+      contentMarkdown: "",
+      status: "draft",
+      locale: "en",
+      featured: false,
+      categoryIds: [],
+    });
   });
 
   it("queries every public content endpoint and encodes user input", async () => {
