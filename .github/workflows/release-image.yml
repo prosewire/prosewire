@@ -18,6 +18,7 @@ jobs:
   edge:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     concurrency:
       group: prosewire-edge-image
       cancel-in-progress: true
@@ -42,6 +43,8 @@ jobs:
           context: .
           push: true
           platforms: linux/amd64,linux/arm64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           tags: |
             ${{ steps.release.outputs.image }}:edge
             ${{ steps.release.outputs.image }}:sha-${{ steps.release.outputs.short_sha }}
