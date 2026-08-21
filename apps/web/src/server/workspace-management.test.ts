@@ -3,11 +3,15 @@ import { Effect, Layer, Option, Redacted } from "effect";
 import type { Db } from "@prosewire/db/client";
 import * as databaseSchema from "@prosewire/db/schema";
 import { BlogAccess } from "./authorization.ts";
+import { WorkspaceAuthorization } from "./authorization-models.ts";
 import { WebConfig } from "./config.ts";
+import { Workspace } from "./content-models.ts";
 import { Database, DatabaseError } from "./database.ts";
 import {
   InvitationId,
+  MemberId,
   OrganizationId,
+  OrganizationSlug,
   UserId,
 } from "./domain.ts";
 import { PlatformCrypto } from "./platform-crypto.ts";
@@ -59,12 +63,18 @@ function dependencies(
     }),
     Layer.mock(BlogAccess.Service, {
       requireMembersManage: () =>
-        Effect.succeed({
-          workspace: {
+        Effect.succeed(new WorkspaceAuthorization({
+          workspace: new Workspace({
             id: organizationId,
             name: options.workspaceName ?? "Workspace",
-          },
-        } as never),
+            slug: OrganizationSlug.make("studio"),
+            logo: null,
+            metadata: null,
+            createdAt: new Date("2026-01-01T00:00:00.000Z"),
+          }),
+          memberId: MemberId.make("member-1"),
+          role: "owner",
+        })),
     }),
     PlatformCrypto.layer,
     Layer.succeed(WebConfig, {

@@ -2,9 +2,18 @@ import {
   api,
   type PostCreateEncodedInput,
   type PostCreateInput,
+  type PostStatus,
   type PostUpdateInput,
+  type PublicBlog,
+  type PublicAuthor,
+  type PublicCategory,
+  type PublicPost,
+  type PublicPostPage,
+  type PublicPostResult,
+  publicPostPage,
+  publicPostResult,
 } from "@prosewire/contract";
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 import {
   FetchHttpClient,
   HttpClient,
@@ -23,11 +32,7 @@ export interface ProsewireClientOptions {
 export interface PrivatePostListInput {
   readonly blog?: string;
   readonly search?: string;
-  readonly status?:
-    | "draft"
-    | "scheduled"
-    | "published"
-    | "archived";
+  readonly status?: PostStatus;
   readonly page?: number;
   readonly pageSize?: number;
 }
@@ -121,68 +126,14 @@ export function createClient(options: ProsewireClientOptions) {
 
 export type Client = ReturnType<typeof createClient>;
 
-export interface PublicBlog {
-  id: string;
-  name: string;
-  slug: string;
-  description: string;
-  locale: string;
-  accentColor: string;
-  publicUrl: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface PublicAuthor {
-  id: string;
-  name: string;
-  slug: string;
-  bio: string | null;
-  avatarUrl: string | null;
-  jobTitle: string | null;
-  credentials: string | null;
-}
-
-export interface PublicCategory {
-  id: string;
-  name: string;
-  slug: string;
-  description: string | null;
-}
-
-export interface PublicPost {
-  id: string;
-  slug: string;
-  title: string;
-  excerpt: string;
-  contentMarkdown: string;
-  contentHtml: string;
-  coverImageUrl: string | null;
-  coverImageAlt: string | null;
-  status: "draft" | "scheduled" | "published" | "archived";
-  locale: string;
-  featured: boolean;
-  publishedAt: string | null;
-  updatedAt: string;
-  readingMinutes: number;
-  seoTitle: string | null;
-  seoDescription: string | null;
-  canonicalUrl: string | null;
-  author: PublicAuthor;
-  categories: PublicCategory[];
-}
-
-export interface PublicPostPage {
-  blog: PublicBlog;
-  posts: PublicPost[];
-  categories: PublicCategory[];
-  pagination: { page: number; pageSize: number; hasMore: boolean };
-}
-
-export interface PublicPostResult {
-  blog: PublicBlog;
-  post: PublicPost;
-}
+export type {
+  PublicAuthor,
+  PublicBlog,
+  PublicCategory,
+  PublicPost,
+  PublicPostPage,
+  PublicPostResult,
+};
 
 export interface PublicListInput {
   search?: string;
@@ -197,6 +148,13 @@ export interface PublicContentClient {
   listPosts(input?: PublicListInput): Promise<PublicPostPage>;
   getPost(slug: string): Promise<PublicPostResult>;
   getRendered(path?: string): Promise<string>;
+}
+
+async function decodeResponse<S extends Schema.ConstraintDecoder<unknown>>(
+  schema: S,
+  response: Response,
+): Promise<S["Type"]> {
+  return Schema.decodeUnknownPromise(schema)(await response.json());
 }
 
 export function createPublicClient(
@@ -216,12 +174,12 @@ export function createPublicClient(
       const suffix = query.size ? `?${query.toString()}` : "";
       const response = await request(`${base}/api/public/${blog}/posts${suffix}`);
       if (!response.ok) throw new Error(`Prosewire request failed (${String(response.status)})`);
-      return response.json() as Promise<PublicPostPage>;
+      return decodeResponse(publicPostPage, response);
     },
     async getPost(slug) {
       const response = await request(`${base}/api/public/${blog}/posts/${encodeURIComponent(slug)}`);
       if (!response.ok) throw new Error(`Prosewire request failed (${String(response.status)})`);
-      return response.json() as Promise<PublicPostResult>;
+      return decodeResponse(publicPostResult, response);
     },
     async getRendered(path = "") {
       const encodedPath = path.replace(/^\//, "").split("/").filter(Boolean).map(encodeURIComponent).join("/");

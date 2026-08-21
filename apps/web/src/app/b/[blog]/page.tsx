@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { ArrowRight, Search } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { blogStyle } from "@/components/blog-style";
 import { PublicHeader } from "@/components/public-header";
 import { loadPublicBlog } from "@/server/page-entrypoints";
 
@@ -39,7 +40,7 @@ export default async function PublicBlogPage({ params, searchParams }: { params:
     return `/b/${blog.slug}${suffix ? `?${suffix}` : ""}`;
   };
   return (
-    <main style={{ "--blog-accent": blog.accentColor } as React.CSSProperties} className="min-h-screen bg-[#f8f7f2] text-[#172329]">
+    <main style={blogStyle(blog.accentColor)} className="min-h-screen bg-[#f8f7f2] text-[#172329]">
       <style dangerouslySetInnerHTML={{ __html: blog.customCss.replace(/<\/style/gi, "<\\/style") }} />
       <PublicHeader blog={blog} />
       <section className="border-b border-black/10 bg-[#efeee7]">

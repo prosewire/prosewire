@@ -68,9 +68,9 @@ async function authorizedMutation<A>(operation: Promise<A>): Promise<A> {
 }
 
 function taggedError(error: unknown): ({ readonly _tag: string } & Error) | undefined {
-  return error instanceof Error && "_tag" in error
-    ? (error as { readonly _tag: string } & Error)
-    : undefined;
+  if (!(error instanceof Error) || !("_tag" in error)) return undefined;
+  const tag = error._tag;
+  return typeof tag === "string" ? Object.assign(error, { _tag: tag }) : undefined;
 }
 
 function redirectActionError(error: unknown, fallbackPath: string): never {

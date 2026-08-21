@@ -4,8 +4,14 @@ import type { Db } from "@prosewire/db/client";
 import * as databaseSchema from "@prosewire/db/schema";
 import { ApiAccess } from "./api-access.ts";
 import { BlogAccess } from "./authorization.ts";
+import { BlogAuthorization } from "./authorization-models.ts";
 import { WebConfig } from "./config.ts";
-import { Database } from "./database.ts";
+import {
+  testBlog,
+  testMemberId,
+  testWorkspace,
+} from "./content-test-fixtures.ts";
+import { Database, DatabaseError } from "./database.ts";
 import {
   ApiKeyId,
   AuthorId,
@@ -51,6 +57,13 @@ const authorizationRow = {
   memberId: "member-1",
   role: "editor",
 };
+
+const testAuthorization = new BlogAuthorization({
+  workspace: testWorkspace,
+  blog: testBlog,
+  memberId: testMemberId,
+  role: "editor",
+});
 
 describe("Publishing inputs", () => {
   it.effect("decodes external identifiers and dates into the domain command", () =>
@@ -216,8 +229,7 @@ describe("Publishing transitions", () => {
         execute: (operation, evaluate) =>
           Effect.tryPromise({
             try: () => evaluate(client),
-            catch: (cause) =>
-              new Error(`${operation}: ${String(cause)}`) as never,
+            catch: (cause) => new DatabaseError({ operation, cause }),
           }),
       }),
       Layer.succeed(WebConfig, {
@@ -231,18 +243,8 @@ describe("Publishing transitions", () => {
         environment: "test",
       }),
       Layer.mock(BlogAccess.Service, {
-        requirePostUpdate: () =>
-          Effect.succeed({
-            role: "editor",
-            workspace: { id: "workspace-1" },
-            blog: { slug: "fieldnotes" },
-          } as never),
-        requirePublish: () =>
-          Effect.succeed({
-            role: "editor",
-            workspace: { id: "workspace-1" },
-            blog: { slug: "fieldnotes" },
-          } as never),
+        requirePostUpdate: () => Effect.succeed(testAuthorization),
+        requirePublish: () => Effect.succeed(testAuthorization),
       }),
     );
 
@@ -338,8 +340,7 @@ describe("Publishing transitions", () => {
           executions += 1;
           return Effect.tryPromise({
             try: () => evaluate(client),
-            catch: (cause) =>
-              new Error(`${operation}: ${String(cause)}`) as never,
+            catch: (cause) => new DatabaseError({ operation, cause }),
           });
         },
       }),
@@ -478,8 +479,7 @@ describe("Publishing transitions", () => {
         execute: (operation, evaluate) =>
           Effect.tryPromise({
             try: () => evaluate(client),
-            catch: (cause) =>
-              new Error(`${operation}: ${String(cause)}`) as never,
+            catch: (cause) => new DatabaseError({ operation, cause }),
           }),
       }),
       Layer.succeed(WebConfig, {
@@ -541,8 +541,7 @@ describe("Publishing transitions", () => {
         execute: (operation, evaluate) =>
           Effect.tryPromise({
             try: () => evaluate(client),
-            catch: (cause) =>
-              new Error(`${operation}: ${String(cause)}`) as never,
+            catch: (cause) => new DatabaseError({ operation, cause }),
           }),
       }),
       Layer.succeed(WebConfig, {

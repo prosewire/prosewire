@@ -9,8 +9,9 @@ import {
   Users2,
 } from "lucide-react";
 import Link from "next/link";
-import { hasPermission, type TeamRole } from "@prosewire/core";
+import { hasPermission } from "@prosewire/core";
 import { switchPublication, switchWorkspace } from "@/server/actions";
+import type { DashboardShellProps } from "./dashboard-shell-types";
 import { Logo } from "./logo";
 import { SignOutButton } from "./sign-out-button";
 
@@ -27,11 +28,6 @@ const manage = [
   { href: "/settings", label: "Settings", icon: Settings2 },
 ];
 
-interface NamedSelection {
-  readonly id: string;
-  readonly name: string;
-}
-
 export function DashboardSidebar({
   userName,
   role,
@@ -39,14 +35,7 @@ export function DashboardSidebar({
   workspaces,
   publication,
   publications,
-}: {
-  userName: string;
-  role: TeamRole;
-  workspace: NamedSelection;
-  workspaces: ReadonlyArray<NamedSelection>;
-  publication: NamedSelection;
-  publications: ReadonlyArray<NamedSelection>;
-}) {
+}: DashboardShellProps) {
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-[248px] flex-col border-r border-[#dedfd9] bg-[#f8f7f2] px-4 py-5 lg:flex">
       <Link href="/dashboard" className="px-2">

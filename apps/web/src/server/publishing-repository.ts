@@ -391,7 +391,7 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
                 }),
               );
             }
-            resolvedId = created.id as PostId;
+            resolvedId = PostId.make(created.id);
           }
           if (!resolvedId) {
             return Result.fail(

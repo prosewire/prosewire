@@ -1,4 +1,9 @@
-import { readingMinutes, type PublicPost } from "@prosewire/core";
+import type {
+  PostStatus,
+  PublicBlog,
+  PublicPost,
+} from "@prosewire/contract";
+import { readingMinutes } from "@prosewire/core";
 
 interface PublicBlogRow {
   id: string;
@@ -12,7 +17,7 @@ interface PublicBlogRow {
   updatedAt: Date;
 }
 
-export function serializePublicBlog(blog: PublicBlogRow) {
+export function serializePublicBlog(blog: PublicBlogRow): PublicBlog {
   return {
     id: blog.id,
     name: blog.name,
@@ -35,7 +40,7 @@ interface PostRow {
   contentHtml: string;
   coverImageUrl: string | null;
   coverImageAlt: string | null;
-  status: "draft" | "scheduled" | "published" | "archived";
+  status: PostStatus;
   locale: string;
   featured: boolean;
   publishedAt: Date | null;

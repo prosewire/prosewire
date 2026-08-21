@@ -11,41 +11,15 @@ import {
   UpdateBlogSettingsInput,
 } from "./publishing.ts";
 
-export interface SavePostBoundaryInput {
-  readonly id?: string;
-  readonly blogId: string;
-  readonly authorId: string;
-  readonly categoryId?: string;
-  readonly title: string;
-  readonly requestedSlug: string;
-  readonly excerpt: string;
-  readonly contentMarkdown: string;
+export type SavePostBoundaryInput = Omit<
+  typeof SavePostInput.Encoded,
+  "requestedStatus"
+> & {
   readonly requestedStatus: string;
-  readonly featured: boolean;
-  readonly locale: string;
-  readonly coverImageUrl: string | null;
-  readonly coverImageAlt: string | null;
-  readonly seoTitle: string | null;
-  readonly seoDescription: string | null;
-  readonly focusKeyword: string | null;
-  readonly canonicalUrl: string | null;
-  readonly scheduledAt: string | null;
-}
-
-export interface BulkArchiveBoundaryInput {
-  readonly blogId: string;
-  readonly postIds: ReadonlyArray<string>;
-}
-
-export interface UpdateBlogSettingsBoundaryInput {
-  readonly blogId: string;
-  readonly name: string;
-  readonly description: string;
-  readonly locale: string;
-  readonly accentColor: string;
-  readonly publicUrl: string | null;
-  readonly customCss: string;
-}
+};
+export type BulkArchiveBoundaryInput = typeof BulkArchiveInput.Encoded;
+export type UpdateBlogSettingsBoundaryInput =
+  typeof UpdateBlogSettingsInput.Encoded;
 
 const invalidInput = (message: string) =>
   new PostErrors.InvalidPost({ message });

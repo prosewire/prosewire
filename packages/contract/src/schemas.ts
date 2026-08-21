@@ -148,6 +148,56 @@ export const blogOutput = Schema.Struct({
   updatedAt: isoDateTime,
 });
 
+export const publicBlogOutput = Schema.Struct({
+  id: uuid,
+  name: Schema.String,
+  slug: Schema.String,
+  description: Schema.String,
+  locale: Schema.String,
+  accentColor: Schema.String,
+  publicUrl: nullable(Schema.String),
+  createdAt: isoDateTime,
+  updatedAt: isoDateTime,
+});
+
+export const publicPostOutput = Schema.Struct({
+  id: uuid,
+  slug: Schema.String,
+  title: Schema.String,
+  excerpt: Schema.String,
+  contentMarkdown: Schema.String,
+  contentHtml: Schema.String,
+  coverImageUrl: nullable(Schema.String),
+  coverImageAlt: nullable(Schema.String),
+  status: postStatus,
+  locale: Schema.String,
+  featured: Schema.Boolean,
+  publishedAt: nullable(isoDateTime),
+  updatedAt: isoDateTime,
+  readingMinutes: Schema.Number,
+  seoTitle: nullable(Schema.String),
+  seoDescription: nullable(Schema.String),
+  canonicalUrl: nullable(Schema.String),
+  author: authorOutput,
+  categories: Schema.Array(categoryOutput),
+});
+
+export const publicPostPage = Schema.Struct({
+  blog: publicBlogOutput,
+  posts: Schema.Array(publicPostOutput),
+  categories: Schema.Array(categoryOutput),
+  pagination: Schema.Struct({
+    page: Schema.Int,
+    pageSize: Schema.Int,
+    hasMore: Schema.Boolean,
+  }),
+});
+
+export const publicPostResult = Schema.Struct({
+  blog: publicBlogOutput,
+  post: publicPostOutput,
+});
+
 export const paginatedPosts = Schema.Struct({
   items: Schema.Array(postOutput),
   total: Schema.Int,
@@ -158,6 +208,12 @@ export const paginatedPosts = Schema.Struct({
 export type PostStatus = typeof postStatus.Type;
 export type Post = typeof postOutput.Type;
 export type Blog = typeof blogOutput.Type;
+export type PublicBlog = typeof publicBlogOutput.Type;
+export type PublicAuthor = typeof authorOutput.Type;
+export type PublicCategory = typeof categoryOutput.Type;
+export type PublicPost = typeof publicPostOutput.Type;
+export type PublicPostPage = typeof publicPostPage.Type;
+export type PublicPostResult = typeof publicPostResult.Type;
 export type PostCreateInput = typeof postCreateInput.Type;
 export type PostCreateEncodedInput = typeof postCreateInput.Encoded;
 export type PostUpdateInput = typeof postUpdateInput.Type;

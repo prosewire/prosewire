@@ -1,9 +1,9 @@
-import type { Client } from "@prosewire/sdk";
 import { Context, Effect, Option, Stream } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { describe, expect, it, vi } from "vitest";
 import {
   createProsewireMcpHandlers,
+  type ProsewireMcpClient,
   ProsewireToolkit,
 } from "./server.ts";
 
@@ -42,7 +42,7 @@ const post = {
   categories: [],
 };
 
-function mockClient() {
+function mockClient(): ProsewireMcpClient {
   return {
     blogs: { list: vi.fn().mockResolvedValue([]) },
     posts: {
@@ -54,21 +54,32 @@ function mockClient() {
       update: vi.fn().mockResolvedValue({ ...post, title: "Updated" }),
       archive: vi.fn().mockResolvedValue({ ok: true }),
     },
-  } as unknown as Client;
+  };
 }
 
-async function runTool(
-  client: Client,
-  name: keyof typeof ProsewireToolkit.tools,
-  input: unknown,
-) {
-  const built = await Effect.runPromise(
+async function buildToolkit(client: ProsewireMcpClient) {
+  return Effect.runPromise(
     ProsewireToolkit.pipe(
       Effect.provide(createProsewireMcpHandlers(client)),
     ),
   );
+}
+
+type BuiltToolkit = Awaited<ReturnType<typeof buildToolkit>>;
+
+async function runTool<A, E, E2>(
+  client: ProsewireMcpClient,
+  execute: (
+    toolkit: BuiltToolkit,
+  ) => Effect.Effect<
+    Stream.Stream<{ readonly encodedResult: A }, E, never>,
+    E2,
+    never
+  >,
+) {
+  const built = await buildToolkit(client);
   return Effect.runPromise(
-    built.handle(name, input as never).pipe(
+    execute(built).pipe(
       Effect.flatMap(Stream.runLast),
       Effect.map(Option.getOrThrow),
       Effect.map((result) => result.encodedResult),
@@ -99,24 +110,33 @@ describe("Prosewire Effect MCP server", () => {
 
   it("validates inputs and delegates all tools to the Promise SDK facade", async () => {
     const client = mockClient();
-    await expect(runTool(client, "publication_get", {})).resolves.toEqual({
+    await expect(runTool(client, (toolkit) =>
+      toolkit.handle("publication_get", {}))).resolves.toEqual({
       publications: [],
     });
-    await expect(runTool(client, "posts_list", { status: "draft" })).resolves
+    await expect(runTool(client, (toolkit) =>
+      toolkit.handle("posts_list", { status: "draft" }))).resolves
       .toMatchObject({ total: 0 });
-    await expect(runTool(client, "posts_get", { id })).resolves
+    await expect(runTool(client, (toolkit) =>
+      toolkit.handle("posts_get", { id }))).resolves
       .toMatchObject({ id });
-    await expect(runTool(client, "posts_create", {
+    await expect(runTool(client, (toolkit) => toolkit.handle("posts_create", {
       blogId: id,
       authorId: id,
       title: "Draft",
       slug: "draft",
-    })).resolves.toMatchObject({ id });
-    await expect(runTool(client, "posts_update", {
+      contentMarkdown: "",
+      status: "draft",
+      locale: "en",
+      featured: false,
+      categoryIds: [],
+    }))).resolves.toMatchObject({ id });
+    await expect(runTool(client, (toolkit) => toolkit.handle("posts_update", {
       id,
       body: { title: "Updated" },
-    })).resolves.toMatchObject({ title: "Updated" });
-    await expect(runTool(client, "posts_archive", { id })).resolves
+    }))).resolves.toMatchObject({ title: "Updated" });
+    await expect(runTool(client, (toolkit) =>
+      toolkit.handle("posts_archive", { id }))).resolves
       .toEqual({ ok: true });
 
     expect(client.posts.list).toHaveBeenCalledWith({
@@ -145,7 +165,8 @@ describe("Prosewire Effect MCP server", () => {
 
   it("rejects invalid UUIDs before calling the SDK", async () => {
     const client = mockClient();
-    await expect(runTool(client, "posts_archive", { id: "not-a-uuid" }))
+    await expect(runTool(client, (toolkit) =>
+      toolkit.handle("posts_archive", { id: "not-a-uuid" })))
       .rejects.toThrow();
     expect(client.posts.archive).not.toHaveBeenCalled();
   });

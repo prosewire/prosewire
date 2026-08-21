@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, CalendarDays, Clock3 } from "lucide-react";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import { contentHeadings, readingMinutes } from "@prosewire/core";
+import { blogStyle } from "@/components/blog-style";
 import { PublicHeader } from "@/components/public-header";
 import { ReadingProgress } from "@/components/public-progress";
 import { loadPublicPost, loadPublicRedirect } from "@/server/page-entrypoints";
@@ -30,7 +31,7 @@ export default async function PublicPostPage({ params }: { params: Promise<{ blo
   const canonical = post.canonicalUrl ?? (blog.publicUrl ? `${blog.publicUrl}/${post.slug}` : `${publicUrl}/b/${blog.slug}/${post.slug}`);
   const jsonLd = { "@context": "https://schema.org", "@type": "BlogPosting", headline: post.title, description: post.excerpt, datePublished: post.publishedAt?.toISOString(), dateModified: post.updatedAt.toISOString(), mainEntityOfPage: canonical, author: { "@type": "Person", name: post.author.name, description: post.author.bio }, publisher: { "@type": "Organization", name: blog.name } };
   return (
-    <main style={{ "--blog-accent": blog.accentColor } as React.CSSProperties} className="min-h-screen bg-[#f8f7f2] text-[#172329]">
+    <main style={blogStyle(blog.accentColor)} className="min-h-screen bg-[#f8f7f2] text-[#172329]">
       <style dangerouslySetInnerHTML={{ __html: blog.customCss.replace(/<\/style/gi, "<\\/style") }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
       <ReadingProgress postId={post.id} />

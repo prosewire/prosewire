@@ -1,7 +1,8 @@
 import { Menu } from "lucide-react";
 import Link from "next/link";
-import { hasPermission, type TeamRole } from "@prosewire/core";
+import { hasPermission } from "@prosewire/core";
 import { switchPublication, switchWorkspace } from "@/server/actions";
+import type { DashboardShellProps } from "./dashboard-shell-types";
 import { Logo } from "./logo";
 import { SignOutButton } from "./sign-out-button";
 
@@ -15,11 +16,6 @@ const links = [
   ["/settings", "Settings"],
 ] as const;
 
-interface NamedSelection {
-  readonly id: string;
-  readonly name: string;
-}
-
 export function MobileHeader({
   userName,
   role,
@@ -27,14 +23,7 @@ export function MobileHeader({
   workspaces,
   publication,
   publications,
-}: {
-  userName: string;
-  role: TeamRole;
-  workspace: NamedSelection;
-  workspaces: ReadonlyArray<NamedSelection>;
-  publication: NamedSelection;
-  publications: ReadonlyArray<NamedSelection>;
-}) {
+}: DashboardShellProps) {
   return (
     <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-[#dedfd9] bg-[#f8f7f2]/95 px-4 backdrop-blur lg:hidden">
       <Link href="/dashboard" className="flex min-w-0 items-center gap-3"><Logo className="text-base" /><span className="truncate text-xs font-semibold text-[#687279]">{publication.name}</span></Link>

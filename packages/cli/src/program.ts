@@ -1,6 +1,12 @@
 import { readFile } from "node:fs/promises";
-import { createClient, createPublicClient } from "@prosewire/sdk";
-import { Effect, Option } from "effect";
+import { postCreateInput, postUpdateInput } from "@prosewire/contract";
+import {
+  createClient,
+  createPublicClient,
+  type Client,
+  type ProsewireClientOptions,
+} from "@prosewire/sdk";
+import { Effect, Option, Schema } from "effect";
 import {
   Argument,
   CliError,
@@ -9,9 +15,15 @@ import {
 } from "effect/unstable/cli";
 import { nodeServicesLayer } from "./node-services.ts";
 
+export interface CliPrivateClient {
+  readonly posts: Pick<Client["posts"], "create" | "update" | "archive">;
+}
+
 interface CliDependencies {
   readonly readFile: typeof readFile;
-  readonly createClient: typeof createClient;
+  readonly createClient: (
+    options: ProsewireClientOptions,
+  ) => CliPrivateClient;
   readonly createPublicClient: typeof createPublicClient;
   readonly output: (value: unknown) => void;
   readonly env: NodeJS.ProcessEnv;
@@ -35,11 +47,10 @@ function fromPromise<A>(evaluate: () => Promise<A>) {
   });
 }
 
-function parseJson(value: string): Effect.Effect<unknown, CliError.UserError> {
-  return Effect.try({
-    try: () => JSON.parse(value) as unknown,
-    catch: (cause) => new CliError.UserError({ cause }),
-  });
+function parseJson<S extends Schema.Constraint>(schema: S, value: string) {
+  return Schema.decodeUnknownEffect(Schema.fromJsonString(schema))(value).pipe(
+    Effect.mapError((cause) => new CliError.UserError({ cause })),
+  );
 }
 
 export function createProgram(overrides: Partial<CliDependencies> = {}) {
@@ -131,12 +142,10 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
         return yield* userError("--key or PROSEWIRE_API_KEY is required");
       }
       const source = yield* fromPromise(() => dependencies.readFile(data, "utf8"));
-      const body = yield* parseJson(source);
+      const body = yield* parseJson(postCreateInput, source);
       const client = dependencies.createClient({ baseUrl: parent.url, apiKey: key });
       const result = yield* fromPromise(() =>
-        client.posts.create(
-          body as Parameters<ReturnType<typeof createClient>["posts"]["create"]>[0],
-        ),
+        client.posts.create(body),
       );
       yield* Effect.sync(() => dependencies.output(result));
     }),
@@ -153,12 +162,12 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
         return yield* userError("--key or PROSEWIRE_API_KEY is required");
       }
       const source = yield* fromPromise(() => dependencies.readFile(data, "utf8"));
-      const body = yield* parseJson(source);
+      const body = yield* parseJson(postUpdateInput, source);
       const client = dependencies.createClient({ baseUrl: parent.url, apiKey: key });
       const result = yield* fromPromise(() =>
         client.posts.update({
           params: { id },
-          body: body as Parameters<typeof client.posts.update>[0]["body"],
+          body,
         }),
       );
       yield* Effect.sync(() => dependencies.output(result));

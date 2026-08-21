@@ -1,52 +1,42 @@
 import { describe, expect, it } from "@effect/vitest";
 import { Effect, Layer } from "effect";
 import { BlogAccess } from "./authorization.ts";
+import { BlogAuthorization } from "./authorization-models.ts";
 import { ContentQueries } from "./content-queries.ts";
+import {
+  testAuthor,
+  testBlog,
+  testCategory,
+  testDashboardPost,
+  testDashboardPostDetail,
+  testMemberId,
+  testRedirect,
+  testSnippet,
+  testWorkspace,
+} from "./content-test-fixtures.ts";
 import { BlogSlug, UserId } from "./domain.ts";
 import { PostExport } from "./post-export.ts";
 
-const blog = {
-  id: "11111111-1111-4111-8111-111111111111",
-  slug: "fieldnotes",
-};
-
 const contentLayer = Layer.mock(ContentQueries.Service, {
-  getPublicBlog: () => Effect.succeed(blog as never),
-  getDashboardPosts: () =>
-    Effect.succeed([
-      {
-        id: "22222222-2222-4222-8222-222222222222",
-        title: "=IMPORTXML unsafe title",
-        slug: "effect-properly",
-        status: "published",
-        locale: "en",
-        author: { name: "Ada" },
-        categories: [{ category: { name: "Engineering" } }],
-        excerpt: "A useful post",
-        contentMarkdown: "# Effect",
-        seoTitle: null,
-        seoDescription: null,
-        publishedAt: new Date("2026-08-20T00:00:00.000Z"),
-        updatedAt: new Date("2026-08-20T00:00:00.000Z"),
-      },
-    ] as never),
-  getDashboardPost: () =>
-    Effect.succeed({
-      id: "22222222-2222-4222-8222-222222222222",
-      title: "Effect, properly",
-      revisions: [{ version: 1, snapshot: { title: "Earlier" } }],
-    } as never),
+  getPublicBlog: () => Effect.succeed(testBlog),
+  getDashboardPosts: () => Effect.succeed([testDashboardPost]),
+  getDashboardPost: () => Effect.succeed(testDashboardPostDetail),
   getContentLibrary: () =>
     Effect.succeed({
-      authors: [{ id: "author-1", name: "Ada" }],
-      categories: [{ id: "category-1", name: "Engineering" }],
-      snippets: [{ id: "snippet-1", key: "cta" }],
-      redirects: [{ id: "redirect-1", fromPath: "old" }],
-    } as never),
+      authors: [testAuthor],
+      categories: [testCategory],
+      snippets: [testSnippet],
+      redirects: [testRedirect],
+    }),
 });
 
 const accessLayer = Layer.mock(BlogAccess.Service, {
-  requireRead: () => Effect.succeed({ role: "viewer" } as never),
+  requireRead: () => Effect.succeed(new BlogAuthorization({
+    workspace: testWorkspace,
+    blog: testBlog,
+    memberId: testMemberId,
+    role: "viewer",
+  })),
 });
 
 const testLayer = PostExport.layer.pipe(

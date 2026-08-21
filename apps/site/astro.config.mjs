@@ -19,8 +19,8 @@ export default defineConfig({
   output: "static",
   trailingSlash: "always",
   markdown: {
+    syntaxHighlight: false,
     processor: unified({
-      syntaxHighlight: false,
       remarkPlugins: [remarkHeading, remarkCodeTab, remarkNpm, [remarkStructure, { exportAs: "structuredData" }]],
       rehypePlugins: [rehypeCode],
     }),

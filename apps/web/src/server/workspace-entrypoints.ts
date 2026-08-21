@@ -36,12 +36,26 @@ const currentActor = Effect.fn("WorkspaceEntrypoints.currentActor")(function* ()
   };
 });
 
-export interface CreateWorkspaceBoundaryInput {
-  readonly workspaceName: string;
-  readonly workspaceSlug: string;
-  readonly publicationName: string;
-  readonly publicationSlug: string;
-}
+export type CreateWorkspaceBoundaryInput =
+  typeof WorkspaceManagement.CreateWorkspaceInput.Encoded;
+export type CreatePublicationBoundaryInput =
+  typeof WorkspaceManagement.CreatePublicationInput.Encoded;
+type UpdateWorkspaceBoundaryInput =
+  typeof WorkspaceManagement.UpdateWorkspaceInput.Encoded;
+type InviteMemberBoundaryInput = Omit<
+  typeof WorkspaceManagement.InviteMemberInput.Encoded,
+  "role"
+> & { readonly role: string };
+type UpdateMemberRoleBoundaryInput = Omit<
+  typeof WorkspaceManagement.UpdateMemberRoleInput.Encoded,
+  "role"
+> & { readonly role: string };
+type MemberMutationBoundaryInput =
+  typeof WorkspaceManagement.MemberMutationInput.Encoded;
+type CreateApiKeyBoundaryInput =
+  typeof WorkspaceManagement.CreateApiKeyInput.Encoded;
+type RevokeApiKeyBoundaryInput =
+  typeof WorkspaceManagement.RevokeApiKeyInput.Encoded;
 
 export function createWorkspace(input: CreateWorkspaceBoundaryInput) {
   return runAppEffect(
@@ -56,12 +70,6 @@ export function createWorkspace(input: CreateWorkspaceBoundaryInput) {
       return yield* service.createWorkspace(command, actor);
     }),
   );
-}
-
-export interface CreatePublicationBoundaryInput {
-  readonly organizationId: string;
-  readonly name: string;
-  readonly slug: string;
 }
 
 export function createPublication(input: CreatePublicationBoundaryInput) {
@@ -79,10 +87,7 @@ export function createPublication(input: CreatePublicationBoundaryInput) {
   );
 }
 
-export function updateWorkspace(input: {
-  readonly organizationId: string;
-  readonly name: string;
-}) {
+export function updateWorkspace(input: UpdateWorkspaceBoundaryInput) {
   return runAppEffect(
     Effect.gen(function* () {
       const command = yield* decode(
@@ -123,11 +128,7 @@ export function switchPublication(blogId: string) {
   );
 }
 
-export function inviteMember(input: {
-  readonly organizationId: string;
-  readonly email: string;
-  readonly role: string;
-}) {
+export function inviteMember(input: InviteMemberBoundaryInput) {
   return runAppEffect(
     Effect.gen(function* () {
       const command = yield* decode(
@@ -142,11 +143,7 @@ export function inviteMember(input: {
   );
 }
 
-export function updateMemberRole(input: {
-  readonly organizationId: string;
-  readonly memberId: string;
-  readonly role: string;
-}) {
+export function updateMemberRole(input: UpdateMemberRoleBoundaryInput) {
   return runAppEffect(
     Effect.gen(function* () {
       const command = yield* decode(
@@ -161,10 +158,7 @@ export function updateMemberRole(input: {
   );
 }
 
-export function removeMember(input: {
-  readonly organizationId: string;
-  readonly memberId: string;
-}) {
+export function removeMember(input: MemberMutationBoundaryInput) {
   return runAppEffect(
     Effect.gen(function* () {
       const command = yield* decode(
@@ -217,11 +211,7 @@ export function acceptInvitation(invitationId: string) {
   );
 }
 
-export function createApiKey(input: {
-  readonly blogId: string;
-  readonly name: string;
-  readonly allowWrite: boolean;
-}) {
+export function createApiKey(input: CreateApiKeyBoundaryInput) {
   return runAppEffect(
     Effect.gen(function* () {
       const command = yield* decode(
@@ -236,10 +226,7 @@ export function createApiKey(input: {
   );
 }
 
-export function revokeApiKey(input: {
-  readonly blogId: string;
-  readonly apiKeyId: string;
-}) {
+export function revokeApiKey(input: RevokeApiKeyBoundaryInput) {
   return runAppEffect(
     Effect.gen(function* () {
       const command = yield* decode(

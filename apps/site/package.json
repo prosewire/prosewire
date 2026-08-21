@@ -10,6 +10,7 @@
     "dev": "astro dev --host 0.0.0.0",
     "build": "astro build",
     "preview": "astro preview --host 0.0.0.0",
+    "lint": "eslint src --ext .ts,.tsx",
     "typecheck": "astro check",
     "deploy": "pnpm build && wrangler deploy",
     "deploy:dry": "pnpm build && wrangler deploy --dry-run"
@@ -29,9 +30,11 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.6",
+    "@prosewire/config": "workspace:*",
     "@types/node": "^24.0.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
+    "eslint": "9.39.4",
     "typescript": "^6.0.3",
     "wrangler": "^4.124.0"
   }

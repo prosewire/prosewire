@@ -16,7 +16,12 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
-import { analyzeSeo, renderMarkdown, slugify } from "@prosewire/core";
+import {
+  analyzeSeo,
+  renderMarkdown,
+  slugify,
+  type PostStatus,
+} from "@prosewire/core";
 import { savePost } from "@/server/actions";
 
 interface EditorPost {
@@ -29,7 +34,7 @@ interface EditorPost {
   excerpt: string;
   contentMarkdown: string;
   contentHtml: string;
-  status: string;
+  status: PostStatus;
   locale: string;
   featured: boolean;
   coverImageUrl: string;
@@ -41,7 +46,19 @@ interface EditorPost {
   scheduledAt: string;
 }
 
-interface Option { id: string; name: string }
+interface Option {
+  readonly id: string;
+  readonly name: string;
+}
+
+interface EditorProps {
+  readonly post: EditorPost;
+  readonly authors: ReadonlyArray<Option>;
+  readonly categories: ReadonlyArray<Option>;
+  readonly saved: boolean;
+  readonly error: string | undefined;
+  readonly canPublish: boolean;
+}
 
 function SubmitButton({ value, children, secondary = false }: { value: string; children: React.ReactNode; secondary?: boolean }) {
   const { pending } = useFormStatus();
@@ -58,7 +75,7 @@ function SubmitButton({ value, children, secondary = false }: { value: string; c
   );
 }
 
-export function Editor({ post, authors, categories, saved, error, canPublish }: { post: EditorPost; authors: Option[]; categories: Option[]; saved: boolean; error: string | undefined; canPublish: boolean }) {
+export function Editor({ post, authors, categories, saved, error, canPublish }: EditorProps) {
   const [title, setTitle] = useState(post.title);
   const [slug, setSlug] = useState(post.slug);
   const [markdown, setMarkdown] = useState(post.contentMarkdown);

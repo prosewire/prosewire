@@ -5,7 +5,10 @@
   "license": "Apache-2.0",
   "type": "module",
   "exports": {
-    "./eslint": "./eslint/index.js",
+    "./eslint": {
+      "types": "./eslint/index.d.ts",
+      "default": "./eslint/index.js"
+    },
     "./eslint/next": "./eslint/next.js",
     "./typescript/base.json": "./typescript/base.json",
     "./typescript/nextjs.json": "./typescript/nextjs.json",

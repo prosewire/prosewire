@@ -19,16 +19,29 @@ export interface Interface {
   ) => Effect.Effect<number, AnalyticsRetentionError>;
 }
 
-export function make(db: Db, retentionDays: number): Interface {
+export interface Store {
+  readonly deleteBefore: (
+    before: Date,
+  ) => Promise<ReadonlyArray<{ readonly id: string }>>;
+}
+
+function drizzleStore(db: Db): Store {
+  return {
+    deleteBefore: (before) =>
+      db
+        .delete(schema.postView)
+        .where(lt(schema.postView.occurredAt, before))
+        .returning({ id: schema.postView.id }),
+  };
+}
+
+export function make(store: Store, retentionDays: number): Interface {
   return {
     pruneExpired: Effect.fn("AnalyticsRetention.pruneExpired")((now: Date) => {
       const before = new Date(now.getTime() - retentionDays * 86_400_000);
       return Effect.tryPromise({
         try: async () => {
-          const deleted = await db
-            .delete(schema.postView)
-            .where(lt(schema.postView.occurredAt, before))
-            .returning({ id: schema.postView.id });
+          const deleted = await store.deleteBefore(before);
           return deleted.length;
         },
         catch: (cause) =>
@@ -50,7 +63,9 @@ export const layer = Layer.effect(
   Effect.gen(function* () {
     const database = yield* WorkerDatabase.Service;
     const config = yield* WorkerConfig;
-    return Service.of(make(database.client, config.analyticsRetentionDays));
+    return Service.of(
+      make(drizzleStore(database.client), config.analyticsRetentionDays),
+    );
   }),
 );
 

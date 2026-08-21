@@ -14,18 +14,27 @@ const staticSource: StaticSource<{
   pageData: DocsEntry["data"] & { _raw: DocsEntry };
 }> = { files: [] };
 
+function contentPath(entry: DocsEntry | MetaEntry): string {
+  if (!entry.filePath) {
+    throw new Error(`Content entry ${entry.id} does not have a file path`);
+  }
+  return path.relative("content/docs", entry.filePath);
+}
+
 for (const page of pages) {
-  const virtualPath = path.relative("content/docs", page.filePath!);
   staticSource.files.push({
     type: "page",
-    path: virtualPath,
+    path: contentPath(page),
     data: { ...page.data, _raw: page },
   });
 }
 
 for (const meta of metadata) {
-  const virtualPath = path.relative("content/docs", meta.filePath!);
-  staticSource.files.push({ type: "meta", path: virtualPath, data: meta.data });
+  staticSource.files.push({
+    type: "meta",
+    path: contentPath(meta),
+    data: meta.data,
+  });
 }
 
 export const source = loader({

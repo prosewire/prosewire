@@ -32,12 +32,22 @@ export default tseslint.config(
         { prefer: "type-imports", fixStyle: "inline-type-imports" },
       ],
       "@typescript-eslint/no-non-null-assertion": "error",
+      "@typescript-eslint/no-unsafe-type-assertion": "error",
+      "@typescript-eslint/switch-exhaustiveness-check": "error",
       "@typescript-eslint/no-misused-promises": [
         "error",
         { checksVoidReturn: { attributes: false } },
       ],
       "no-console": ["warn", { allow: ["warn", "error", "info"] }],
       eqeqeq: ["error", "smart"],
+    },
+  },
+  {
+    files: ["**/*.test.{ts,tsx,mts,mjs}", "**/acceptance/**/*.{ts,tsx,mts,mjs}"],
+    rules: {
+      // Fluent third-party clients sometimes require partial structural fakes
+      // in focused unit tests. Production code remains assertion-safe.
+      "@typescript-eslint/no-unsafe-type-assertion": "off",
     },
   },
   prettier,

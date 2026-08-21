@@ -23,10 +23,12 @@ export const permissions = [
 
 export type Permission = (typeof permissions)[number];
 
-const rolePermissions = {
-  owner: permissions,
-  admin: permissions.filter((permission) => permission !== "workspace:delete"),
-  editor: [
+const rolePermissions: Record<TeamRole, ReadonlySet<Permission>> = {
+  owner: new Set(permissions),
+  admin: new Set(
+    permissions.filter((permission) => permission !== "workspace:delete"),
+  ),
+  editor: new Set<Permission>([
     "content:read",
     "content:create",
     "content:update:any",
@@ -34,17 +36,29 @@ const rolePermissions = {
     "content:archive",
     "analytics:read",
     "integrations:read",
-  ],
-  author: ["content:read", "content:create", "content:update:own", "analytics:read", "integrations:read"],
-  viewer: ["content:read", "analytics:read", "integrations:read"],
-} satisfies Record<TeamRole, readonly Permission[]>;
+  ]),
+  author: new Set<Permission>([
+    "content:read",
+    "content:create",
+    "content:update:own",
+    "analytics:read",
+    "integrations:read",
+  ]),
+  viewer: new Set<Permission>([
+    "content:read",
+    "analytics:read",
+    "integrations:read",
+  ]),
+};
+
+const teamRoleSet: ReadonlySet<string> = new Set(teamRoles);
 
 export function isTeamRole(value: string): value is TeamRole {
-  return (teamRoles as readonly string[]).includes(value);
+  return teamRoleSet.has(value);
 }
 
 export function hasPermission(role: TeamRole, permission: Permission): boolean {
-  return rolePermissions[role].includes(permission as never);
+  return rolePermissions[role].has(permission);
 }
 
 export function canUpdatePost(role: TeamRole, createdById: string | null, userId: string): boolean {
