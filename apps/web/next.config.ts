@@ -57,6 +57,7 @@ const nextConfig: NextConfig = {
       process.env["PROSEWIRE_EXPOSE_TESTING_API"] === "1",
     optimizePackageImports: ["lucide-react"],
     runtimeServerDeploymentId: true,
+    useTypeScriptCli: true,
   },
 };
 
