@@ -15,7 +15,7 @@ on:
 jobs:
   quality:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     services:
       postgres:
         image: postgres:17-alpine
@@ -47,7 +47,7 @@ jobs:
       NEXT_PUBLIC_PROSEWIRE_PUBLIC_URL: http://localhost:3000
       PROSEWIRE_EXPOSE_TESTING_API: "1"
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -57,10 +57,13 @@ jobs:
       - run: pnpm audit:prod
       - run: pnpm db:migrate
       - run: pnpm lint
+      - run: pnpm lint:workflows
       - run: pnpm typecheck
       - run: pnpm test:coverage
       - run: pnpm test:packages
       - run: pnpm build
+      - run: pnpm test:docs
       - run: pnpm --filter @prosewire/web exec playwright install --with-deps chromium
       - run: pnpm test:acceptance
       - run: docker build --tag prosewire:ci .
+      - run: scripts/container-runtime-smoke.sh prosewire:ci

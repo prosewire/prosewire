@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+image="${1:?usage: verify-image-runtime-files.sh IMAGE_REFERENCE PLATFORM...}"
+shift
+test "$#" -gt 0
+
+for platform in "$@"; do
+  docker pull --platform "$platform" "$image" >/dev/null
+  container="$(docker create --platform "$platform" --entrypoint /bin/true "$image")"
+  listing="$(mktemp)"
+  cleanup() {
+    docker rm "$container" >/dev/null 2>&1 || true
+    rm -f "$listing"
+  }
+  trap cleanup EXIT
+  docker export "$container" | tar -tf - > "$listing"
+  for required in \
+    app/apps/web/server.js \
+    app/apps/worker/dist/index.mjs \
+    app/apps/worker/dist/migrate.mjs \
+    app/packages/db/drizzle/meta/_journal.json; do
+    if ! grep -Fxq "$required" "$listing"; then
+      echo "$platform image is missing /$required" >&2
+      exit 1
+    fi
+  done
+  cleanup
+  trap - EXIT
+  echo "Verified required runtime files for $platform."
+done

@@ -9,6 +9,7 @@ import {
 import type { Client } from "@prosewire/sdk";
 import { Effect, Layer, Schema } from "effect";
 import { McpServer, Tool, Toolkit } from "effect/unstable/ai";
+import { version } from "./version.ts";
 
 class ProsewireToolFailure extends Schema.TaggedError<ProsewireToolFailure>()(
   "ProsewireToolFailure",
@@ -165,7 +166,7 @@ export function createProsewireMcpHandlers(client: ProsewireMcpClient) {
  */
 export function createProsewireMcpServer(
   client: ProsewireMcpClient,
-  _version = "0.1.0",
+  _version = version,
 ) {
   return McpServer.toolkit(ProsewireToolkit).pipe(
     Layer.provideMerge(createProsewireMcpHandlers(client)),

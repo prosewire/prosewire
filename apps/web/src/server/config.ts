@@ -8,6 +8,15 @@ import {
   type Option,
 } from "effect";
 
+const localDevelopmentAuthSecret =
+  "local-development-secret-change-before-production";
+const knownPlaceholderAuthSecrets = new Set([
+  localDevelopmentAuthSecret,
+  "please-change-this-to-at-least-32-characters",
+  "replace-with-a-unique-secret-of-at-least-32-characters",
+  "replace-with-at-least-32-random-characters",
+]);
+
 export class ConfigurationError extends Schema.TaggedError<ConfigurationError>()(
   "ConfigurationError",
   { message: Schema.String },
@@ -58,8 +67,9 @@ export class WebConfig extends Context.Service<WebConfig, WebConfigShape>()(
       const authSecretValue = Redacted.value(authSecret);
       if (
         authSecretValue.length < 32 ||
-        authSecretValue === "please-change-this-to-at-least-32-characters" ||
-        authSecretValue === "replace-with-a-unique-secret-of-at-least-32-characters"
+        (knownPlaceholderAuthSecrets.has(authSecretValue) &&
+          (environment === "production" ||
+            authSecretValue !== localDevelopmentAuthSecret))
       ) {
         return yield* new ConfigurationError({
           message: "BETTER_AUTH_SECRET must be a unique value of at least 32 characters",

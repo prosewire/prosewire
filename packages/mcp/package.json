@@ -1,9 +1,27 @@
 {
   "name": "@prosewire/mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "license": "Apache-2.0",
   "type": "module",
   "description": "Model Context Protocol server for Prosewire.",
+  "keywords": [
+    "prosewire",
+    "publishing",
+    "mcp",
+    "model-context-protocol"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/prosewire/prosewire.git",
+    "directory": "packages/mcp"
+  },
+  "homepage": "https://github.com/prosewire/prosewire#readme",
+  "bugs": {
+    "url": "https://github.com/prosewire/prosewire/issues"
+  },
+  "engines": {
+    "node": ">=24"
+  },
   "main": "./dist/index.mjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.mts",
@@ -24,7 +42,8 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "build": "tsdown",
@@ -35,7 +54,8 @@
     "prepublishOnly": "tsdown"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   },
   "dependencies": {
     "@effect/platform-node-shared": "4.0.0-rc.110",

@@ -1,0 +1,46 @@
+---
+title: Automate publishing with the CLI
+description: Install the Prosewire CLI, configure a scoped key, and distinguish reads from mutations.
+section: Integrate
+order: 5
+---
+
+## Install
+
+```shell
+pnpm add --global @prosewire/cli
+prosewire --help
+```
+
+The CLI supports Node.js 24 or newer.
+
+## Read public content
+
+```shell
+export PROSEWIRE_API_URL=https://your-prosewire-deployment
+export PROSEWIRE_BLOG=fieldnotes
+
+prosewire posts --search portable
+prosewire get shipping-with-confidence
+```
+
+`posts` and `get` are read-only. They use public endpoints and do not require an
+API key.
+
+## Mutate content
+
+Create a publication-scoped key in **Settings → Developer**, grant
+`content:write`, and keep it out of shell history and committed files.
+
+```shell
+export PROSEWIRE_API_KEY=pw_live_...
+
+prosewire create --data post.json
+prosewire update 00000000-0000-4000-8000-000000000000 --data changes.json
+prosewire archive 00000000-0000-4000-8000-000000000000 --yes
+```
+
+`create` and `update` are mutating. `archive` is destructive because it removes
+the post from public surfaces; it refuses to run without explicit `--yes`
+confirmation. All private commands are limited to the publication and scopes of
+the supplied key.

@@ -5,6 +5,15 @@ section: Integrate
 order: 4
 ---
 
+## Install the SDK
+
+```shell
+pnpm add @prosewire/sdk
+```
+
+The package supports Node.js 24 or newer and ships ESM JavaScript plus bundled
+TypeScript declarations.
+
 ## Create a client
 
 ```typescript
@@ -32,3 +41,27 @@ Public queries only return published content whose publication time has arrived.
 - Authors and categories
 - Locale and search metadata
 - Reading time and page metadata
+
+## Use the management API
+
+Create a publication-scoped API key in **Settings → Developer**. Keep it in a
+server-only environment variable and grant only the scopes the application needs.
+
+```dotenv
+PROSEWIRE_API_URL=https://your-prosewire-deployment
+PROSEWIRE_API_KEY=pw_live_...
+```
+
+```typescript
+import { createClient } from "@prosewire/sdk";
+
+const management = createClient({
+  baseUrl: process.env.PROSEWIRE_API_URL!,
+  apiKey: process.env.PROSEWIRE_API_KEY!,
+});
+
+const drafts = await management.posts.list({ status: "draft" });
+```
+
+Never expose a management key in browser JavaScript. Public content clients do
+not need authentication.

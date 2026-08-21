@@ -14,6 +14,7 @@ import {
   Flag,
 } from "effect/unstable/cli";
 import { nodeServicesLayer } from "./node-services.ts";
+import { version } from "./version.ts";
 
 export interface CliPrivateClient {
   readonly posts: Pick<Client["posts"], "create" | "update" | "archive">;
@@ -212,7 +213,7 @@ export function programEffect(
     ? args.slice(2)
     : args;
   return Command.runWith(createProgram(overrides), {
-    version: "0.1.0",
+    version,
     renderErrors: false,
   })(normalized).pipe(Effect.provide(nodeServicesLayer));
 }
