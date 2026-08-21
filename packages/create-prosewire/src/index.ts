@@ -4,6 +4,7 @@ import { realpathSync } from "node:fs";
 import { access, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { runCli } from "./cli.ts";
 import { version } from "./version.ts";
 
 type Framework = "next-app" | "next-pages" | "astro-static" | "astro-server";
@@ -430,45 +431,6 @@ export async function scaffold(options: ScaffoldOptions) {
   };
 }
 
-function flag(args: ReadonlyArray<string>, name: string) {
-  const index = args.indexOf(name);
-  return index === -1 ? undefined : args[index + 1];
-}
-
-async function main(args: ReadonlyArray<string>) {
-  const baseUrl = flag(args, "--url");
-  const publication = flag(args, "--blog");
-  const basePath = flag(args, "--route") ?? "/blog";
-  const cwd = flag(args, "--cwd");
-  const routerValue = flag(args, "--router");
-  const router: "app" | "pages" | undefined =
-    routerValue === "app" || routerValue === "pages" ? routerValue : undefined;
-  if (!baseUrl || !publication) {
-    throw new Error("--url and --blog are required");
-  }
-  const options = {
-    baseUrl,
-    publication,
-    basePath,
-    ...(router ? { router } : {}),
-  } as const;
-  if (args.includes("--agent")) {
-    const target = cwd ? `\nTarget project: ${cwd}\n` : "";
-    process.stdout.write(`${agentPrompt(options)}${target}\n`);
-    return;
-  }
-  const invocationRoot = process.cwd();
-  const root = await resolveProjectRoot(invocationRoot, cwd);
-  const result = await scaffold({
-    root,
-    ...options,
-    install: !args.includes("--no-install"),
-  });
-  process.stdout.write(
-    `Added Prosewire to ${relative(invocationRoot, root) || "."} for ${result.framework}:\n${result.files.map((file) => `- ${file}`).join("\n")}\n`,
-  );
-}
-
 function isMainModule() {
   if (!process.argv[1]) return false;
   try {
@@ -482,7 +444,11 @@ function isMainModule() {
 }
 
 if (isMainModule()) {
-  main(process.argv.slice(2)).catch((error: unknown) => {
+  runCli(process.argv.slice(2), {
+    agentPrompt,
+    resolveProjectRoot,
+    scaffold,
+  }).catch((error: unknown) => {
     process.stderr.write(
       `${error instanceof Error ? error.message : String(error)}\n`,
     );

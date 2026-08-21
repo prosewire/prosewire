@@ -37,6 +37,7 @@ describe("@prosewire/astro", () => {
 
   it("normalizes the reader route and exposes a standalone client", () => {
     expect(normalizeBasePath("blog/")).toBe("/blog");
+    expect(normalizeBasePath("/")).toBe("/");
     expect(
       createProsewire({
         baseUrl: "https://content.example",
@@ -76,6 +77,19 @@ describe("@prosewire/astro", () => {
         entry,
       );
       expect(updateConfig).toHaveBeenCalledOnce();
+
+      const plugin = updateConfig.mock.calls[0]?.[0]?.vite?.plugins?.[0];
+      expect(plugin?.resolveId?.("virtual:prosewire/config")).toBe(
+        "\0virtual:prosewire/config",
+      );
+      expect(plugin?.resolveId?.("another-module")).toBeUndefined();
+      expect(plugin?.load?.("another-module")).toBeUndefined();
+      expect(plugin?.load?.("\0virtual:prosewire/config")).toContain(
+        'export const basePath = "/writing";',
+      );
+      expect(plugin?.load?.("\0virtual:prosewire/config")).toContain(
+        "export const revalidate = 60;",
+      );
     },
   );
 
@@ -96,5 +110,41 @@ describe("@prosewire/astro", () => {
     } as never);
 
     expect(injectRoute).not.toHaveBeenCalled();
+  });
+
+  it("passes an adopter-provided fetch implementation to the public client", async () => {
+    const request = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          blog: {
+            id: "11111111-1111-4111-8111-111111111111",
+            name: "Field Notes",
+            slug: "field-notes",
+            description: "Portable publishing",
+            locale: "en",
+            accentColor: "#ef6848",
+            publicUrl: null,
+            createdAt: "2026-01-01T00:00:00.000Z",
+            updatedAt: "2026-01-02T00:00:00.000Z",
+          },
+          posts: [],
+          categories: [],
+          pagination: { page: 1, pageSize: 12, hasMore: false },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+    const client = createProsewire({
+      baseUrl: "https://content.example",
+      publication: "field-notes",
+      fetch: request,
+    });
+
+    await client.listPosts();
+
+    expect(request).toHaveBeenCalledOnce();
+    expect(String(request.mock.calls[0]?.[0])).toContain(
+      "/api/public/field-notes/posts",
+    );
   });
 });

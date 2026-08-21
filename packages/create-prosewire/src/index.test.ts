@@ -1,7 +1,9 @@
+import { spawnSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { runCli } from "./cli.ts";
 import {
   agentPrompt,
   detectFramework,
@@ -11,9 +13,17 @@ import {
   scaffold,
 } from "./index.ts";
 
+vi.mock("node:child_process", () => ({
+  spawnSync: vi.fn(() => ({ status: 0 })),
+}));
+
 const roots: string[] = [];
 
 afterEach(async () => {
+  vi.restoreAllMocks();
+  vi.mocked(spawnSync)
+    .mockReset()
+    .mockReturnValue({ status: 0 } as never);
   await Promise.all(
     roots.splice(0).map((root) => rm(root, { recursive: true, force: true })),
   );
@@ -118,6 +128,45 @@ describe("create-prosewire", () => {
     ).toContain("Cache-Control");
   });
 
+  it("scaffolds Next.js Pages Router and static Astro projects", async () => {
+    const pagesRoot = await project({
+      name: "pages-consumer",
+      devDependencies: { next: "16.3.1" },
+    });
+    await mkdir(join(pagesRoot, "pages"), { recursive: true });
+    const pages = await scaffold({
+      root: pagesRoot,
+      baseUrl: "https://content.example",
+      publication: "field-notes",
+      basePath: "/notes",
+      install: false,
+    });
+    expect(pages.framework).toBe("next-pages");
+    expect(
+      await readFile(join(pagesRoot, "pages", "notes", "[slug].tsx"), "utf8"),
+    ).toContain("getStaticPaths");
+
+    const astroRoot = await project({
+      name: "astro-consumer",
+      dependencies: { astro: "7.2.3" },
+    });
+    await mkdir(join(astroRoot, "src", "pages"), { recursive: true });
+    const astro = await scaffold({
+      root: astroRoot,
+      baseUrl: "https://content.example",
+      publication: "field-notes",
+      basePath: "/notes",
+      install: false,
+    });
+    expect(astro.framework).toBe("astro-static");
+    expect(
+      await readFile(
+        join(astroRoot, "src", "pages", "notes", "[slug].astro"),
+        "utf8",
+      ),
+    ).toContain("getStaticPaths");
+  });
+
   it("refuses to overwrite an existing route", async () => {
     const root = await project({
       name: "consumer",
@@ -197,6 +246,121 @@ describe("create-prosewire", () => {
     await expect(resolveProjectRoot(nestedRoot)).resolves.toBe(appRoot);
   });
 
+  it("reports invalid and ambiguous project shapes", async () => {
+    const emptyRoot = await project({ name: "empty" });
+    await expect(resolveProjectRoot(emptyRoot)).rejects.toThrow(
+      "No supported Next.js or Astro app",
+    );
+    await expect(resolveProjectRoot(emptyRoot, "missing")).rejects.toThrow(
+      "No package.json was found",
+    );
+    await expect(detectFramework(emptyRoot)).rejects.toThrow(
+      "No supported Next.js or Astro project",
+    );
+
+    const routerlessRoot = await project({
+      name: "routerless",
+      dependencies: { next: "16.3.1" },
+    });
+    await expect(detectFramework(routerlessRoot)).rejects.toThrow(
+      "no app or pages directory",
+    );
+    await mkdir(join(routerlessRoot, "app"));
+    await mkdir(join(routerlessRoot, "pages"));
+    await expect(detectFramework(routerlessRoot)).rejects.toThrow(
+      "Both Next.js routers exist",
+    );
+    await expect(
+      detectFramework(routerlessRoot, "pages"),
+    ).resolves.toMatchObject({ framework: "next-pages" });
+  });
+
+  it("detects npm, Yarn, and Bun installation roots", async () => {
+    const cases = [
+      ["package-lock.json", "npm"],
+      ["yarn.lock", "yarn"],
+      ["bun.lock", "bun"],
+    ] as const;
+    for (const [lockfile, manager] of cases) {
+      const root = await project({ name: `${manager}-consumer` });
+      await writeFile(join(root, lockfile), "");
+      await expect(findInstallContext(root)).resolves.toEqual({
+        root,
+        manager,
+      });
+    }
+  });
+
+  it("runs the executable path for agent and project setup modes", async () => {
+    const root = await project({
+      name: "consumer",
+      dependencies: { next: "16.3.1" },
+    });
+    await mkdir(join(root, "app"));
+    const cwd = vi.spyOn(process, "cwd").mockReturnValue(root);
+    const write = vi
+      .spyOn(process.stdout, "write")
+      .mockImplementation(() => true);
+
+    const operations = { agentPrompt, resolveProjectRoot, scaffold };
+    await expect(runCli(["--agent"], operations)).rejects.toThrow(
+      "--url and --blog are required",
+    );
+    await runCli(
+      [
+        "--url",
+        "https://content.example",
+        "--blog",
+        "field-notes",
+        "--agent",
+        "--cwd",
+        "apps/web",
+      ],
+      operations,
+    );
+    expect(write).toHaveBeenCalledWith(
+      expect.stringContaining("Target project: apps/web"),
+    );
+
+    await runCli(
+      [
+        "--url",
+        "https://content.example",
+        "--blog",
+        "field-notes",
+        "--route",
+        "/writing",
+        "--no-install",
+      ],
+      operations,
+    );
+    expect(write).toHaveBeenCalledWith(
+      expect.stringContaining("Added Prosewire to . for next-app"),
+    );
+    cwd.mockRestore();
+    write.mockRestore();
+  });
+
+  it("uses the workspace package manager and reports installation failures", async () => {
+    const root = await workspace();
+    const appRoot = await nextApp(root, "apps/web");
+    vi.mocked(spawnSync).mockReturnValue({ status: 1 } as never);
+
+    await expect(
+      scaffold({
+        root: appRoot,
+        baseUrl: "https://content.example",
+        publication: "field-notes",
+        basePath: "/blog",
+      }),
+    ).rejects.toThrow("pnpm install failed");
+    expect(spawnSync).toHaveBeenCalledWith(
+      "pnpm",
+      ["install"],
+      expect.objectContaining({ cwd: root }),
+    );
+  });
+
   it("produces an agent prompt that protects host styles and secrets", () => {
     const prompt = agentPrompt({
       baseUrl: "https://content.example",
@@ -207,5 +371,12 @@ describe("create-prosewire", () => {
     expect(prompt).toContain("Preserve the existing layout and styles");
     expect(prompt).toContain("Do not add a management API key");
     expect(prompt).toContain("install dependencies from the workspace root");
+    expect(() =>
+      agentPrompt({
+        baseUrl: "https://content.example",
+        publication: "field-notes",
+        basePath: "/../secrets",
+      }),
+    ).toThrow("--route must be a simple URL path");
   });
 });
