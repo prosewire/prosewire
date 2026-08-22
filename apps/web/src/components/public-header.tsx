@@ -1,5 +1,6 @@
 import { MagnifyingGlass, Rss } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
+import { ThemeToggle } from "./theme-toggle";
 
 export function PublicHeader({
   blog,
@@ -33,6 +34,7 @@ export function PublicHeader({
               className="h-8 w-28 bg-transparent px-2 text-xs outline-none"
             />
           </form>
+          <ThemeToggle className="size-8 rounded-lg" />
         </nav>
       </div>
     </header>

@@ -7,6 +7,7 @@ import { useState } from "react";
 import { Logo } from "@/components/logo";
 import { signUp } from "@/lib/auth-client";
 import { invitationRegistrationHeader } from "@/lib/auth-headers";
+import { ThemeToggle } from "./theme-toggle";
 
 function formText(data: FormData, name: string): string {
   const value = data.get(name);
@@ -27,6 +28,7 @@ export function SignUpForm({
   const [pending, setPending] = useState(false);
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#f4f3ed] px-5 py-16">
+      <ThemeToggle className="fixed right-4 top-4 z-20 sm:right-6 sm:top-6" />
       <div className="w-full max-w-[440px]">
         <Logo className="text-lg" />
         <p className="mt-10 text-sm font-semibold text-[#ef6848]">

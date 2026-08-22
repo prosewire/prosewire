@@ -10,6 +10,7 @@ import {
 } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 import { Logo } from "@/components/logo";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const features = [
   {
@@ -55,12 +56,15 @@ export function MarketingHome() {
           <Link href="/b/fieldnotes">Live blog</Link>
           <a href="https://github.com/prosewire/prosewire">GitHub</a>
         </div>
-        <Link
-          href="/sign-in"
-          className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#172329] px-4 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-px"
-        >
-          Open dashboard <ArrowRight className="size-4" />
-        </Link>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <Link
+            href="/sign-in"
+            className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#172329] px-4 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-px"
+          >
+            Open dashboard <ArrowRight className="size-4" />
+          </Link>
+        </div>
       </nav>
 
       <section className="paper-grid relative border-y border-[#dedfd9]">
