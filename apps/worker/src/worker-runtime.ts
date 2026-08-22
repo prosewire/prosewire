@@ -11,8 +11,8 @@ export const analyticsRetentionSchedule = Schedule.spaced(
 );
 
 /**
- * Runs once immediately, logs a failed cycle, and keeps scheduling subsequent
- * cycles. Interruption remains observable so process shutdown is prompt.
+ * Runs once immediately, logs typed failures, and keeps scheduling subsequent
+ * cycles. Defects and interruption remain visible to process supervision.
  */
 export const repeatScheduled = <A, E, R>(
   name: string,
@@ -20,10 +20,8 @@ export const repeatScheduled = <A, E, R>(
   schedule: Schedule.Schedule<unknown, unknown, never, never>,
 ) =>
   effect.pipe(
-    Effect.tapCause((cause) =>
-      Effect.logError(`${name} cycle failed`, cause),
-    ),
-    Effect.catchCause(() => Effect.void),
+    Effect.tapError((error) => Effect.logError(`${name} cycle failed`, error)),
+    Effect.ignore,
     Effect.repeat(schedule),
   );
 

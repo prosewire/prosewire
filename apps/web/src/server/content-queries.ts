@@ -1,3 +1,6 @@
+import { isTeamRole } from "@prosewire/core";
+import type { Db } from "@prosewire/db/client";
+import * as schema from "@prosewire/db/schema";
 import {
   and,
   asc,
@@ -12,36 +15,35 @@ import {
   or,
   sql,
 } from "drizzle-orm";
-import { Clock, Context, Effect, Layer } from "effect";
-import { isTeamRole } from "@prosewire/core";
-import * as schema from "@prosewire/db/schema";
+import { Clock, Context, Effect, Layer, Schema } from "effect";
 import {
   ApiKeySummary,
   AuditEntry,
+  decodeBlog,
   TeamMember,
-  WorkspaceInvitation,
   toAuthor,
-  toBlog,
   toCategory,
   toDashboardPost,
   toDashboardPostDetail,
   toPublicPost,
   toRedirect,
   toSnippet,
+  WorkspaceInvitation,
 } from "./content-models.ts";
 import { Database } from "./database.ts";
 import {
   ApiKeyId,
   AuditLogId,
+  type AuthorId,
   BlogId,
+  type BlogSlug,
   InvitationId,
   MemberId,
   OrganizationId,
-  UserId,
-  type BlogSlug,
-  type AuthorId,
   type PostId,
+  UserId,
 } from "./domain.ts";
+import { operationError } from "./operation-error.ts";
 
 export interface PublicPostOptions {
   readonly search?: string;
@@ -51,9 +53,20 @@ export interface PublicPostOptions {
   readonly offset?: number;
 }
 
+export class PersistenceError extends Schema.TaggedError<PersistenceError>()(
+  "ContentQueriesPersistenceError",
+  { operation: Schema.String, cause: Schema.Defect() },
+) {}
+
 export const create = Effect.fn("ContentQueries.create")(function* () {
   const database = yield* Database;
-  const execute = database.execute;
+  const persistenceError = operationError(
+    (input) => new PersistenceError(input),
+  );
+  const execute = <A>(
+    operation: string,
+    evaluate: (client: Db) => PromiseLike<A>,
+  ) => database.execute(operation, evaluate).pipe(persistenceError(operation));
 
   const getAuthors = Effect.fn("ContentQueries.getAuthors")(function* (
     blogId: BlogId,
@@ -79,62 +92,64 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
     return rows.map(toCategory);
   });
 
-  const getDashboardPosts = Effect.fn("ContentQueries.getDashboardPosts")(function* (
-    blogId: BlogId,
-    search?: string,
-  ) {
-    const { rows, viewCounts } = yield* Effect.all(
-      {
-        rows: execute("post.listDashboard", (client) =>
-          client.query.post.findMany({
-            where: search?.trim()
-              ? and(
-                  eq(schema.post.blogId, blogId),
-                  or(
-                    ilike(schema.post.title, `%${search.trim()}%`),
-                    ilike(schema.post.excerpt, `%${search.trim()}%`),
-                  ),
-                )
-              : eq(schema.post.blogId, blogId),
-            with: {
-              author: true,
-              categories: { with: { category: true } },
-            },
-            orderBy: [desc(schema.post.updatedAt)],
-          }),
-        ),
-        viewCounts: execute("post.listDashboardViewCounts", (client) =>
-          client
-            .select({ postId: schema.postView.postId, value: count() })
-            .from(schema.postView)
-            .innerJoin(schema.post, eq(schema.postView.postId, schema.post.id))
-            .where(eq(schema.post.blogId, blogId))
-            .groupBy(schema.postView.postId),
-        ),
-      },
-      { concurrency: "unbounded" },
-    );
-    const counts = new Map(
-      viewCounts.map((row) => [row.postId, Number(row.value)]),
-    );
-    return rows.map((row) => toDashboardPost(row, counts.get(row.id) ?? 0));
-  });
-
-  const getDashboardPost = Effect.fn("ContentQueries.getDashboardPost")(function* (
-    id: PostId,
-  ) {
-    const row = yield* execute("post.getDashboard", (client) =>
-      client.query.post.findFirst({
-        where: eq(schema.post.id, id),
-        with: {
-          author: true,
-          categories: { with: { category: true } },
-          revisions: true,
+  const getDashboardPosts = Effect.fn("ContentQueries.getDashboardPosts")(
+    function* (blogId: BlogId, search?: string) {
+      const { rows, viewCounts } = yield* Effect.all(
+        {
+          rows: execute("post.listDashboard", (client) =>
+            client.query.post.findMany({
+              where: search?.trim()
+                ? and(
+                    eq(schema.post.blogId, blogId),
+                    or(
+                      ilike(schema.post.title, `%${search.trim()}%`),
+                      ilike(schema.post.excerpt, `%${search.trim()}%`),
+                    ),
+                  )
+                : eq(schema.post.blogId, blogId),
+              with: {
+                author: true,
+                categories: { with: { category: true } },
+              },
+              orderBy: [desc(schema.post.updatedAt)],
+            }),
+          ),
+          viewCounts: execute("post.listDashboardViewCounts", (client) =>
+            client
+              .select({ postId: schema.postView.postId, value: count() })
+              .from(schema.postView)
+              .innerJoin(
+                schema.post,
+                eq(schema.postView.postId, schema.post.id),
+              )
+              .where(eq(schema.post.blogId, blogId))
+              .groupBy(schema.postView.postId),
+          ),
         },
-      }),
-    );
-    return row ? toDashboardPostDetail(row) : undefined;
-  });
+        { concurrency: "unbounded" },
+      );
+      const counts = new Map(
+        viewCounts.map((row) => [row.postId, Number(row.value)]),
+      );
+      return rows.map((row) => toDashboardPost(row, counts.get(row.id) ?? 0));
+    },
+  );
+
+  const getDashboardPost = Effect.fn("ContentQueries.getDashboardPost")(
+    function* (id: PostId) {
+      const row = yield* execute("post.getDashboard", (client) =>
+        client.query.post.findFirst({
+          where: eq(schema.post.id, id),
+          with: {
+            author: true,
+            categories: { with: { category: true } },
+            revisions: true,
+          },
+        }),
+      );
+      return row ? toDashboardPostDetail(row) : undefined;
+    },
+  );
 
   const getDashboardMetrics = Effect.fn("ContentQueries.getDashboardMetrics")(
     function* (blogId: BlogId) {
@@ -154,7 +169,10 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
             client
               .select({ value: count() })
               .from(schema.postView)
-              .innerJoin(schema.post, eq(schema.postView.postId, schema.post.id))
+              .innerJoin(
+                schema.post,
+                eq(schema.postView.postId, schema.post.id),
+              )
               .where(eq(schema.post.blogId, blogId)),
           ),
         },
@@ -348,23 +366,26 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
     const row = yield* execute("blog.getPublic", (client) =>
       client.query.blog.findFirst({ where: eq(schema.blog.slug, slug) }),
     );
-    return row ? toBlog(row) : undefined;
+    return row
+      ? yield* decodeBlog(row).pipe(
+          persistenceError("publication.decodePublic"),
+        )
+      : undefined;
   });
 
-  const getPublicAuthor = Effect.fn("ContentQueries.getPublicAuthor")(function* (
-    blogId: BlogId,
-    slug: string,
-  ) {
-    const row = yield* execute("author.getPublic", (client) =>
-      client.query.author.findFirst({
-        where: and(
-          eq(schema.author.blogId, blogId),
-          eq(schema.author.slug, slug),
-        ),
-      }),
-    );
-    return row ? toAuthor(row) : undefined;
-  });
+  const getPublicAuthor = Effect.fn("ContentQueries.getPublicAuthor")(
+    function* (blogId: BlogId, slug: string) {
+      const row = yield* execute("author.getPublic", (client) =>
+        client.query.author.findFirst({
+          where: and(
+            eq(schema.author.blogId, blogId),
+            eq(schema.author.slug, slug),
+          ),
+        }),
+      );
+      return row ? toAuthor(row) : undefined;
+    },
+  );
 
   const getPublicPosts = Effect.fn("ContentQueries.getPublicPosts")(function* (
     blogId: BlogId,
@@ -521,6 +542,9 @@ export class Service extends Context.Service<Service, Interface>()(
   "@prosewire/web/ContentQueries",
 ) {}
 
-export const layer = Layer.effect(Service, create().pipe(Effect.map(Service.of)));
+export const layer = Layer.effect(
+  Service,
+  create().pipe(Effect.map(Service.of)),
+);
 
 export * as ContentQueries from "./content-queries";

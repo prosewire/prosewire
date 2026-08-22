@@ -1,14 +1,15 @@
 import { Context, Effect, Layer } from "effect";
 import { PublishingRepository } from "./publishing-repository.ts";
 
+export type { ApiActor } from "./publishing-repository.ts";
 export {
   ApiCreatePostInput,
   ApiUpdatePostInput,
   BulkArchiveInput,
+  PersistenceError,
   SavePostInput,
   UpdateBlogSettingsInput,
 } from "./publishing-repository.ts";
-export type { ApiActor } from "./publishing-repository.ts";
 
 export const create = Effect.fn("Publishing.create")(function* () {
   const repository = yield* PublishingRepository.Service;
@@ -28,8 +29,9 @@ export class Service extends Context.Service<Service, Interface>()(
   "@prosewire/web/Publishing",
 ) {}
 
-export const layer = Layer.effect(Service, create().pipe(Effect.map(Service.of))).pipe(
-  Layer.provide(PublishingRepository.layer),
-);
+export const layer = Layer.effect(
+  Service,
+  create().pipe(Effect.map(Service.of)),
+).pipe(Layer.provide(PublishingRepository.layer));
 
 export * as Publishing from "./publishing";

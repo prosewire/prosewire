@@ -1,5 +1,4 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
-import { Clock, Context, Effect, Layer, Result, Schema } from "effect";
+import type { Post as ApiPost } from "@prosewire/contract";
 import {
   canUpdatePost,
   createExcerpt,
@@ -7,14 +6,15 @@ import {
   renderMarkdown,
   slugify,
 } from "@prosewire/core";
-import type { Post as ApiPost } from "@prosewire/contract";
 import type { Db } from "@prosewire/db/client";
 import * as schema from "@prosewire/db/schema";
+import { and, desc, eq, inArray } from "drizzle-orm";
+import { Clock, Context, Effect, Layer, Result, Schema } from "effect";
 import { ApiAccess, hasScope } from "./api-access.ts";
 import { toApiPost } from "./api-content-models.ts";
 import { BlogAccess } from "./authorization.ts";
 import { BlogErrors } from "./blog-errors.ts";
-import { Database, DatabaseError } from "./database.ts";
+import { Database } from "./database.ts";
 import {
   type ApiKeyId,
   AuthorId,
@@ -25,6 +25,7 @@ import {
   UserId,
 } from "./domain.ts";
 import { promiseEffect } from "./external-effect.ts";
+import { operationError } from "./operation-error.ts";
 import { PostErrors } from "./post-errors.ts";
 import {
   lockApiKey,
@@ -128,14 +129,26 @@ export class ApiUpdatePostInput extends Schema.Class<ApiUpdatePostInput>(
   categoryIds: Schema.optional(Schema.Array(CategoryId)),
 }) {}
 
+export class PersistenceError extends Schema.TaggedError<PersistenceError>()(
+  "PublishingRepositoryPersistenceError",
+  { operation: Schema.String, cause: Schema.Defect() },
+) {}
+
 export const create = Effect.fn("PublishingRepository.create")(function* () {
   const database = yield* Database;
+  const persistenceError = operationError(
+    (input) => new PersistenceError(input),
+  );
+  const execute = <A>(
+    operation: string,
+    evaluate: (client: Db) => PromiseLike<A>,
+  ) => database.execute(operation, evaluate).pipe(persistenceError(operation));
 
   const executeResult = <A, E>(
     operation: string,
     evaluate: (client: Db) => PromiseLike<Result.Result<A, E>>,
-  ): Effect.Effect<A, DatabaseError | E> =>
-    database.execute(operation, evaluate).pipe(
+  ): Effect.Effect<A, PersistenceError | E> =>
+    execute(operation, evaluate).pipe(
       Effect.flatMap(
         Result.match({
           onFailure: Effect.fail,
@@ -179,7 +192,9 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
     actorId: UserId,
   ) {
     if (!input.title.trim()) {
-      return yield* new PostErrors.InvalidPost({ message: "Title is required" });
+      return yield* new PostErrors.InvalidPost({
+        message: "Title is required",
+      });
     }
     const scheduledAt = input.scheduledAt;
     const status =
@@ -221,206 +236,204 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
       | PostErrors.InvalidPost
       | PostErrors.PostNotFound
       | BlogAccess.BlogAccessDenied
-      | DatabaseError
-    >(
-      "post.save",
-      (client) =>
-        client.transaction(async (tx) => {
-          const authorization = await lockBlogAuthorization(
-            tx,
-            input.blogId,
-            actorId,
-            input.id ? "content:read" : "content:create",
+      | PersistenceError
+    >("post.save", (client) =>
+      client.transaction(async (tx) => {
+        const authorization = await lockBlogAuthorization(
+          tx,
+          input.blogId,
+          actorId,
+          input.id ? "content:read" : "content:create",
+        );
+        if (!authorization) {
+          return Result.fail(
+            new BlogAccess.BlogAccessDenied({
+              blogId: input.blogId,
+              userId: actorId,
+              capability: input.id ? "content:update:any" : "content:create",
+            }),
           );
-          if (!authorization) {
+        }
+        const [author] = await tx
+          .select({ id: schema.author.id })
+          .from(schema.author)
+          .where(
+            and(
+              eq(schema.author.id, input.authorId),
+              eq(schema.author.blogId, input.blogId),
+            ),
+          );
+        if (!author) {
+          return Result.fail(
+            new PostErrors.InvalidPost({
+              message: "Author does not belong to this blog",
+            }),
+          );
+        }
+        if (input.categoryId) {
+          const [category] = await tx
+            .select({ id: schema.category.id })
+            .from(schema.category)
+            .where(
+              and(
+                eq(schema.category.id, input.categoryId),
+                eq(schema.category.blogId, input.blogId),
+              ),
+            );
+          if (!category) {
+            return Result.fail(
+              new PostErrors.InvalidPost({
+                message: "Category does not belong to this blog",
+              }),
+            );
+          }
+        }
+        let resolvedId = input.id;
+        if (input.id) {
+          const [existing] = await tx
+            .select()
+            .from(schema.post)
+            .where(
+              and(
+                eq(schema.post.id, input.id),
+                eq(schema.post.blogId, input.blogId),
+              ),
+            )
+            .for("update");
+          if (!existing) {
+            return Result.fail(
+              new PostErrors.PostNotFound({ postId: input.id }),
+            );
+          }
+          const createdById = existing.createdById
+            ? UserId.make(existing.createdById)
+            : null;
+          if (!canUpdatePost(authorization.role, createdById, actorId)) {
             return Result.fail(
               new BlogAccess.BlogAccessDenied({
                 blogId: input.blogId,
                 userId: actorId,
-                capability: input.id ? "content:update:any" : "content:create",
+                capability: "content:update:any",
               }),
             );
           }
-          const [author] = await tx
-            .select({ id: schema.author.id })
-            .from(schema.author)
+          if (
+            existing.status === "archived" &&
+            (!hasPermission(authorization.role, "content:archive") ||
+              !canUpdatePost(authorization.role, createdById, actorId))
+          ) {
+            return Result.fail(
+              new BlogAccess.BlogAccessDenied({
+                blogId: input.blogId,
+                userId: actorId,
+                capability: "content:archive",
+              }),
+            );
+          }
+          if (
+            (status === "scheduled" ||
+              status === "published" ||
+              (existing.status !== status &&
+                (existing.status === "scheduled" ||
+                  existing.status === "published"))) &&
+            !hasPermission(authorization.role, "content:publish")
+          ) {
+            return Result.fail(
+              new BlogAccess.BlogAccessDenied({
+                blogId: input.blogId,
+                userId: actorId,
+                capability: "content:publish",
+              }),
+            );
+          }
+          const latest = await tx.query.postRevision.findFirst({
+            where: eq(schema.postRevision.postId, input.id),
+            orderBy: [desc(schema.postRevision.version)],
+          });
+          await tx.insert(schema.postRevision).values({
+            postId: input.id,
+            editorId: actorId,
+            version: (latest?.version ?? 0) + 1,
+            snapshot: existing,
+          });
+          if (existing.slug !== slug) {
+            await tx
+              .insert(schema.redirect)
+              .values({
+                blogId: input.blogId,
+                fromPath: existing.slug,
+                toPath: slug,
+              })
+              .onConflictDoUpdate({
+                target: [schema.redirect.blogId, schema.redirect.fromPath],
+                set: { toPath: slug },
+              });
+          }
+          await tx
+            .update(schema.post)
+            .set({
+              ...values,
+              publishedAt:
+                status === "published" ? (existing.publishedAt ?? now) : null,
+            })
             .where(
               and(
-                eq(schema.author.id, input.authorId),
-                eq(schema.author.blogId, input.blogId),
+                eq(schema.post.id, input.id),
+                eq(schema.post.blogId, input.blogId),
               ),
             );
-          if (!author) {
+          await tx
+            .delete(schema.postCategory)
+            .where(eq(schema.postCategory.postId, input.id));
+        } else {
+          const [created] = await tx
+            .insert(schema.post)
+            .values({
+              ...values,
+              blogId: input.blogId,
+              authorId: input.authorId,
+              createdById: actorId,
+              publishedAt: status === "published" ? now : null,
+            })
+            .returning({ id: schema.post.id });
+          if (!created) {
             return Result.fail(
-              new PostErrors.InvalidPost({
-                message: "Author does not belong to this blog",
+              new PersistenceError({
+                operation: "post.save returned no row",
+                cause: new Error("Unable to create post"),
               }),
             );
           }
-          if (input.categoryId) {
-            const [category] = await tx
-              .select({ id: schema.category.id })
-              .from(schema.category)
-              .where(
-                and(
-                  eq(schema.category.id, input.categoryId),
-                  eq(schema.category.blogId, input.blogId),
-                ),
-              );
-            if (!category) {
-              return Result.fail(
-                new PostErrors.InvalidPost({
-                  message: "Category does not belong to this blog",
-                }),
-              );
-            }
-          }
-          let resolvedId = input.id;
-          if (input.id) {
-            const [existing] = await tx
-              .select()
-              .from(schema.post)
-              .where(
-                and(
-                  eq(schema.post.id, input.id),
-                  eq(schema.post.blogId, input.blogId),
-                ),
-              )
-              .for("update");
-            if (!existing) {
-              return Result.fail(new PostErrors.PostNotFound({ postId: input.id }));
-            }
-            const createdById = existing.createdById
-              ? UserId.make(existing.createdById)
-              : null;
-            if (!canUpdatePost(authorization.role, createdById, actorId)) {
-              return Result.fail(
-                new BlogAccess.BlogAccessDenied({
-                  blogId: input.blogId,
-                  userId: actorId,
-                  capability: "content:update:any",
-                }),
-              );
-            }
-            if (
-              existing.status === "archived" &&
-              (!hasPermission(authorization.role, "content:archive") ||
-                !canUpdatePost(authorization.role, createdById, actorId))
-            ) {
-              return Result.fail(
-                new BlogAccess.BlogAccessDenied({
-                  blogId: input.blogId,
-                  userId: actorId,
-                  capability: "content:archive",
-                }),
-              );
-            }
-            if (
-              (status === "scheduled" ||
-                status === "published" ||
-                (existing.status !== status &&
-                  (existing.status === "scheduled" ||
-                    existing.status === "published"))) &&
-              !hasPermission(authorization.role, "content:publish")
-            ) {
-              return Result.fail(
-                new BlogAccess.BlogAccessDenied({
-                  blogId: input.blogId,
-                  userId: actorId,
-                  capability: "content:publish",
-                }),
-              );
-            }
-            const latest = await tx.query.postRevision.findFirst({
-              where: eq(schema.postRevision.postId, input.id),
-              orderBy: [desc(schema.postRevision.version)],
-            });
-            await tx.insert(schema.postRevision).values({
-              postId: input.id,
-              editorId: actorId,
-              version: (latest?.version ?? 0) + 1,
-              snapshot: existing,
-            });
-            if (existing.slug !== slug) {
-              await tx
-                .insert(schema.redirect)
-                .values({
-                  blogId: input.blogId,
-                  fromPath: existing.slug,
-                  toPath: slug,
-                })
-                .onConflictDoUpdate({
-                  target: [schema.redirect.blogId, schema.redirect.fromPath],
-                  set: { toPath: slug },
-                });
-            }
-            await tx
-              .update(schema.post)
-              .set({
-                ...values,
-                publishedAt:
-                  status === "published"
-                    ? (existing.publishedAt ?? now)
-                    : null,
-              })
-              .where(
-                and(
-                  eq(schema.post.id, input.id),
-                  eq(schema.post.blogId, input.blogId),
-                ),
-              );
-            await tx
-              .delete(schema.postCategory)
-              .where(eq(schema.postCategory.postId, input.id));
-          } else {
-            const [created] = await tx
-              .insert(schema.post)
-              .values({
-                ...values,
-                blogId: input.blogId,
-                authorId: input.authorId,
-                createdById: actorId,
-                publishedAt: status === "published" ? now : null,
-              })
-              .returning({ id: schema.post.id });
-            if (!created) {
-              return Result.fail(
-                new DatabaseError({
-                  operation: "post.save returned no row",
-                  cause: new Error("Unable to create post"),
-                }),
-              );
-            }
-            resolvedId = PostId.make(created.id);
-          }
-          if (!resolvedId) {
-            return Result.fail(
-              new DatabaseError({
-                operation: "post.save resolved no id",
-                cause: new Error("Unable to resolve the saved post id"),
-              }),
-            );
-          }
-          if (input.categoryId) {
-            await tx.insert(schema.postCategory).values({
-              postId: resolvedId,
-              categoryId: input.categoryId,
-            });
-          }
-          await tx.insert(schema.auditLog).values({
-            organizationId: authorization.workspace.id,
-            blogId: input.blogId,
-            actorId,
-            action: input.id ? "post.updated" : "post.created",
-            entityType: "post",
-            entityId: resolvedId,
-            after: { title: input.title, slug, status },
+          resolvedId = PostId.make(created.id);
+        }
+        if (!resolvedId) {
+          return Result.fail(
+            new PersistenceError({
+              operation: "post.save resolved no id",
+              cause: new Error("Unable to resolve the saved post id"),
+            }),
+          );
+        }
+        if (input.categoryId) {
+          await tx.insert(schema.postCategory).values({
+            postId: resolvedId,
+            categoryId: input.categoryId,
           });
-          return Result.succeed({
-            savedId: resolvedId,
-            blogSlug: authorization.blog.slug,
-          });
-        }),
+        }
+        await tx.insert(schema.auditLog).values({
+          organizationId: authorization.workspace.id,
+          blogId: input.blogId,
+          actorId,
+          action: input.id ? "post.updated" : "post.created",
+          entityType: "post",
+          entityId: resolvedId,
+          after: { title: input.title, slug, status },
+        });
+        return Result.succeed({
+          savedId: resolvedId,
+          blogSlug: authorization.blog.slug,
+        });
+      }),
     );
   });
 
@@ -433,104 +446,102 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
     const archivedCount = yield* executeResult<
       number,
       BlogAccess.BlogAccessDenied
-    >(
-      "post.bulkArchive",
-      (client) =>
-        client.transaction(async (tx) => {
-          const authorization = await lockBlogAuthorization(
-            tx,
-            input.blogId,
-            actorId,
-            "content:read",
+    >("post.bulkArchive", (client) =>
+      client.transaction(async (tx) => {
+        const authorization = await lockBlogAuthorization(
+          tx,
+          input.blogId,
+          actorId,
+          "content:read",
+        );
+        if (
+          !authorization ||
+          !hasPermission(authorization.role, "content:archive")
+        ) {
+          return Result.fail(
+            new BlogAccess.BlogAccessDenied({
+              blogId: input.blogId,
+              userId: actorId,
+              capability: "content:archive",
+            }),
           );
-          if (
-            !authorization ||
-            !hasPermission(authorization.role, "content:archive")
-          ) {
-            return Result.fail(
-              new BlogAccess.BlogAccessDenied({
-                blogId: input.blogId,
-                userId: actorId,
-                capability: "content:archive",
-              }),
-            );
-          }
-          const candidates = (
-            await tx
-              .select()
-              .from(schema.post)
-              .where(
-                and(
-                  inArray(schema.post.id, input.postIds),
-                  eq(schema.post.blogId, input.blogId),
-                ),
-              )
-              .for("update")
-          ).filter((post) => post.status !== "archived");
-          if (
-            candidates.some(
-              (post) =>
-                !canUpdatePost(
-                  authorization.role,
-                  post.createdById ? UserId.make(post.createdById) : null,
-                  actorId,
-                ),
+        }
+        const candidates = (
+          await tx
+            .select()
+            .from(schema.post)
+            .where(
+              and(
+                inArray(schema.post.id, input.postIds),
+                eq(schema.post.blogId, input.blogId),
+              ),
             )
-          ) {
-            return Result.fail(
-              new BlogAccess.BlogAccessDenied({
-                blogId: input.blogId,
-                userId: actorId,
-                capability: "content:archive",
-              }),
-            );
-          }
-          if (candidates.length === 0) return Result.succeed(0);
+            .for("update")
+        ).filter((post) => post.status !== "archived");
+        if (
+          candidates.some(
+            (post) =>
+              !canUpdatePost(
+                authorization.role,
+                post.createdById ? UserId.make(post.createdById) : null,
+                actorId,
+              ),
+          )
+        ) {
+          return Result.fail(
+            new BlogAccess.BlogAccessDenied({
+              blogId: input.blogId,
+              userId: actorId,
+              capability: "content:archive",
+            }),
+          );
+        }
+        if (candidates.length === 0) return Result.succeed(0);
 
-          const candidateIds = candidates.map(({ id }) => id);
-          const revisions = await tx.query.postRevision.findMany({
-            where: inArray(schema.postRevision.postId, candidateIds),
-            orderBy: [desc(schema.postRevision.version)],
-          });
-          const latestVersion = new Map<string, number>();
-          for (const revision of revisions) {
-            if (!latestVersion.has(revision.postId)) {
-              latestVersion.set(revision.postId, revision.version);
-            }
+        const candidateIds = candidates.map(({ id }) => id);
+        const revisions = await tx.query.postRevision.findMany({
+          where: inArray(schema.postRevision.postId, candidateIds),
+          orderBy: [desc(schema.postRevision.version)],
+        });
+        const latestVersion = new Map<string, number>();
+        for (const revision of revisions) {
+          if (!latestVersion.has(revision.postId)) {
+            latestVersion.set(revision.postId, revision.version);
           }
-          await tx.insert(schema.postRevision).values(
-            candidates.map((post) => ({
-              postId: post.id,
-              editorId: actorId,
-              version: (latestVersion.get(post.id) ?? 0) + 1,
-              snapshot: post,
+        }
+        await tx.insert(schema.postRevision).values(
+          candidates.map((post) => ({
+            postId: post.id,
+            editorId: actorId,
+            version: (latestVersion.get(post.id) ?? 0) + 1,
+            snapshot: post,
+          })),
+        );
+
+        const archived = await tx
+          .update(schema.post)
+          .set({
+            status: "archived",
+            archivedAt: now,
+            updatedById: actorId,
+            updatedAt: now,
+          })
+          .where(inArray(schema.post.id, candidateIds))
+          .returning({ id: schema.post.id });
+        if (archived.length > 0) {
+          await tx.insert(schema.auditLog).values(
+            archived.map(({ id }) => ({
+              organizationId: authorization.workspace.id,
+              blogId: input.blogId,
+              actorId,
+              action: "post.archived",
+              entityType: "post",
+              entityId: id,
             })),
           );
-
-          const archived = await tx
-            .update(schema.post)
-            .set({
-              status: "archived",
-              archivedAt: now,
-              updatedById: actorId,
-              updatedAt: now,
-            })
-            .where(inArray(schema.post.id, candidateIds))
-            .returning({ id: schema.post.id });
-          if (archived.length > 0) {
-            await tx.insert(schema.auditLog).values(
-              archived.map(({ id }) => ({
-                organizationId: authorization.workspace.id,
-                blogId: input.blogId,
-                actorId,
-                action: "post.archived",
-                entityType: "post",
-                entityId: id,
-              })),
-            );
-          }
-          return Result.succeed(archived.length);
-        }),
+        }
+        return Result.succeed(archived.length);
+      }),
     );
     return archivedCount > 0;
   });
@@ -550,46 +561,44 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
       return yield* executeResult<
         string,
         BlogErrors.BlogNotFound | BlogAccess.BlogAccessDenied
-      >(
-        "blog.updateSettings",
-        (client) =>
-          client.transaction(async (tx) => {
-            const authorization = await lockBlogAuthorization(
-              tx,
-              input.blogId,
-              actorId,
-              "publications:update",
+      >("blog.updateSettings", (client) =>
+        client.transaction(async (tx) => {
+          const authorization = await lockBlogAuthorization(
+            tx,
+            input.blogId,
+            actorId,
+            "publications:update",
+          );
+          if (!authorization) {
+            return Result.fail(
+              new BlogAccess.BlogAccessDenied({
+                blogId: input.blogId,
+                userId: actorId,
+                capability: "publications:update",
+              }),
             );
-            if (!authorization) {
-              return Result.fail(
-                new BlogAccess.BlogAccessDenied({
-                  blogId: input.blogId,
-                  userId: actorId,
-                  capability: "publications:update",
-                }),
-              );
-            }
-            const [updated] = await tx
-              .update(schema.blog)
-              .set(values)
-              .where(eq(schema.blog.id, input.blogId))
-              .returning({ id: schema.blog.id });
-            if (!updated) {
-              return Result.fail(
-                new BlogErrors.BlogNotFound({ blogId: input.blogId }),
-              );
-            }
-            await tx.insert(schema.auditLog).values({
-              organizationId: authorization.workspace.id,
-              blogId: input.blogId,
-              actorId,
-              action: "blog.settings_updated",
-              entityType: "blog",
-              entityId: input.blogId,
-              after: values,
-            });
-            return Result.succeed(authorization.blog.slug);
-          }),
+          }
+          const [updated] = await tx
+            .update(schema.blog)
+            .set(values)
+            .where(eq(schema.blog.id, input.blogId))
+            .returning({ id: schema.blog.id });
+          if (!updated) {
+            return Result.fail(
+              new BlogErrors.BlogNotFound({ blogId: input.blogId }),
+            );
+          }
+          await tx.insert(schema.auditLog).values({
+            organizationId: authorization.workspace.id,
+            blogId: input.blogId,
+            actorId,
+            action: "blog.settings_updated",
+            entityType: "blog",
+            entityId: input.blogId,
+            after: values,
+          });
+          return Result.succeed(authorization.blog.slug);
+        }),
       );
     },
   );
@@ -614,7 +623,7 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
     return yield* executeResult<
       ApiPost,
       | PostErrors.InvalidPost
-      | DatabaseError
+      | PersistenceError
       | ApiAccess.AuthenticationFailed
       | ApiAccess.ScopeDenied
     >("post.createApi", (client) =>
@@ -685,7 +694,7 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
           .returning({ id: schema.post.id });
         if (!created) {
           return Result.fail(
-            new DatabaseError({
+            new PersistenceError({
               operation: "post.createApi returned no row",
               cause: new Error("Unable to create post"),
             }),
@@ -722,7 +731,7 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
         });
         if (!createdPost) {
           return Result.fail(
-            new DatabaseError({
+            new PersistenceError({
               operation: "post.createApi response projection",
               cause: new Error("Created post could not be projected"),
             }),
@@ -759,7 +768,7 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
       ApiPost,
       | PostErrors.InvalidPost
       | PostErrors.PostNotFound
-      | DatabaseError
+      | PersistenceError
       | ApiAccess.AuthenticationFailed
       | ApiAccess.ScopeDenied
     >("post.updateApi", (client) =>
@@ -879,8 +888,12 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
                 }
               : {}),
             ...(patch.locale ? { locale: patch.locale } : {}),
-            ...(patch.featured !== undefined ? { featured: patch.featured } : {}),
-            ...(patch.seoTitle !== undefined ? { seoTitle: patch.seoTitle } : {}),
+            ...(patch.featured !== undefined
+              ? { featured: patch.featured }
+              : {}),
+            ...(patch.seoTitle !== undefined
+              ? { seoTitle: patch.seoTitle }
+              : {}),
             ...(patch.seoDescription !== undefined
               ? { seoDescription: patch.seoDescription }
               : {}),
@@ -930,7 +943,7 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
         });
         if (!updatedPost) {
           return Result.fail(
-            new DatabaseError({
+            new PersistenceError({
               operation: "post.updateApi response projection",
               cause: new Error("Updated post could not be projected"),
             }),
@@ -951,59 +964,57 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
       | PostErrors.PostNotFound
       | ApiAccess.AuthenticationFailed
       | ApiAccess.ScopeDenied
-    >(
-      "post.archiveApi",
-      (client) =>
-        client.transaction(async (tx) => {
-          const apiAuthorization = await lockApiWrite(tx, actor, now);
-          if ("error" in apiAuthorization) {
-            return Result.fail(apiAuthorization.error);
-          }
-          const { organizationId } = apiAuthorization;
-          const [existing] = await tx
-            .select()
-            .from(schema.post)
-            .where(
-              and(
-                eq(schema.post.id, postId),
-                eq(schema.post.blogId, actor.blogId),
-              ),
-            )
-            .for("update");
-          if (!existing) {
-            return Result.fail(new PostErrors.PostNotFound({ postId }));
-          }
-          if (existing.status === "archived") {
-            return Result.succeed(existing.id);
-          }
-          const latest = await tx.query.postRevision.findFirst({
-            where: eq(schema.postRevision.postId, existing.id),
-            orderBy: [desc(schema.postRevision.version)],
-          });
-          await tx.insert(schema.postRevision).values({
-            postId: existing.id,
-            version: (latest?.version ?? 0) + 1,
-            snapshot: existing,
-          });
-          await tx
-            .update(schema.post)
-            .set({ status: "archived", archivedAt: now, updatedAt: now })
-            .where(eq(schema.post.id, existing.id));
-          await tx.insert(schema.auditLog).values({
-            organizationId,
-            blogId: actor.blogId,
-            action: "post.archived",
-            entityType: "post",
-            entityId: existing.id,
-            before: existing,
-            after: {
-              source: "api",
-              apiKeyId: actor.keyId,
-              status: "archived",
-            },
-          });
+    >("post.archiveApi", (client) =>
+      client.transaction(async (tx) => {
+        const apiAuthorization = await lockApiWrite(tx, actor, now);
+        if ("error" in apiAuthorization) {
+          return Result.fail(apiAuthorization.error);
+        }
+        const { organizationId } = apiAuthorization;
+        const [existing] = await tx
+          .select()
+          .from(schema.post)
+          .where(
+            and(
+              eq(schema.post.id, postId),
+              eq(schema.post.blogId, actor.blogId),
+            ),
+          )
+          .for("update");
+        if (!existing) {
+          return Result.fail(new PostErrors.PostNotFound({ postId }));
+        }
+        if (existing.status === "archived") {
           return Result.succeed(existing.id);
-        }),
+        }
+        const latest = await tx.query.postRevision.findFirst({
+          where: eq(schema.postRevision.postId, existing.id),
+          orderBy: [desc(schema.postRevision.version)],
+        });
+        await tx.insert(schema.postRevision).values({
+          postId: existing.id,
+          version: (latest?.version ?? 0) + 1,
+          snapshot: existing,
+        });
+        await tx
+          .update(schema.post)
+          .set({ status: "archived", archivedAt: now, updatedAt: now })
+          .where(eq(schema.post.id, existing.id));
+        await tx.insert(schema.auditLog).values({
+          organizationId,
+          blogId: actor.blogId,
+          action: "post.archived",
+          entityType: "post",
+          entityId: existing.id,
+          before: existing,
+          after: {
+            source: "api",
+            apiKeyId: actor.keyId,
+            status: "archived",
+          },
+        });
+        return Result.succeed(existing.id);
+      }),
     );
     return { ok: true as const };
   });
@@ -1024,6 +1035,9 @@ export class Service extends Context.Service<Service, Interface>()(
   "@prosewire/web/PublishingRepository",
 ) {}
 
-export const layer = Layer.effect(Service, create().pipe(Effect.map(Service.of)));
+export const layer = Layer.effect(
+  Service,
+  create().pipe(Effect.map(Service.of)),
+);
 
 export * as PublishingRepository from "./publishing-repository";

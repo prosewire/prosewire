@@ -10,8 +10,7 @@ import {
 import { Effect, Result, Schema } from "effect";
 import { ApiAccess, type Scope } from "./api-access.ts";
 import { ApiContent, type PostListInput } from "./api-content.ts";
-import { runAppEffect, type AppServices } from "./app-runtime.ts";
-import { DatabaseError } from "./database.ts";
+import { type AppServices, runAppEffect } from "./app-runtime.ts";
 import { BlogId, PostId } from "./domain.ts";
 import { PostErrors } from "./post-errors.ts";
 import {
@@ -37,7 +36,9 @@ function toApiError(error: unknown) {
     return new ApiInputRejected({ message: error.message });
   }
   if (
-    error instanceof DatabaseError ||
+    error instanceof ApiAccess.PersistenceError ||
+    error instanceof ApiContent.PersistenceError ||
+    error instanceof Publishing.PersistenceError ||
     error instanceof PostErrors.PostRenderingFailed
   ) {
     return new ApiUnavailable({ message: error.message });
@@ -164,11 +165,7 @@ export function updatePost(
       const publishing = yield* Publishing.Service;
       const postId = yield* decodePostId(id);
       const command = yield* decodeUpdateInput(input);
-      return yield* publishing.updateApiPost(
-        postId,
-        command,
-        actor,
-      );
+      return yield* publishing.updateApiPost(postId, command, actor);
     }),
   );
 }

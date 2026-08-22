@@ -1,8 +1,10 @@
-import { Clock, Context, Crypto, Effect, Layer, Schema } from "effect";
-import { eq } from "drizzle-orm";
+import type { Db } from "@prosewire/db/client";
 import * as schema from "@prosewire/db/schema";
-import { Database, type DatabaseError } from "./database.ts";
+import { eq } from "drizzle-orm";
+import { Clock, Context, Crypto, Effect, Layer, Schema } from "effect";
+import { Database } from "./database.ts";
 import { ApiKeyId, BlogId } from "./domain.ts";
+import { operationError } from "./operation-error.ts";
 
 export const Scope = Schema.Literals(["content:read", "content:write"]);
 export type Scope = typeof Scope.Type;
@@ -40,8 +42,16 @@ export class BlogDenied extends Schema.TaggedError<BlogDenied>()(
   }
 }
 
+export class PersistenceError extends Schema.TaggedError<PersistenceError>()(
+  "ApiAccessPersistenceError",
+  {
+    operation: Schema.String,
+    cause: Schema.Defect(),
+  },
+) {}
+
 export type Error =
-  | DatabaseError
+  | PersistenceError
   | AuthenticationFailed
   | ScopeDenied
   | BlogDenied;
@@ -54,12 +64,21 @@ export function hasScope(
 }
 
 function hex(bytes: Uint8Array): string {
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join(
+    "",
+  );
 }
 
 export const create = Effect.fn("ApiAccess.create")(function* () {
   const database = yield* Database;
   const crypto = yield* Crypto.Crypto;
+  const persistenceError = operationError(
+    (input) => new PersistenceError(input),
+  );
+  const execute = <A>(
+    operation: string,
+    evaluate: (client: Db) => PromiseLike<A>,
+  ) => database.execute(operation, evaluate).pipe(persistenceError(operation));
 
   return {
     authenticate: Effect.fn("ApiAccess.authenticate")(function* (
@@ -75,7 +94,7 @@ export const create = Effect.fn("ApiAccess.create")(function* () {
         .digest("SHA-256", new TextEncoder().encode(token))
         .pipe(Effect.orDie);
       const hash = hex(digest);
-      const key = yield* database.execute("apiKey.find", (client) =>
+      const key = yield* execute("apiKey.find", (client) =>
         client.query.apiKey.findFirst({
           where: eq(schema.apiKey.keyHash, hash),
         }),
@@ -120,6 +139,9 @@ export class Service extends Context.Service<Service, Interface>()(
   "@prosewire/web/ApiAccess",
 ) {}
 
-export const layer = Layer.effect(Service, create().pipe(Effect.map(Service.of)));
+export const layer = Layer.effect(
+  Service,
+  create().pipe(Effect.map(Service.of)),
+);
 
 export * as ApiAccess from "./api-access";

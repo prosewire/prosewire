@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Duration, Effect, Fiber, Ref, Schedule } from "effect";
+import { Cause, Duration, Effect, Exit, Fiber, Ref, Schedule } from "effect";
 import { TestClock } from "effect/testing";
 import {
   analyticsRetentionInterval,
@@ -51,6 +51,32 @@ describe("Effect worker schedules", () => {
       yield* Effect.yieldNow;
       expect(yield* Ref.get(attempts)).toBe(2);
       yield* Fiber.interrupt(fiber);
+    }),
+  );
+
+  it.effect("lets defects reach worker supervision", () =>
+    Effect.gen(function* () {
+      const exit = yield* Effect.exit(
+        repeatScheduled("defecting", Effect.die("boom"), Schedule.recurs(0)),
+      );
+
+      expect(Exit.isFailure(exit)).toBe(true);
+      if (Exit.isFailure(exit)) {
+        expect(Cause.hasDies(exit.cause)).toBe(true);
+      }
+    }),
+  );
+
+  it.effect("preserves self-interruption", () =>
+    Effect.gen(function* () {
+      const exit = yield* Effect.exit(
+        repeatScheduled("interrupting", Effect.interrupt, Schedule.recurs(0)),
+      );
+
+      expect(Exit.isFailure(exit)).toBe(true);
+      if (Exit.isFailure(exit)) {
+        expect(Cause.hasInterrupts(exit.cause)).toBe(true);
+      }
     }),
   );
 });

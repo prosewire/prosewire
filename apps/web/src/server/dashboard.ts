@@ -2,20 +2,14 @@ import { Context, Effect, Layer } from "effect";
 import { BlogAccess } from "./authorization.ts";
 import { WebConfig } from "./config.ts";
 import { ContentQueries } from "./content-queries.ts";
-import type { DatabaseError } from "./database.ts";
-import type {
-  BlogId,
-  OrganizationId,
-  PostId,
-  UserId,
-} from "./domain.ts";
+import type { BlogId, OrganizationId, PostId, UserId } from "./domain.ts";
 
 export interface Selection {
   readonly organizationId?: OrganizationId;
   readonly blogId?: BlogId;
 }
 
-export type Error = DatabaseError | BlogAccess.Error;
+export type Error = ContentQueries.PersistenceError | BlogAccess.Error;
 
 export const create = Effect.fn("Dashboard.create")(function* () {
   const content = yield* ContentQueries.Service;
@@ -208,6 +202,9 @@ export class Service extends Context.Service<Service, Interface>()(
   "@prosewire/web/Dashboard",
 ) {}
 
-export const layer = Layer.effect(Service, create().pipe(Effect.map(Service.of)));
+export const layer = Layer.effect(
+  Service,
+  create().pipe(Effect.map(Service.of)),
+);
 
 export * as Dashboard from "./dashboard";
