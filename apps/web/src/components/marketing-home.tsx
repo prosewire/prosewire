@@ -1,24 +1,24 @@
 import {
   ArrowRight,
   Check,
-  Code2,
+  Code,
   Database,
   GitBranch,
-  Search,
+  MagnifyingGlass,
   ShieldCheck,
-  Sparkles,
-} from "lucide-react";
+  Sparkle,
+} from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 import { Logo } from "@/components/logo";
 
 const features = [
   {
-    icon: Code2,
+    icon: Code,
     title: "Drop into any stack",
     copy: "Use one script tag, rendered HTML, a raw JSON API, or the typed SDK. No iframe and no forced frontend.",
   },
   {
-    icon: Search,
+    icon: MagnifyingGlass,
     title: "Search-ready by default",
     copy: "Clean URLs, metadata, JSON-LD, RSS, sitemaps, author profiles, and an actionable writing-side SEO review.",
   },
@@ -38,7 +38,7 @@ const features = [
     copy: "Permissions, audit history, APIs, staging-friendly configuration, and every publishing feature ship in the open source project.",
   },
   {
-    icon: Sparkles,
+    icon: Sparkle,
     title: "Agent-first surfaces",
     copy: "The REST contract, TypeScript SDK, CLI, and MCP server stay aligned so humans and agents use the same rules.",
   },

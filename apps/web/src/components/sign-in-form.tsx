@@ -2,7 +2,7 @@
 
 import SiGithub from "@icons-pack/react-simple-icons/icons/SiGithub";
 import SiGoogle from "@icons-pack/react-simple-icons/icons/SiGoogle";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeSlash } from "@phosphor-icons/react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -164,7 +164,7 @@ export function SignInForm({
               className="absolute inset-y-0 right-0 grid w-12 place-items-center text-[#7a8589] transition hover:text-[#172329] focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-[#ef6848]"
             >
               {showPassword ? (
-                <EyeOff className="size-[18px]" />
+                <EyeSlash className="size-[18px]" />
               ) : (
                 <Eye className="size-[18px]" />
               )}

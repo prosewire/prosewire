@@ -1,6 +1,6 @@
 "use client";
 
-import { LogOut } from "lucide-react";
+import { SignOut } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
 import { signOut } from "@/lib/auth-client";
 
@@ -20,7 +20,7 @@ export function SignOutButton() {
       }}
       className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-xs font-medium text-[#687279] transition hover:bg-black/5 hover:text-[#172329]"
     >
-      <LogOut className="size-3.5" />
+      <SignOut className="size-3.5" />
       Sign out
     </button>
   );
