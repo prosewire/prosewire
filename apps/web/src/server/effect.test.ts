@@ -1,4 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
+import type { Db } from "@prosewire/db/client";
 import {
   ConfigProvider,
   Effect,
@@ -8,7 +9,6 @@ import {
   Option,
   Redacted,
 } from "effect";
-import type { Db } from "@prosewire/db/client";
 
 import {
   disabledOrganizationMutationPaths,
@@ -31,9 +31,7 @@ describe("web infrastructure", () => {
     expect(disabledOrganizationMutationPaths).toContain(
       "/organization/update-member-role",
     );
-    expect(disabledOrganizationMutationPaths).toContain(
-      "/organization/create",
-    );
+    expect(disabledOrganizationMutationPaths).toContain("/organization/create");
   });
 
   it("fails configuration when required production credentials are absent", async () => {
@@ -41,10 +39,14 @@ describe("web infrastructure", () => {
       ConfigProvider.ConfigProvider,
       ConfigProvider.fromUnknown({}),
     );
-    const runtime = ManagedRuntime.make(WebConfig.layer.pipe(Layer.provide(emptyConfig)));
+    const runtime = ManagedRuntime.make(
+      WebConfig.layer.pipe(Layer.provide(emptyConfig)),
+    );
 
     try {
-      await expect(runtime.runPromise(WebConfig)).rejects.toThrow(/DATABASE_URL/);
+      await expect(runtime.runPromise(WebConfig)).rejects.toThrow(
+        /DATABASE_URL/,
+      );
     } finally {
       await runtime.dispose();
     }
@@ -55,7 +57,8 @@ describe("web infrastructure", () => {
       ConfigProvider.ConfigProvider,
       ConfigProvider.fromUnknown({
         DATABASE_URL: "postgres://localhost/prosewire",
-        BETTER_AUTH_SECRET: "replace-with-a-unique-secret-of-at-least-32-characters",
+        BETTER_AUTH_SECRET:
+          "replace-with-a-unique-secret-of-at-least-32-characters",
         ADMIN_PASSWORD: "replace-with-a-unique-admin-password",
       }),
     );
@@ -64,7 +67,9 @@ describe("web infrastructure", () => {
     );
 
     try {
-      await expect(runtime.runPromise(WebConfig)).rejects.toThrow(/BETTER_AUTH_SECRET/);
+      await expect(runtime.runPromise(WebConfig)).rejects.toThrow(
+        /BETTER_AUTH_SECRET/,
+      );
     } finally {
       await runtime.dispose();
     }
@@ -76,8 +81,7 @@ describe("web infrastructure", () => {
       ConfigProvider.fromUnknown({
         NODE_ENV: "development",
         DATABASE_URL: "postgres://localhost/prosewire",
-        BETTER_AUTH_SECRET:
-          "local-development-secret-change-before-production",
+        BETTER_AUTH_SECRET: "local-development-secret-change-before-production",
       }),
     );
     const runtime = ManagedRuntime.make(
@@ -95,32 +99,110 @@ describe("web infrastructure", () => {
     }
   });
 
-  it.each([
-    "local-development-secret-change-before-production",
-    "please-change-this-to-at-least-32-characters",
-    "replace-with-a-unique-secret-of-at-least-32-characters",
-    "replace-with-at-least-32-random-characters",
-  ])("rejects the known production authentication placeholder %s", async (authSecret) => {
-    const productionConfig = Layer.succeed(
+  it("enables configured social providers only for cloud deployments", async () => {
+    const cloudConfig = Layer.succeed(
       ConfigProvider.ConfigProvider,
       ConfigProvider.fromUnknown({
         NODE_ENV: "production",
         DATABASE_URL: "postgres://localhost/prosewire",
-        BETTER_AUTH_SECRET: authSecret,
+        BETTER_AUTH_SECRET: "cloud-auth-secret-with-at-least-32-characters",
+        PROSEWIRE_DEPLOYMENT: "cloud",
+        PROSEWIRE_GOOGLE_CLIENT_ID: "google-client-id",
+        PROSEWIRE_GOOGLE_CLIENT_SECRET: "google-client-secret",
       }),
     );
     const runtime = ManagedRuntime.make(
-      WebConfig.layer.pipe(Layer.provide(productionConfig)),
+      WebConfig.layer.pipe(Layer.provide(cloudConfig)),
+    );
+
+    try {
+      const config = await runtime.runPromise(WebConfig);
+      expect(config.cloudSocialProviders?.google?.clientId).toBe(
+        "google-client-id",
+      );
+      expect(config.cloudSocialProviders?.github).toBeUndefined();
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
+  it("keeps social providers disabled for self-hosted deployments", async () => {
+    const selfHostedConfig = Layer.succeed(
+      ConfigProvider.ConfigProvider,
+      ConfigProvider.fromUnknown({
+        NODE_ENV: "production",
+        DATABASE_URL: "postgres://localhost/prosewire",
+        BETTER_AUTH_SECRET:
+          "self-hosted-auth-secret-with-at-least-32-characters",
+        PROSEWIRE_GOOGLE_CLIENT_ID: "ignored-google-client-id",
+        PROSEWIRE_GOOGLE_CLIENT_SECRET: "ignored-google-client-secret",
+      }),
+    );
+    const runtime = ManagedRuntime.make(
+      WebConfig.layer.pipe(Layer.provide(selfHostedConfig)),
+    );
+
+    try {
+      const config = await runtime.runPromise(WebConfig);
+      expect(config.cloudSocialProviders).toBeUndefined();
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
+  it("rejects incomplete cloud social provider credentials", async () => {
+    const incompleteConfig = Layer.succeed(
+      ConfigProvider.ConfigProvider,
+      ConfigProvider.fromUnknown({
+        NODE_ENV: "production",
+        DATABASE_URL: "postgres://localhost/prosewire",
+        BETTER_AUTH_SECRET: "cloud-auth-secret-with-at-least-32-characters",
+        PROSEWIRE_DEPLOYMENT: "cloud",
+        PROSEWIRE_GITHUB_CLIENT_ID: "github-client-id",
+      }),
+    );
+    const runtime = ManagedRuntime.make(
+      WebConfig.layer.pipe(Layer.provide(incompleteConfig)),
     );
 
     try {
       await expect(runtime.runPromise(WebConfig)).rejects.toThrow(
-        /BETTER_AUTH_SECRET/,
+        /PROSEWIRE_GITHUB_CLIENT_SECRET/,
       );
     } finally {
       await runtime.dispose();
     }
   });
+
+  it.each([
+    "local-development-secret-change-before-production",
+    "please-change-this-to-at-least-32-characters",
+    "replace-with-a-unique-secret-of-at-least-32-characters",
+    "replace-with-at-least-32-random-characters",
+  ])(
+    "rejects the known production authentication placeholder %s",
+    async (authSecret) => {
+      const productionConfig = Layer.succeed(
+        ConfigProvider.ConfigProvider,
+        ConfigProvider.fromUnknown({
+          NODE_ENV: "production",
+          DATABASE_URL: "postgres://localhost/prosewire",
+          BETTER_AUTH_SECRET: authSecret,
+        }),
+      );
+      const runtime = ManagedRuntime.make(
+        WebConfig.layer.pipe(Layer.provide(productionConfig)),
+      );
+
+      try {
+        await expect(runtime.runPromise(WebConfig)).rejects.toThrow(
+          /BETTER_AUTH_SECRET/,
+        );
+      } finally {
+        await runtime.dispose();
+      }
+    },
+  );
 
   it("rejects insecure bootstrap credentials", async () => {
     const placeholderConfig = Layer.succeed(
@@ -134,7 +216,9 @@ describe("web infrastructure", () => {
     );
 
     try {
-      await expect(runtime.runPromise(SeedConfig)).rejects.toThrow(/ADMIN_PASSWORD/);
+      await expect(runtime.runPromise(SeedConfig)).rejects.toThrow(
+        /ADMIN_PASSWORD/,
+      );
     } finally {
       await runtime.dispose();
     }
@@ -218,7 +302,9 @@ describe("web infrastructure", () => {
       await runtime.runPromise(Effect.void);
       expect(opened).toBe(0);
 
-      await runtime.runPromise(Effect.flatMap(Database, (service) => service.client));
+      await runtime.runPromise(
+        Effect.flatMap(Database, (service) => service.client),
+      );
       expect(opened).toBe(1);
     } finally {
       await runtime.dispose();

@@ -21,6 +21,7 @@ export default async function SignInPage({
       allowSignUp={state.openRegistration}
       returnTo={safeReturnTo}
       showDevelopmentCredentials={process.env["NODE_ENV"] !== "production"}
+      socialProviders={state.socialProviders}
     />
   );
 }

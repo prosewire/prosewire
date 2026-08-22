@@ -3,6 +3,8 @@ name: prosewire-cloud
 x-app: &app
   image: ${PROSEWIRE_IMAGE:-ghcr.io/prosewire/prosewire:latest}
   env_file: .env
+  environment:
+    PROSEWIRE_DEPLOYMENT: cloud
   restart: unless-stopped
 
 services:

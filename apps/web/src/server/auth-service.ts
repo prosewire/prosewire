@@ -1,17 +1,14 @@
+import type { Db } from "@prosewire/db/client";
+import * as databaseSchema from "@prosewire/db/schema";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
 import { organization } from "better-auth/plugins";
 import { and, eq, gt } from "drizzle-orm";
 import { Clock, Context, Effect, Layer, Redacted, Schema } from "effect";
-import type { Db } from "@prosewire/db/client";
-import * as databaseSchema from "@prosewire/db/schema";
-import {
-  organizationAccess,
-  organizationRoles,
-} from "@/lib/permissions";
 import { invitationRegistrationHeader } from "@/lib/auth-headers";
-import { WebConfig } from "./config.ts";
+import { organizationAccess, organizationRoles } from "@/lib/permissions";
+import { WebConfig, type WebConfigShape } from "./config.ts";
 import { Database, type DatabaseError } from "./database.ts";
 
 export class AuthInitializationError extends Schema.TaggedError<AuthInitializationError>()(
@@ -92,8 +89,34 @@ function buildAuth(
     readonly publicUrl: string;
     readonly allowSignUp: boolean;
     readonly now: () => Date;
+    readonly cloudSocialProviders: WebConfigShape["cloudSocialProviders"];
   },
 ) {
+  const socialProviders = {
+    ...(config.cloudSocialProviders?.google
+      ? {
+          google: {
+            clientId: config.cloudSocialProviders.google.clientId,
+            clientSecret: Redacted.value(
+              config.cloudSocialProviders.google.clientSecret,
+            ),
+            disableSignUp: !config.allowSignUp,
+          },
+        }
+      : {}),
+    ...(config.cloudSocialProviders?.github
+      ? {
+          github: {
+            clientId: config.cloudSocialProviders.github.clientId,
+            clientSecret: Redacted.value(
+              config.cloudSocialProviders.github.clientSecret,
+            ),
+            disableSignUp: !config.allowSignUp,
+          },
+        }
+      : {}),
+  };
+
   return betterAuth({
     baseURL: config.publicUrl,
     secret: config.secret,
@@ -112,9 +135,15 @@ function buildAuth(
       },
     }),
     emailAndPassword: emailPasswordPolicy,
+    socialProviders,
     user: {
       additionalFields: {
-        role: { type: "string", required: false, defaultValue: "member", input: false },
+        role: {
+          type: "string",
+          required: false,
+          defaultValue: "member",
+          input: false,
+        },
         disabledAt: { type: "date", required: false, input: false },
       },
     },
@@ -147,10 +176,7 @@ function buildAuth(
 type WebAuth = ReturnType<typeof buildAuth>;
 
 export interface AuthShape {
-  readonly get: Effect.Effect<
-    WebAuth,
-    DatabaseError | AuthInitializationError
-  >;
+  readonly get: Effect.Effect<WebAuth, DatabaseError | AuthInitializationError>;
 }
 
 export class Auth extends Context.Service<Auth, AuthShape>()(
@@ -173,6 +199,7 @@ export class Auth extends Context.Service<Auth, AuthShape>()(
                 allowSignUp:
                   config.environment !== "production" || config.allowSignUp,
                 now: () => new Date(clock.currentTimeMillisUnsafe()),
+                cloudSocialProviders: config.cloudSocialProviders,
               }),
             catch: (cause) => new AuthInitializationError({ cause }),
           });

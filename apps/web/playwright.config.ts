@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const baseURL = process.env["PROSEWIRE_ACCEPTANCE_URL"] ?? "http://localhost:3000";
+const baseURL =
+  process.env["PROSEWIRE_ACCEPTANCE_URL"] ?? "http://localhost:3000";
 
 export default defineConfig({
   testDir: "./acceptance",
@@ -30,6 +31,7 @@ export default defineConfig({
       PROSEWIRE_PUBLIC_URL: baseURL,
       NEXT_PUBLIC_PROSEWIRE_PUBLIC_URL: baseURL,
       NEXT_DEPLOYMENT_ID: "acceptance",
+      PROSEWIRE_DEPLOYMENT: "cloud",
     },
   },
 });

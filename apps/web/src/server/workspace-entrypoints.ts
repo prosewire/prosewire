@@ -1,40 +1,42 @@
 import { Effect, Option, Schema } from "effect";
 import { io } from "next/cache";
+import { socialProviderIds } from "@/lib/auth-providers";
 import {
   getDashboardSessionEffect,
   requireDashboardSessionEffect,
 } from "@/lib/session";
-import { BlogAccess } from "./authorization.ts";
 import { runAppEffect } from "./app-runtime.ts";
+import { BlogAccess } from "./authorization.ts";
 import { WebConfig } from "./config.ts";
-import {
-  BlogId,
-  InvitationId,
-  OrganizationId,
-  UserId,
-} from "./domain.ts";
+import { BlogId, InvitationId, OrganizationId, UserId } from "./domain.ts";
 import { WorkspaceManagement } from "./workspace-management.ts";
 
 const invalidInput = (message: string) =>
   new WorkspaceManagement.InvalidWorkspaceInput({ message });
 
-const decode = <S extends Schema.Top>(schema: S, value: unknown, message: string) =>
+const decode = <S extends Schema.Top>(
+  schema: S,
+  value: unknown,
+  message: string,
+) =>
   Schema.decodeUnknownEffect(schema)(value).pipe(
     Effect.mapError(() => invalidInput(message)),
   );
 
-const currentActor = Effect.fn("WorkspaceEntrypoints.currentActor")(function* () {
-  const session = yield* requireDashboardSessionEffect();
-  return {
-    session,
-    actor: {
-      id: UserId.make(session.user.id),
-      name: session.user.name,
-      email: session.user.email,
-      sessionId: session.session.id,
-    },
-  };
-});
+const currentActor = Effect.fn("WorkspaceEntrypoints.currentActor")(
+  function* () {
+    const session = yield* requireDashboardSessionEffect();
+    return {
+      session,
+      actor: {
+        id: UserId.make(session.user.id),
+        name: session.user.name,
+        email: session.user.email,
+        sessionId: session.session.id,
+      },
+    };
+  },
+);
 
 export type CreateWorkspaceBoundaryInput =
   typeof WorkspaceManagement.CreateWorkspaceInput.Encoded;
@@ -292,16 +294,38 @@ export async function loadAuthenticationState(invitationId?: string) {
       const config = yield* WebConfig;
       const openRegistration =
         config.environment !== "production" || config.allowSignUp;
+      const socialProviders = socialProviderIds.filter(
+        (provider) => config.cloudSocialProviders?.[provider] !== undefined,
+      );
+      const cloudDeployment = config.cloudSocialProviders !== undefined;
       if (!invitationId) {
-        return { session, openRegistration, invitation: undefined };
+        return {
+          session,
+          openRegistration,
+          cloudDeployment,
+          socialProviders,
+          invitation: undefined,
+        };
       }
       const parsed = Schema.decodeUnknownOption(InvitationId)(invitationId);
       if (Option.isNone(parsed)) {
-        return { session, openRegistration, invitation: undefined };
+        return {
+          session,
+          openRegistration,
+          cloudDeployment,
+          socialProviders,
+          invitation: undefined,
+        };
       }
       const service = yield* WorkspaceManagement.Service;
       const details = yield* service.invitationDetails(parsed.value);
-      return { session, openRegistration, invitation: details?.invitation };
+      return {
+        session,
+        openRegistration,
+        cloudDeployment,
+        socialProviders,
+        invitation: details?.invitation,
+      };
     }),
   );
 }

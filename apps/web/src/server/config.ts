@@ -3,10 +3,11 @@ import {
   Context,
   Effect,
   Layer,
+  Option,
   Redacted,
   Schema,
-  type Option,
 } from "effect";
+import type { SocialProviderId } from "@/lib/auth-providers";
 
 const localDevelopmentAuthSecret =
   "local-development-secret-change-before-production";
@@ -31,6 +32,15 @@ export interface WebConfigShape {
   readonly smtpUrl: Option.Option<Redacted.Redacted<string>>;
   readonly emailFrom: string;
   readonly environment: string;
+  readonly cloudSocialProviders?: Partial<
+    Record<
+      SocialProviderId,
+      {
+        readonly clientId: string;
+        readonly clientSecret: Redacted.Redacted<string>;
+      }
+    >
+  >;
 }
 
 export class WebConfig extends Context.Service<WebConfig, WebConfigShape>()(
@@ -47,9 +57,9 @@ export class WebConfig extends Context.Service<WebConfig, WebConfigShape>()(
       );
       const databaseUrl = yield* Config.redacted("DATABASE_URL");
       const authSecret = yield* Config.redacted("BETTER_AUTH_SECRET");
-      const allowSignUp = yield* Config.boolean(
-        "PROSEWIRE_ALLOW_SIGN_UP",
-      ).pipe(Config.withDefault(false));
+      const allowSignUp = yield* Config.boolean("PROSEWIRE_ALLOW_SIGN_UP").pipe(
+        Config.withDefault(false),
+      );
       const smtpUrl = yield* Config.option(Config.redacted("SMTP_URL"));
       const emailFrom = yield* Config.string("EMAIL_FROM").pipe(
         Config.withDefault("Prosewire <prosewire@localhost>"),
@@ -57,12 +67,77 @@ export class WebConfig extends Context.Service<WebConfig, WebConfigShape>()(
       const environment = yield* Config.string("NODE_ENV").pipe(
         Config.withDefault("development"),
       );
+      const deployment = yield* Config.string("PROSEWIRE_DEPLOYMENT").pipe(
+        Config.withDefault("self-hosted"),
+      );
+      const googleClientId = yield* Config.option(
+        Config.string("PROSEWIRE_GOOGLE_CLIENT_ID"),
+      );
+      const googleClientSecret = yield* Config.option(
+        Config.redacted("PROSEWIRE_GOOGLE_CLIENT_SECRET"),
+      );
+      const githubClientId = yield* Config.option(
+        Config.string("PROSEWIRE_GITHUB_CLIENT_ID"),
+      );
+      const githubClientSecret = yield* Config.option(
+        Config.redacted("PROSEWIRE_GITHUB_CLIENT_SECRET"),
+      );
 
       if (Redacted.value(databaseUrl).trim() === "") {
         return yield* new ConfigurationError({
           message: "DATABASE_URL cannot be empty",
         });
       }
+
+      if (deployment !== "self-hosted" && deployment !== "cloud") {
+        return yield* new ConfigurationError({
+          message: "PROSEWIRE_DEPLOYMENT must be either self-hosted or cloud",
+        });
+      }
+
+      if (
+        deployment === "cloud" &&
+        Option.isSome(googleClientId) !== Option.isSome(googleClientSecret)
+      ) {
+        return yield* new ConfigurationError({
+          message:
+            "PROSEWIRE_GOOGLE_CLIENT_ID and PROSEWIRE_GOOGLE_CLIENT_SECRET must be configured together",
+        });
+      }
+
+      if (
+        deployment === "cloud" &&
+        Option.isSome(githubClientId) !== Option.isSome(githubClientSecret)
+      ) {
+        return yield* new ConfigurationError({
+          message:
+            "PROSEWIRE_GITHUB_CLIENT_ID and PROSEWIRE_GITHUB_CLIENT_SECRET must be configured together",
+        });
+      }
+
+      const cloudSocialProviders =
+        deployment === "cloud"
+          ? {
+              ...(Option.isSome(googleClientId) &&
+              Option.isSome(googleClientSecret)
+                ? {
+                    google: {
+                      clientId: googleClientId.value,
+                      clientSecret: googleClientSecret.value,
+                    },
+                  }
+                : {}),
+              ...(Option.isSome(githubClientId) &&
+              Option.isSome(githubClientSecret)
+                ? {
+                    github: {
+                      clientId: githubClientId.value,
+                      clientSecret: githubClientSecret.value,
+                    },
+                  }
+                : {}),
+            }
+          : undefined;
 
       const authSecretValue = Redacted.value(authSecret);
       if (
@@ -72,7 +147,8 @@ export class WebConfig extends Context.Service<WebConfig, WebConfigShape>()(
             authSecretValue !== localDevelopmentAuthSecret))
       ) {
         return yield* new ConfigurationError({
-          message: "BETTER_AUTH_SECRET must be a unique value of at least 32 characters",
+          message:
+            "BETTER_AUTH_SECRET must be a unique value of at least 32 characters",
         });
       }
 
@@ -85,6 +161,7 @@ export class WebConfig extends Context.Service<WebConfig, WebConfigShape>()(
         smtpUrl,
         emailFrom,
         environment,
+        ...(cloudSocialProviders ? { cloudSocialProviders } : {}),
       };
     }),
   );
