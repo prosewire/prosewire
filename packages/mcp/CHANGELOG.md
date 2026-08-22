@@ -1,5 +1,14 @@
 # @prosewire/mcp
 
+## 0.3.0
+
+### Patch Changes
+
+- 15bf694: Harden package documentation with corrected response shapes, complete operation boundaries, configuration details, and safer integration guidance.
+- Updated dependencies [15bf694]
+- Updated dependencies [433ad8b]
+  - @prosewire/sdk@0.3.0
+
 ## 0.2.1
 
 ### Patch Changes
