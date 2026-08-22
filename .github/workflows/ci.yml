@@ -84,14 +84,14 @@ jobs:
           key: turbo-${{ runner.os }}-${{ github.sha }}
           restore-keys: turbo-${{ runner.os }}-
       - run: pnpm install --frozen-lockfile
-      - name: Check all files with Biome
-        if: needs.classify.outputs.full_quality == 'true'
-        run: pnpm exec biome ci .
       - name: Check changed files with Biome
-        if: needs.classify.outputs.full_quality != 'true'
+        if: needs.classify.outputs.base_sha != ''
         env:
           BIOME_BASE_SHA: ${{ needs.classify.outputs.base_sha }}
         run: pnpm exec biome ci --changed --since="$BIOME_BASE_SHA"
+      - name: Check manually dispatched branch changes with Biome
+        if: needs.classify.outputs.base_sha == ''
+        run: pnpm exec biome ci --changed --since=origin/main
       - name: Lint workflows
         if: needs.classify.outputs.full_quality == 'true'
         run: pnpm lint:workflows
