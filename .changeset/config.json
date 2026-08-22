@@ -3,10 +3,7 @@
   "changelog": "@changesets/cli/changelog",
   "commit": false,
   "fixed": [],
-  "linked": [
-    ["@prosewire/sdk", "@prosewire/cli", "@prosewire/mcp"],
-    ["@prosewire/next", "@prosewire/astro", "create-prosewire"]
-  ],
+  "linked": [],
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
