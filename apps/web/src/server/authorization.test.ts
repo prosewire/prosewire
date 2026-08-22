@@ -1,6 +1,6 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Layer } from "effect";
 import type { Db } from "@prosewire/db/client";
+import { Effect, Layer } from "effect";
 import { BlogAccess } from "./authorization.ts";
 import { Database, DatabaseError } from "./database.ts";
 import { BlogId, UserId } from "./domain.ts";
@@ -10,6 +10,7 @@ const userId = UserId.make("user-1");
 
 function databaseWithMembership(
   role: "owner" | "admin" | "editor" | "author" | "viewer" | undefined,
+  blogSlug = "fieldnotes",
 ) {
   const now = new Date("2026-08-20T00:00:00.000Z");
   const rows = role
@@ -19,7 +20,7 @@ function databaseWithMembership(
             id: blogId,
             organizationId: "workspace-1",
             name: "Fieldnotes",
-            slug: "fieldnotes",
+            slug: blogSlug,
             description: "",
             locale: "en",
             accentColor: "#ef6848",
@@ -91,6 +92,22 @@ describe("publication authorization", () => {
     }).pipe(
       Effect.provide(
         BlogAccess.layer.pipe(Layer.provide(databaseWithMembership(undefined))),
+      ),
+    ),
+  );
+
+  it.effect("reports invalid persisted models as capability errors", () =>
+    Effect.gen(function* () {
+      const access = yield* BlogAccess.Service;
+      const failure = yield* Effect.flip(access.findBlog(blogId, userId));
+
+      expect(failure).toBeInstanceOf(BlogAccess.PersistenceError);
+      expect(failure.operation).toBe("publication.decodeAuthorized");
+    }).pipe(
+      Effect.provide(
+        BlogAccess.layer.pipe(
+          Layer.provide(databaseWithMembership("viewer", "Invalid Slug")),
+        ),
       ),
     ),
   );

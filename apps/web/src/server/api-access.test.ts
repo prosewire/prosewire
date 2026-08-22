@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Layer } from "effect";
 import type { Db } from "@prosewire/db/client";
+import { Effect, Layer } from "effect";
 import { ApiAccess } from "./api-access.ts";
 import { Database, DatabaseError } from "./database.ts";
 import { PlatformCrypto } from "./platform-crypto.ts";
@@ -70,6 +70,35 @@ describe("API key scopes", () => {
       );
       expect(denied._tag).toBe("ApiScopeDenied");
       expect(calls).toEqual(["apiKey.find"]);
+    }).pipe(
+      Effect.provide(
+        ApiAccess.layer.pipe(
+          Layer.provide(Layer.mergeAll(layer, PlatformCrypto.layer)),
+        ),
+      ),
+    );
+  });
+
+  it.effect("translates database failures into API access errors", () => {
+    const cause = new DatabaseError({
+      operation: "apiKey.find",
+      cause: new Error("offline"),
+    });
+    const layer = Layer.succeed(Database, {
+      client: Effect.fail(cause),
+      execute: () => Effect.fail(cause),
+    });
+
+    return Effect.gen(function* () {
+      const access = yield* ApiAccess.Service;
+      const failure = yield* Effect.flip(
+        access.authenticate("pw_test_key", "content:read"),
+      );
+
+      expect(failure).toBeInstanceOf(ApiAccess.PersistenceError);
+      if (failure instanceof ApiAccess.PersistenceError) {
+        expect(failure.operation).toBe("apiKey.find");
+      }
     }).pipe(
       Effect.provide(
         ApiAccess.layer.pipe(

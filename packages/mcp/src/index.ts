@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { NodeRuntime, NodeStdio } from "@effect/platform-node-shared";
-import { createClient } from "@prosewire/sdk";
+import { createEffectClient } from "@prosewire/sdk";
 import {
   Config,
   Effect,
@@ -32,7 +32,7 @@ class McpProcessError extends Schema.TaggedError<McpProcessError>()(
 const program = Effect.gen(function* () {
   const { apiKey, baseUrl } = yield* configuration;
   const toolkit = createProsewireMcpServer(
-    createClient({ baseUrl, apiKey: Redacted.value(apiKey) }),
+    createEffectClient({ baseUrl, apiKey: Redacted.value(apiKey) }),
   );
   const server = toolkit.pipe(
     Layer.provide(
@@ -59,15 +59,17 @@ const program = Effect.gen(function* () {
 });
 
 program.pipe(
-  Effect.mapError((error) =>
-    new McpProcessError({
-      message: error instanceof Config.ConfigError
-        ? "PROSEWIRE_API_KEY is required. Create one in Settings → Developer."
-        : error instanceof Error
-          ? error.message
-          : "The Prosewire MCP server stopped unexpectedly.",
-      exitCode: error instanceof Config.ConfigError ? 2 : 1,
-    }),
+  Effect.mapError(
+    (error) =>
+      new McpProcessError({
+        message:
+          error instanceof Config.ConfigError
+            ? "PROSEWIRE_API_KEY is required. Create one in Settings → Developer."
+            : error instanceof Error
+              ? error.message
+              : "The Prosewire MCP server stopped unexpectedly.",
+        exitCode: error instanceof Config.ConfigError ? 2 : 1,
+      }),
   ),
   Effect.tapError((error) =>
     Effect.sync(() => process.stderr.write(`${error.message}\n`)),

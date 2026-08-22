@@ -1,4 +1,7 @@
 import { createHash } from "node:crypto";
+import { createExcerpt, renderMarkdown } from "@prosewire/core";
+import type { Db } from "@prosewire/db/client";
+import * as schema from "@prosewire/db/schema";
 import { hashPassword } from "better-auth/crypto";
 import { eq } from "drizzle-orm";
 import {
@@ -11,8 +14,6 @@ import {
   Redacted,
   Schema,
 } from "effect";
-import { createExcerpt, renderMarkdown } from "@prosewire/core";
-import * as schema from "@prosewire/db/schema";
 import { WebConfig } from "./config.ts";
 import { Database } from "./database.ts";
 import { promiseEffect } from "./external-effect.ts";
@@ -30,7 +31,8 @@ const samplePosts = [
   {
     title: "Your content should outlive your website stack",
     slug: "content-should-outlive-your-website-stack",
-    excerpt: "A practical case for keeping editorial content portable, searchable, and independent from the page builder around it.",
+    excerpt:
+      "A practical case for keeping editorial content portable, searchable, and independent from the page builder around it.",
     status: "published" as const,
     featured: true,
     publishedAt: new Date("2026-08-12T09:00:00.000Z"),
@@ -63,7 +65,8 @@ A platform earns trust by making it easy to leave. Export posts, authors, catego
   {
     title: "A five-minute embedded blog integration",
     slug: "five-minute-drop-in-integration",
-    excerpt: "Add a native-feeling publication to an existing site with one element and one script tag.",
+    excerpt:
+      "Add a native-feeling publication to an existing site with one element and one script tag.",
     status: "published" as const,
     featured: false,
     publishedAt: new Date("2026-08-08T09:00:00.000Z"),
@@ -88,7 +91,8 @@ The same content is available through the raw JSON API and TypeScript SDK. A pro
   {
     title: "The editorial checklist we run before publish",
     slug: "editorial-checklist-before-publish",
-    excerpt: "A compact review loop for structure, search intent, accessibility, and trustworthy authorship.",
+    excerpt:
+      "A compact review loop for structure, search intent, accessibility, and trustworthy authorship.",
     status: "published" as const,
     featured: false,
     publishedAt: new Date("2026-07-30T09:00:00.000Z"),
@@ -120,7 +124,8 @@ The title and description should accurately summarize the article. An SEO score 
   {
     title: "Designing a content model that can travel",
     slug: "designing-a-content-model-that-can-travel",
-    excerpt: "What to separate, what to keep together, and why clean exports begin with the schema.",
+    excerpt:
+      "What to separate, what to keep together, and why clean exports begin with the schema.",
     status: "scheduled" as const,
     featured: false,
     publishedAt: null,
@@ -142,7 +147,8 @@ An export is incomplete if it loses authors, categories, revisions, or reusable 
   {
     title: "Notes on a calmer publishing workflow",
     slug: "notes-on-a-calmer-publishing-workflow",
-    excerpt: "Small interface decisions that help writers focus and make review status visible.",
+    excerpt:
+      "Small interface decisions that help writers focus and make review status visible.",
     status: "draft" as const,
     featured: false,
     publishedAt: null,
@@ -164,10 +170,21 @@ export const create = Effect.fn("Seed.create")(function* () {
   const database = yield* Database;
   const crypto = yield* Crypto.Crypto;
   const uuid = crypto.randomUUIDv4.pipe(Effect.orDie);
+  const execute = <A>(
+    operation: string,
+    evaluate: (client: Db) => PromiseLike<A>,
+  ) =>
+    database
+      .execute(operation, evaluate)
+      .pipe(
+        Effect.mapError(
+          (cause) => new SeedOperationFailed({ operation, cause }),
+        ),
+      );
 
   const initialData = Effect.fn("Seed.initialData")(function* () {
     const now = yield* Clock.currentTimeMillis;
-    let admin = yield* database.execute("seed.findAdmin", (client) =>
+    let admin = yield* execute("seed.findAdmin", (client) =>
       client.query.user.findFirst({
         where: eq(schema.user.email, seedConfig.adminEmail),
       }),
@@ -181,7 +198,7 @@ export const create = Effect.fn("Seed.create")(function* () {
         (cause) =>
           new SeedOperationFailed({ operation: "hash admin password", cause }),
       );
-      admin = yield* database.execute("seed.createAdmin", (client) =>
+      admin = yield* execute("seed.createAdmin", (client) =>
         client.transaction(async (tx) => {
           const [created] = await tx
             .insert(schema.user)
@@ -205,10 +222,15 @@ export const create = Effect.fn("Seed.create")(function* () {
         }),
       );
     }
-    if (!admin) throw new Error("Unable to create the local admin user");
+    if (!admin) {
+      return yield* new SeedOperationFailed({
+        operation: "resolve admin",
+        cause: new Error("Unable to create the local admin user"),
+      });
+    }
     const existingAdminId = admin.id;
     if (admin.role !== "admin") {
-      const [promoted] = yield* database.execute("seed.promoteAdmin", (client) =>
+      const [promoted] = yield* execute("seed.promoteAdmin", (client) =>
         client
           .update(schema.user)
           .set({ role: "admin", updatedAt: new Date(now) })
@@ -219,14 +241,14 @@ export const create = Effect.fn("Seed.create")(function* () {
     }
     const adminId = admin.id;
 
-    const existingBlog = yield* database.execute("seed.findBlog", (client) =>
+    const existingBlog = yield* execute("seed.findBlog", (client) =>
       client.query.blog.findFirst({
         where: eq(schema.blog.slug, webConfig.defaultBlog),
       }),
     );
     if (existingBlog) {
       const memberId = yield* uuid;
-      yield* database.execute("seed.ensureAdminMembership", (client) =>
+      yield* execute("seed.ensureAdminMembership", (client) =>
         client
           .insert(schema.member)
           .values({
@@ -260,7 +282,7 @@ export const create = Effect.fn("Seed.create")(function* () {
     const organizationId = yield* uuid;
     const memberId = yield* uuid;
 
-    yield* database.execute("seed.createInitialData", (client) =>
+    yield* execute("seed.createInitialData", (client) =>
       client.transaction(async (tx) => {
         await tx.insert(schema.organization).values({
           id: organizationId,
@@ -345,9 +367,7 @@ export const create = Effect.fn("Seed.create")(function* () {
               publishedAt: item.publishedAt,
               scheduledAt:
                 "scheduledInDays" in item
-                  ? new Date(
-                      now + item.scheduledInDays * 24 * 60 * 60 * 1000,
-                    )
+                  ? new Date(now + item.scheduledInDays * 24 * 60 * 60 * 1000)
                   : null,
               createdById: adminId,
               updatedById: adminId,
@@ -415,6 +435,9 @@ export class Service extends Context.Service<Service, Interface>()(
   "@prosewire/web/Seed",
 ) {}
 
-export const layer = Layer.effect(Service, create().pipe(Effect.map(Service.of)));
+export const layer = Layer.effect(
+  Service,
+  create().pipe(Effect.map(Service.of)),
+);
 
 export * as Seed from "./seed";

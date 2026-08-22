@@ -9,11 +9,14 @@ import { Clock, Context, Effect, Layer, Redacted, Schema } from "effect";
 import { invitationRegistrationHeader } from "@/lib/auth-headers";
 import { organizationAccess, organizationRoles } from "@/lib/permissions";
 import { WebConfig, type WebConfigShape } from "./config.ts";
-import { Database, type DatabaseError } from "./database.ts";
+import { Database } from "./database.ts";
 
 export class AuthInitializationError extends Schema.TaggedError<AuthInitializationError>()(
   "AuthInitializationError",
-  { cause: Schema.Defect() },
+  {
+    operation: Schema.String,
+    cause: Schema.Defect(),
+  },
 ) {
   override get message(): string {
     return "Authentication service initialization failed";
@@ -176,7 +179,7 @@ function buildAuth(
 type WebAuth = ReturnType<typeof buildAuth>;
 
 export interface AuthShape {
-  readonly get: Effect.Effect<WebAuth, DatabaseError | AuthInitializationError>;
+  readonly get: Effect.Effect<WebAuth, AuthInitializationError>;
 }
 
 export class Auth extends Context.Service<Auth, AuthShape>()(
@@ -190,7 +193,15 @@ export class Auth extends Context.Service<Auth, AuthShape>()(
       const clock = yield* Clock.Clock;
       const get = yield* Effect.cached(
         Effect.gen(function* () {
-          const client = yield* database.client;
+          const client = yield* database.client.pipe(
+            Effect.mapError(
+              (cause) =>
+                new AuthInitializationError({
+                  operation: "connect",
+                  cause,
+                }),
+            ),
+          );
           return yield* Effect.try({
             try: () =>
               buildAuth(client, {
@@ -201,7 +212,11 @@ export class Auth extends Context.Service<Auth, AuthShape>()(
                 now: () => new Date(clock.currentTimeMillisUnsafe()),
                 cloudSocialProviders: config.cloudSocialProviders,
               }),
-            catch: (cause) => new AuthInitializationError({ cause }),
+            catch: (cause) =>
+              new AuthInitializationError({
+                operation: "initialize",
+                cause,
+              }),
           });
         }),
       );

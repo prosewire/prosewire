@@ -1,6 +1,6 @@
-import { Schema } from "effect";
 import { contentHeadings, sanitizeRenderedHtml } from "@prosewire/core";
 import type * as databaseSchema from "@prosewire/db/schema";
+import { Schema } from "effect";
 import {
   ApiKeyId,
   AuditLogId,
@@ -242,6 +242,8 @@ export const toBlog = (row: BlogRow) =>
     slug: BlogSlug.make(row.slug),
   });
 
+export const decodeBlog = (row: BlogRow) => Schema.decodeEffect(Blog)(row);
+
 export const toWorkspace = (
   row: typeof databaseSchema.organization.$inferSelect,
 ) =>
@@ -250,6 +252,10 @@ export const toWorkspace = (
     id: OrganizationId.make(row.id),
     slug: OrganizationSlug.make(row.slug),
   });
+
+export const decodeWorkspace = (
+  row: typeof databaseSchema.organization.$inferSelect,
+) => Schema.decodeEffect(Workspace)(row);
 
 export const toAuthor = (row: AuthorRow) =>
   new Author({

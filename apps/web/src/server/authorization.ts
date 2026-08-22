@@ -1,29 +1,23 @@
-import { and, asc, eq } from "drizzle-orm";
-import { Context, Effect, Layer, Schema } from "effect";
 import {
+  type TeamRole as CoreTeamRole,
   canUpdatePost,
   hasPermission,
   isTeamRole,
   type Permission,
-  type TeamRole as CoreTeamRole,
 } from "@prosewire/core";
+import type { Db } from "@prosewire/db/client";
 import * as schema from "@prosewire/db/schema";
-import {
-  toBlog,
-  toWorkspace,
-} from "./content-models.ts";
+import { and, asc, eq } from "drizzle-orm";
+import { Context, Effect, Layer, Schema } from "effect";
 import {
   BlogAuthorization,
   DashboardContext,
   WorkspaceAuthorization,
 } from "./authorization-models.ts";
-import { Database, type DatabaseError } from "./database.ts";
-import {
-  BlogId,
-  MemberId,
-  OrganizationId,
-  UserId,
-} from "./domain.ts";
+import { decodeBlog, decodeWorkspace } from "./content-models.ts";
+import { Database } from "./database.ts";
+import { BlogId, MemberId, OrganizationId, UserId } from "./domain.ts";
+import { operationError } from "./operation-error.ts";
 
 export const Capability = Schema.Literals([
   "workspace:update",
@@ -89,6 +83,11 @@ export class NoPublicationAvailable extends Schema.TaggedError<NoPublicationAvai
   }
 }
 
+export class PersistenceError extends Schema.TaggedError<PersistenceError>()(
+  "BlogAccessPersistenceError",
+  { operation: Schema.String, cause: Schema.Defect() },
+) {}
+
 export {
   BlogAuthorization,
   DashboardContext,
@@ -96,7 +95,7 @@ export {
 } from "./authorization-models.ts";
 
 export type Error =
-  | DatabaseError
+  | PersistenceError
   | WorkspaceAccessDenied
   | BlogAccessDenied
   | NoWorkspaceAvailable
@@ -109,11 +108,18 @@ function normalizeRole(role: string): CoreTeamRole | undefined {
 
 export const create = Effect.fn("BlogAccess.create")(function* () {
   const database = yield* Database;
+  const persistenceError = operationError(
+    (input) => new PersistenceError(input),
+  );
+  const execute = <A>(
+    operation: string,
+    evaluate: (client: Db) => PromiseLike<A>,
+  ) => database.execute(operation, evaluate).pipe(persistenceError(operation));
 
   const findWorkspaces = Effect.fn("BlogAccess.findWorkspaces")(function* (
     userId: UserId,
   ) {
-    const rows = yield* database.execute("workspace.listAuthorized", (client) =>
+    const rows = yield* execute("workspace.listAuthorized", (client) =>
       client
         .select({
           workspace: schema.organization,
@@ -128,18 +134,23 @@ export const create = Effect.fn("BlogAccess.create")(function* () {
         .where(eq(schema.member.userId, userId))
         .orderBy(asc(schema.organization.name)),
     );
-    return rows.flatMap((row) => {
-      const role = normalizeRole(row.role);
-      return role
-        ? [
-            new WorkspaceAuthorization({
-              workspace: toWorkspace(row.workspace),
-              memberId: MemberId.make(row.memberId),
-              role,
-            }),
-          ]
-        : [];
-    });
+    const decoded = yield* Effect.forEach(rows, (row) =>
+      Effect.gen(function* () {
+        const role = normalizeRole(row.role);
+        if (!role) return undefined;
+        const workspace = yield* decodeWorkspace(row.workspace).pipe(
+          persistenceError("workspace.decodeAuthorized"),
+        );
+        return new WorkspaceAuthorization({
+          workspace,
+          memberId: MemberId.make(row.memberId),
+          role,
+        });
+      }),
+    );
+    return decoded.filter(
+      (entry): entry is WorkspaceAuthorization => entry !== undefined,
+    );
   });
 
   const findWorkspace = Effect.fn("BlogAccess.findWorkspace")(function* (
@@ -147,16 +158,14 @@ export const create = Effect.fn("BlogAccess.create")(function* () {
     userId: UserId,
   ) {
     const workspaces = yield* findWorkspaces(userId);
-    return workspaces.find(
-      (entry) => entry.workspace.id === organizationId,
-    );
+    return workspaces.find((entry) => entry.workspace.id === organizationId);
   });
 
   const findBlog = Effect.fn("BlogAccess.findBlog")(function* (
     blogId: BlogId,
     userId: UserId,
   ) {
-    const rows = yield* database.execute("publication.findAuthorized", (client) =>
+    const rows = yield* execute("publication.findAuthorized", (client) =>
       client
         .select({
           blog: schema.blog,
@@ -180,14 +189,21 @@ export const create = Effect.fn("BlogAccess.create")(function* () {
     );
     const row = rows[0];
     const role = row ? normalizeRole(row.role) : undefined;
-    return row && role
-      ? new BlogAuthorization({
-          blog: toBlog(row.blog),
-          workspace: toWorkspace(row.workspace),
-          memberId: MemberId.make(row.memberId),
-          role,
-        })
-      : undefined;
+    if (!row || !role) return undefined;
+    const { blog, workspace } = yield* Effect.all({
+      blog: decodeBlog(row.blog).pipe(
+        persistenceError("publication.decodeAuthorized"),
+      ),
+      workspace: decodeWorkspace(row.workspace).pipe(
+        persistenceError("workspace.decodeAuthorized"),
+      ),
+    });
+    return new BlogAuthorization({
+      blog,
+      workspace,
+      memberId: MemberId.make(row.memberId),
+      role,
+    });
   });
 
   const requireWorkspaceCapability = Effect.fnUntraced(function* (
@@ -240,51 +256,51 @@ export const create = Effect.fn("BlogAccess.create")(function* () {
     return authorization;
   });
 
-  const dashboardContext = Effect.fn("BlogAccess.dashboardContext")(
-    function* (
-      userId: UserId,
-      preferredOrganizationId?: OrganizationId,
-      preferredBlogId?: BlogId,
-    ) {
-      const authorizations = yield* findWorkspaces(userId);
-      const selected =
-        authorizations.find(
-          (entry) => entry.workspace.id === preferredOrganizationId,
-        ) ?? authorizations[0];
-      if (!selected) return yield* new NoWorkspaceAvailable({ userId });
-      if (!hasPermission(selected.role, "content:read")) {
-        return yield* new WorkspaceAccessDenied({
-          organizationId: selected.workspace.id,
-          userId,
-          capability: "content:read",
-        });
-      }
-      const rows = yield* database.execute("publication.listForWorkspace", (client) =>
-        client.query.blog.findMany({
-          where: eq(schema.blog.organizationId, selected.workspace.id),
-          orderBy: [asc(schema.blog.name)],
-        }),
-      );
-      const publications = rows.map(toBlog);
-      const publication =
-        publications.find((entry) => entry.id === preferredBlogId) ??
-        publications[0];
-      if (!publication) {
-        return yield* new NoPublicationAvailable({
-          organizationId: selected.workspace.id,
-        });
-      }
-      return new DashboardContext({
+  const dashboardContext = Effect.fn("BlogAccess.dashboardContext")(function* (
+    userId: UserId,
+    preferredOrganizationId?: OrganizationId,
+    preferredBlogId?: BlogId,
+  ) {
+    const authorizations = yield* findWorkspaces(userId);
+    const selected =
+      authorizations.find(
+        (entry) => entry.workspace.id === preferredOrganizationId,
+      ) ?? authorizations[0];
+    if (!selected) return yield* new NoWorkspaceAvailable({ userId });
+    if (!hasPermission(selected.role, "content:read")) {
+      return yield* new WorkspaceAccessDenied({
+        organizationId: selected.workspace.id,
         userId,
-        workspace: selected.workspace,
-        workspaces: authorizations.map((entry) => entry.workspace),
-        publication,
-        publications,
-        memberId: selected.memberId,
-        role: selected.role,
+        capability: "content:read",
       });
-    },
-  );
+    }
+    const rows = yield* execute("publication.listForWorkspace", (client) =>
+      client.query.blog.findMany({
+        where: eq(schema.blog.organizationId, selected.workspace.id),
+        orderBy: [asc(schema.blog.name)],
+      }),
+    );
+    const publications = yield* Effect.forEach(rows, (row) =>
+      decodeBlog(row).pipe(persistenceError("publication.decodeForWorkspace")),
+    );
+    const publication =
+      publications.find((entry) => entry.id === preferredBlogId) ??
+      publications[0];
+    if (!publication) {
+      return yield* new NoPublicationAvailable({
+        organizationId: selected.workspace.id,
+      });
+    }
+    return new DashboardContext({
+      userId,
+      workspace: selected.workspace,
+      workspaces: authorizations.map((entry) => entry.workspace),
+      publication,
+      publications,
+      memberId: selected.memberId,
+      role: selected.role,
+    });
+  });
 
   return {
     findWorkspaces,
@@ -333,9 +349,10 @@ export const create = Effect.fn("BlogAccess.create")(function* () {
       (blogId: BlogId, userId: UserId) =>
         requireBlogCapability(blogId, userId, "integrations:read"),
     ),
-    requireIntegrationsManage: Effect.fn("BlogAccess.requireIntegrationsManage")(
-      (blogId: BlogId, userId: UserId) =>
-        requireBlogCapability(blogId, userId, "integrations:manage"),
+    requireIntegrationsManage: Effect.fn(
+      "BlogAccess.requireIntegrationsManage",
+    )((blogId: BlogId, userId: UserId) =>
+      requireBlogCapability(blogId, userId, "integrations:manage"),
     ),
     requirePublicationUpdate: Effect.fn("BlogAccess.requirePublicationUpdate")(
       (blogId: BlogId, userId: UserId) =>
@@ -366,6 +383,9 @@ export class Service extends Context.Service<Service, Interface>()(
   "@prosewire/web/BlogAccess",
 ) {}
 
-export const layer = Layer.effect(Service, create().pipe(Effect.map(Service.of)));
+export const layer = Layer.effect(
+  Service,
+  create().pipe(Effect.map(Service.of)),
+);
 
 export * as BlogAccess from "./authorization";
