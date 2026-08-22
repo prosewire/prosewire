@@ -1,4 +1,5 @@
 import Image from "next/image";
+import prosewireMarkDark from "@/assets/prosewire-mark-on-dark.svg";
 import prosewireMark from "@/assets/prosewire-mark-on-light.svg";
 import { cn } from "@/lib/cn";
 
@@ -16,11 +17,18 @@ export function Logo({
         className,
       )}
     >
-      <Image
-        src={prosewireMark}
-        alt={compact ? "Prosewire" : ""}
-        className="size-8 shrink-0"
-      />
+      <span className="relative size-8 shrink-0">
+        <Image
+          src={prosewireMark}
+          alt={compact ? "Prosewire" : ""}
+          className="theme-logo-light size-full"
+        />
+        <Image
+          src={prosewireMarkDark}
+          alt=""
+          className="theme-logo-dark absolute inset-0 size-full"
+        />
+      </span>
       {compact ? null : <span>Prosewire</span>}
     </span>
   );

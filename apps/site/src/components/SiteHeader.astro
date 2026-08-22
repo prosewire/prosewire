@@ -1,10 +1,15 @@
 ---
+import ThemeToggle from "./ThemeToggle.astro";
+
 const { compact = false } = Astro.props;
 ---
 
 <header class:list={["topbar", { "topbar-compact": compact }]}>
   <a class="brand" href="/" aria-label="Prosewire home">
-    <img src="/icon.png" alt="" width="31" height="31" />
+    <span class="theme-logo" aria-hidden="true">
+      <img class="theme-logo-light" src="/icon.png" alt="" width="31" height="31" />
+      <img class="theme-logo-dark" src="/icon-dark.png" alt="" width="31" height="31" />
+    </span>
     <span>Prosewire</span>
   </a>
   <nav class="nav-links" aria-label="Main navigation">
@@ -12,5 +17,6 @@ const { compact = false } = Astro.props;
     <a href="/docs/">Docs</a>
     <a href="https://github.com/prosewire/prosewire">GitHub</a>
   </nav>
+  <ThemeToggle />
   <a class="nav-cta" href="/docs/getting-started/">Run locally <span aria-hidden="true">↗</span></a>
 </header>
