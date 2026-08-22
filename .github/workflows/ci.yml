@@ -88,10 +88,10 @@ jobs:
         if: needs.classify.outputs.base_sha != ''
         env:
           BIOME_BASE_SHA: ${{ needs.classify.outputs.base_sha }}
-        run: pnpm exec biome ci --changed --since="$BIOME_BASE_SHA"
+        run: pnpm exec biome ci --changed --since="$BIOME_BASE_SHA" --no-errors-on-unmatched
       - name: Check manually dispatched branch changes with Biome
         if: needs.classify.outputs.base_sha == ''
-        run: pnpm exec biome ci --changed --since=origin/main
+        run: pnpm exec biome ci --changed --since=origin/main --no-errors-on-unmatched
       - name: Lint workflows
         if: needs.classify.outputs.full_quality == 'true'
         run: pnpm lint:workflows
