@@ -7,9 +7,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import prosewireIconDark from "@/assets/prosewire-mark-on-dark.svg";
 import prosewireIcon from "@/assets/prosewire-mark-on-light.svg";
 import { signIn } from "@/lib/auth-client";
 import type { SocialProviderId } from "@/lib/auth-providers";
+import { ThemeToggle } from "./theme-toggle";
 
 const providerDetails = {
   google: { label: "Google", Icon: SiGoogle },
@@ -63,19 +65,25 @@ export function SignInForm({
 
   return (
     <main className="noise grid min-h-svh place-items-center overflow-hidden bg-[#f4f3ed] px-5 py-10 sm:py-14">
+      <ThemeToggle className="fixed right-4 top-4 z-20 sm:right-6 sm:top-6" />
       <section
         className="relative z-10 w-full max-w-[436px]"
         aria-label="Sign in to Prosewire"
       >
         <div className="flex items-center gap-3.5 sm:gap-4">
-          <Image
-            src={prosewireIcon}
-            alt=""
-            width={60}
-            height={60}
-            priority
-            className="size-[60px] shrink-0 sm:size-[100px]"
-          />
+          <span className="relative size-[60px] shrink-0 sm:size-[100px]">
+            <Image
+              src={prosewireIcon}
+              alt=""
+              priority
+              className="theme-logo-light size-full"
+            />
+            <Image
+              src={prosewireIconDark}
+              alt=""
+              className="theme-logo-dark absolute inset-0 size-full"
+            />
+          </span>
           <span className="display-font text-[2.7rem] leading-none tracking-[-.045em] sm:text-[4.75rem]">
             Prosewire
           </span>
