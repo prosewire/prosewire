@@ -37,13 +37,15 @@ Do not assume support on one surface implies support elsewhere. Prefer shared im
 
 ## Domain invariants
 
-Test the complete content flow across:
+For changes to content lifecycle, discovery, or public delivery, identify the affected cases from:
 
 - Draft, scheduled, published, archived, and restored posts
 - Slug creation, redirects, canonical URLs, search, RSS, sitemap, and JSON-LD
 - Authors, categories, localization, snippets, related posts, and pinned posts
 - Raw API, rendered API, JavaScript embed, SDK, CLI, and MCP
 - First requests, retries, concurrent edits, and failed transactions
+
+Test each affected behavior and invariant. Do not test every combination by default. Run the complete cross-surface matrix only for release readiness or when the user requests it.
 
 The following rules apply globally:
 
@@ -88,12 +90,12 @@ A release is incomplete until the published artifact and its public surface have
 <!-- effect-solutions:start -->
 ## Effect architecture
 
-**IMPORTANT:** Consult `effect-solutions` before writing or changing Effect code. This repository uses Effect 4 RC APIs; do not rely on remembered Effect 3 patterns.
+**IMPORTANT:** Consult `effect-solutions` before writing or changing Effect code when the command is installed. This repository uses Effect 4 RC APIs; do not rely on remembered Effect 3 patterns.
 
-1. Run `effect-solutions list`.
-2. Run `effect-solutions show <topic>...` for every relevant topic. At minimum, use `services-and-layers`, `data-modeling`, `error-handling`, and `testing` for application work.
-3. Search `~/.local/share/effect-solutions/effect` for current implementations and type definitions when the guides are insufficient.
-4. Use the opencode repository as an application-architecture reference, then verify every API against the installed Effect version.
+1. Check for the tool with `command -v effect-solutions`.
+2. When available, run `effect-solutions list`, then `effect-solutions show <topic>...` for every relevant topic. At minimum, use `services-and-layers`, `data-modeling`, `error-handling`, and `testing` for application work.
+3. When the guides are insufficient, inspect the implementation and type definitions for the exact Effect version pinned by this repository. Locate the package through the workspace package manager instead of assuming a user-specific path.
+4. If `effect-solutions` is unavailable, do not block the task. Use the pinned package source, its type definitions, and existing repository code, then verify the result with the relevant tests and typecheck.
 
 Available topics include `quick-start`, `project-setup`, `tsconfig`, `basics`, `services-and-layers`, `data-modeling`, `error-handling`, `config`, `testing`, and `cli`.
 
@@ -119,9 +121,23 @@ Available topics include `quick-start`, `project-setup`, `tsconfig`, `basics`, `
 ### Testing and review
 
 - Test service behavior by providing test Layers or `Layer.mock`; test transport adapters separately. Assert domain errors and capabilities, not implementation helpers. Never use real sleeps when `TestClock` can control time.
-- Before finishing, run the relevant typecheck, lint, and tests, then audit boundaries with searches equivalent to:
-  - `rg "from ['\\\"]effect['\\\"]|Effect\\.|Layer\\.|ManagedRuntime" apps/web/src/app apps/web/src/components`
-  - `rg 'ManagedRuntime.make|Effect.runPromise' apps/web/src apps/worker/src`
-  - `rg 'Request|Response|Headers|FormData' apps/web/src/server`
-- Treat unexpected matches as architectural findings and either fix them or document why the file is an intentional runtime or transport boundary.
+- Before finishing, run the relevant typecheck, lint, and tests, then run these boundary audits. Each command should exit successfully without printing a match:
+
+  ```bash
+  ! rg "from ['\\\"]effect['\\\"]|Effect\\.|Layer\\.|ManagedRuntime" apps/web/src/app apps/web/src/components
+  ! rg 'ManagedRuntime.make|Effect.runPromise' apps/web/src apps/worker/src \
+    -g '!**/*.test.ts' \
+    -g '!apps/web/src/server/app-runtime.ts' \
+    -g '!apps/web/src/server/bootstrap-runtime.ts' \
+    -g '!apps/worker/src/app-runtime.ts' \
+    -g '!apps/worker/src/migrate.ts'
+  ! rg 'Request|Response|Headers|FormData' apps/web/src/server \
+    -g '!**/*.test.ts' \
+    -g '!actions.ts' \
+    -g '!api-entrypoints.ts' \
+    -g '!http-entrypoints.ts' \
+    -g '!router.ts'
+  ```
+
+- If a new intentional runtime or transport adapter needs an exception, add its exact path to the audit command in the same change. Treat every other match as an architectural finding.
 <!-- effect-solutions:end -->
