@@ -12,6 +12,7 @@ import {
   resolveProjectRoot,
   scaffold,
 } from "./index.ts";
+import { version } from "./version.ts";
 
 vi.mock("node:child_process", () => ({
   spawnSync: vi.fn(() => ({ status: 0 })),
@@ -101,7 +102,7 @@ describe("create-prosewire", () => {
     const manifest = JSON.parse(
       await readFile(join(root, "package.json"), "utf8"),
     );
-    expect(manifest.dependencies["@prosewire/next"]).toBe("^0.2.1");
+    expect(manifest.dependencies["@prosewire/next"]).toBe(`^${version}`);
   });
 
   it("detects Astro server output and writes layout-friendly pages", async () => {
@@ -219,7 +220,7 @@ describe("create-prosewire", () => {
     const rootManifest = JSON.parse(
       await readFile(join(root, "package.json"), "utf8"),
     );
-    expect(appManifest.dependencies["@prosewire/next"]).toBe("^0.2.1");
+    expect(appManifest.dependencies["@prosewire/next"]).toBe(`^${version}`);
     expect(rootManifest.dependencies).toBeUndefined();
     await expect(
       readFile(join(appRoot, "src", "app", "blog", "page.tsx"), "utf8"),
