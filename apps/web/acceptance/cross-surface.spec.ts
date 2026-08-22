@@ -78,18 +78,9 @@ function toolJson(result: unknown): unknown {
 
 test.describe
   .serial("Postgres-backed cross-surface content matrix", () => {
-    test("routes guests from the root to sign in and authenticated users to the dashboard", async ({
-      page,
-    }) => {
+    test("routes guests from the root to sign in", async ({ page }) => {
       await page.goto("/");
       await expect(page).toHaveURL(/\/sign-in$/);
-
-      await signIn(page, acceptance.owner.email, {
-        navigate: false,
-        expectedPath: "/dashboard",
-      });
-      await page.goto("/");
-      await expect(page).toHaveURL(/\/dashboard$/);
     });
 
     test("public raw, rendered, browser, embed, RSS, and sitemap expose only due published content", async ({
@@ -411,6 +402,9 @@ test.describe
           ownerContext,
           acceptance.owner.email,
         );
+        await owner.goto("/");
+        await expect(owner).toHaveURL(/\/dashboard$/);
+        await owner.goto("/posts");
         await expect(
           owner.getByRole("link", { name: "New post" }),
         ).toBeVisible();
