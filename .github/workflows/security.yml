@@ -9,15 +9,12 @@ concurrency:
 
 on:
   workflow_dispatch:
-  pull_request:
-  push:
-    branches: [main]
   schedule:
     - cron: "17 3 * * 1"
 
 jobs:
   secret-history:
-    name: Secret history
+    name: Scheduled secret history
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -28,7 +25,7 @@ jobs:
       - run: scripts/secret-scan.sh
 
   lockfile-audit:
-    name: Lockfile dependency audit
+    name: Scheduled lockfile dependency audit
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

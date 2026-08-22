@@ -1,9 +1,14 @@
 name: Release packages
 
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Commit SHA that passed every CI and security gate
+        required: true
+      run_id:
+        description: CI run that tested the commit
+        required: true
 
 permissions: {}
 
@@ -13,22 +18,50 @@ concurrency:
 
 jobs:
   mode:
-    if: >-
-      github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_branch == 'main' &&
-      github.event.workflow_run.conclusion == 'success'
+    name: Select package release mode
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
+      actions: read # Verify the originating CI run completed successfully.
       contents: read
     outputs:
       mode: ${{ steps.changesets.outputs.mode }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ inputs.sha }}
           fetch-depth: 0
           persist-credentials: false
+      - name: Validate tested release source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TESTED_RUN_ID: ${{ inputs.run_id }}
+          TESTED_SHA: ${{ inputs.sha }}
+        run: |
+          if [[ ! "$TESTED_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "sha must be a full 40-character commit SHA" >&2
+            exit 1
+          fi
+          if [[ ! "$TESTED_RUN_ID" =~ ^[0-9]+$ ]]; then
+            echo "run_id must be a GitHub Actions run ID" >&2
+            exit 1
+          fi
+          test "$(git rev-parse HEAD)" = "$TESTED_SHA"
+          git fetch origin main:refs/remotes/origin/main
+          test "$TESTED_SHA" = "$(git rev-parse origin/main)"
+          run="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$TESTED_RUN_ID")"
+          test "$(jq -r .event <<<"$run")" = "push"
+          test "$(jq -r .head_branch <<<"$run")" = "main"
+          test "$(jq -r .head_sha <<<"$run")" = "$TESTED_SHA"
+          test "$(jq -r .path <<<"$run")" = ".github/workflows/ci.yml"
+          jobs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$TESTED_RUN_ID/jobs?per_page=100")"
+          for required in "CI quality" "CI integration" "Secret history" "Lockfile dependency audit"; do
+            conclusion="$(jq -r --arg name "$required" '.jobs[] | select(.name == $name) | .conclusion' <<<"$jobs")"
+            if [ "$conclusion" != "success" ]; then
+              echo "$required did not succeed in CI run $TESTED_RUN_ID" >&2
+              exit 1
+            fi
+          done
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -40,18 +73,19 @@ jobs:
         uses: changesets/action/select-mode@8488615a623b1b9c987934bb89eae8af6a946ac1 # v2.1.1
 
   version:
+    name: Create package version PR
     needs: mode
     if: needs.mode.outputs.mode == 'version'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
-      actions: write
-      contents: write
-      pull-requests: write
+      actions: write # Dispatch checks for a GITHUB_TOKEN-authored version PR.
+      contents: write # Commit the generated package versions to the PR branch.
+      pull-requests: write # Create or update the package version PR.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ inputs.sha }}
           fetch-depth: 0
           persist-credentials: false
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
@@ -75,16 +109,16 @@ jobs:
         run: |
           branch="$(gh pr view "$PR_NUMBER" --json headRefName --jq .headRefName)"
           gh workflow run ci.yml --ref "$branch"
-          gh workflow run security.yml --ref "$branch"
 
   publish:
+    name: Publish npm packages
     needs: mode
     if: needs.mode.outputs.mode == 'publish'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
-      id-token: write
+      id-token: write # Authenticate to npm through trusted publishing.
     outputs:
       published: ${{ steps.changesets.outputs.published }}
       published-packages: ${{ steps.changesets.outputs.published-packages }}
@@ -93,7 +127,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ inputs.sha }}
           fetch-depth: 0
           persist-credentials: false
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
@@ -111,6 +145,7 @@ jobs:
           push-git-tags: false
 
   verify:
+    name: Verify published npm packages
     needs: publish
     if: needs.publish.outputs.published == 'true'
     runs-on: ubuntu-latest
@@ -122,7 +157,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ inputs.sha }}
           persist-credentials: false
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0

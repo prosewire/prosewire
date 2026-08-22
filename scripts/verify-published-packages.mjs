@@ -33,9 +33,7 @@ for (const item of published) {
   const url = `https://registry.npmjs.org/${encodeURIComponent(item.name)}/${item.version}`;
   let metadata;
   for (let attempt = 1; attempt <= 12; attempt += 1) {
-    const response = await fetch(url, {
-      headers: { accept: "application/vnd.npm.install-v1+json" },
-    });
+    const response = await fetch(url);
     if (response.ok) {
       metadata = await response.json();
       break;

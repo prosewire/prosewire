@@ -45,6 +45,29 @@ function capture(command, args, options = {}) {
   return result.stdout;
 }
 
+function assertCaretAccepts(range, version, packageName) {
+  assert.match(range, /^\^\d+\.\d+\.\d+$/);
+  const [rangeMajor, rangeMinor, rangePatch] = range
+    .slice(1)
+    .split(".")
+    .map(Number);
+  const [major, minor, patch] = version.split(".").map(Number);
+  const atLeastMinimum =
+    major > rangeMajor ||
+    (major === rangeMajor && minor > rangeMinor) ||
+    (major === rangeMajor && minor === rangeMinor && patch >= rangePatch);
+  const beforeUpperBound =
+    rangeMajor > 0
+      ? major === rangeMajor
+      : rangeMinor > 0
+        ? major === 0 && minor === rangeMinor
+        : major === 0 && minor === 0 && patch === rangePatch;
+  assert.ok(
+    atLeastMinimum && beforeUpperBound,
+    `${packageName} dependency ${range} does not accept @prosewire/sdk@${version}`,
+  );
+}
+
 const packages = [
   ["sdk", "@prosewire/sdk"],
   ["cli", "@prosewire/cli"],
@@ -233,21 +256,25 @@ createProsewire({ ...options });
   }
 
   const sdkVersion = manifests.get("@prosewire/sdk").version;
-  assert.equal(
+  assertCaretAccepts(
     manifests.get("@prosewire/cli").dependencies["@prosewire/sdk"],
-    `^${sdkVersion}`,
+    sdkVersion,
+    "@prosewire/cli",
   );
-  assert.equal(
+  assertCaretAccepts(
     manifests.get("@prosewire/mcp").dependencies["@prosewire/sdk"],
-    `^${sdkVersion}`,
+    sdkVersion,
+    "@prosewire/mcp",
   );
-  assert.equal(
+  assertCaretAccepts(
     manifests.get("@prosewire/next").dependencies["@prosewire/sdk"],
-    `^${sdkVersion}`,
+    sdkVersion,
+    "@prosewire/next",
   );
-  assert.equal(
+  assertCaretAccepts(
     manifests.get("@prosewire/astro").dependencies["@prosewire/sdk"],
-    `^${sdkVersion}`,
+    sdkVersion,
+    "@prosewire/astro",
   );
 
   const sdkDeclarations = await readFile(
