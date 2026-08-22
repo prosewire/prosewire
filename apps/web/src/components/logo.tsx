@@ -1,4 +1,5 @@
-import { BookOpenText } from "@phosphor-icons/react/ssr";
+import Image from "next/image";
+import prosewireMark from "@/assets/prosewire-mark-on-light.svg";
 import { cn } from "@/lib/cn";
 
 export function Logo({
@@ -15,9 +16,11 @@ export function Logo({
         className,
       )}
     >
-      <span className="grid size-8 place-items-center rounded-[10px] bg-[#172329] text-white shadow-sm">
-        <BookOpenText className="size-4" weight="bold" />
-      </span>
+      <Image
+        src={prosewireMark}
+        alt={compact ? "Prosewire" : ""}
+        className="size-8 shrink-0"
+      />
       {compact ? null : <span>Prosewire</span>}
     </span>
   );
