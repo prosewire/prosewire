@@ -11,22 +11,39 @@
   --green: #1f6e52;
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 
-html { scroll-behavior: smooth; }
+html {
+  scroll-behavior: smooth;
+}
 
 body {
   margin: 0;
   background: var(--paper);
   color: var(--ink);
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
-button, input, textarea, select { font: inherit; }
-a { color: inherit; text-decoration: none; }
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+a {
+  color: inherit;
+  text-decoration: none;
+}
 
-::selection { background: #fed0bf; color: #172329; }
+::selection {
+  background: #fed0bf;
+  color: #172329;
+}
 
 .display-font {
   font-family: Georgia, "Times New Roman", serif;
@@ -38,6 +55,33 @@ a { color: inherit; text-decoration: none; }
     linear-gradient(to right, rgb(23 35 41 / 0.035) 1px, transparent 1px),
     linear-gradient(to bottom, rgb(23 35 41 / 0.035) 1px, transparent 1px);
   background-size: 32px 32px;
+}
+
+.marketing-grid {
+  background-image:
+    linear-gradient(to right, rgb(24 24 27 / 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(24 24 27 / 0.035) 1px, transparent 1px);
+  background-position: center top;
+  background-size: 28px 28px;
+}
+
+.marketing-glow {
+  background:
+    radial-gradient(circle at 34% 12%, rgb(239 104 72 / 0.12), transparent 28%),
+    radial-gradient(circle at 66% 8%, rgb(124 58 237 / 0.1), transparent 30%),
+    linear-gradient(to bottom, rgb(251 251 252 / 0.15), #fbfbfc 78%);
+}
+
+.marketing-cta-grid {
+  background-image:
+    linear-gradient(to right, rgb(255 255 255 / 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(255 255 255 / 0.04) 1px, transparent 1px),
+    radial-gradient(circle at 50% 0%, rgb(239 104 72 / 0.22), transparent 45%);
+  background-size:
+    28px 28px,
+    28px 28px,
+    100% 100%;
+  opacity: 0.55;
 }
 
 .noise {
@@ -57,7 +101,9 @@ a { color: inherit; text-decoration: none; }
   border: 1px solid var(--line);
   border-radius: 18px;
   background: var(--surface);
-  box-shadow: 0 1px 0 rgb(23 35 41 / 0.03), 0 12px 36px rgb(23 35 41 / 0.035);
+  box-shadow:
+    0 1px 0 rgb(23 35 41 / 0.03),
+    0 12px 36px rgb(23 35 41 / 0.035);
 }
 
 .pw-prose {
@@ -76,16 +122,55 @@ a { color: inherit; text-decoration: none; }
   margin: 2.4em 0 0.8em;
 }
 
-.pw-prose h2 { font-size: 1.7rem; }
-.pw-prose h3 { font-size: 1.3rem; }
-.pw-prose p, .pw-prose ul, .pw-prose ol, .pw-prose blockquote { margin: 1.25em 0; }
-.pw-prose a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
-.pw-prose img { border-radius: 14px; max-width: 100%; height: auto; }
-.pw-prose blockquote { border-left: 3px solid var(--accent); padding-left: 1.4rem; color: #586469; }
-.pw-prose code { border-radius: 5px; background: #ebece7; padding: 0.15em 0.35em; font-family: ui-monospace, monospace; font-size: 0.88em; }
-.pw-prose pre { overflow-x: auto; border-radius: 14px; background: #172329; color: #f7f4ec; padding: 1.2rem; }
-.pw-prose pre code { background: none; padding: 0; }
+.pw-prose h2 {
+  font-size: 1.7rem;
+}
+.pw-prose h3 {
+  font-size: 1.3rem;
+}
+.pw-prose p,
+.pw-prose ul,
+.pw-prose ol,
+.pw-prose blockquote {
+  margin: 1.25em 0;
+}
+.pw-prose a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.pw-prose img {
+  border-radius: 14px;
+  max-width: 100%;
+  height: auto;
+}
+.pw-prose blockquote {
+  border-left: 3px solid var(--accent);
+  padding-left: 1.4rem;
+  color: #586469;
+}
+.pw-prose code {
+  border-radius: 5px;
+  background: #ebece7;
+  padding: 0.15em 0.35em;
+  font-family: ui-monospace, monospace;
+  font-size: 0.88em;
+}
+.pw-prose pre {
+  overflow-x: auto;
+  border-radius: 14px;
+  background: #172329;
+  color: #f7f4ec;
+  padding: 1.2rem;
+}
+.pw-prose pre code {
+  background: none;
+  padding: 0;
+}
 
 @media (max-width: 767px) {
-  .pw-prose { font-size: 1rem; line-height: 1.75; }
+  .pw-prose {
+    font-size: 1rem;
+    line-height: 1.75;
+  }
 }
