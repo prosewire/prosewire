@@ -5,7 +5,7 @@ import { access, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { runCli } from "./cli.ts";
-import { version } from "./version.ts";
+import { frameworkVersions } from "./version.ts";
 
 type Framework = "next-app" | "next-pages" | "astro-static" | "astro-server";
 
@@ -410,7 +410,7 @@ export async function scaffold(options: ScaffoldOptions) {
     : "@prosewire/astro";
   const dependencies = {
     ...manifest.dependencies,
-    [packageName]: `^${version}`,
+    [packageName]: `^${frameworkVersions[packageName]}`,
   };
   await writeFile(
     manifestPath,
