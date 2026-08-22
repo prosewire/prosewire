@@ -9,13 +9,63 @@ concurrency:
 
 on:
   workflow_dispatch:
+    inputs:
+      version_pr:
+        description: Version PR number supplied by trusted release automation
+        required: false
   pull_request:
   push:
     branches: [main]
 
 jobs:
+  classify:
+    name: Classify changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read # Validate an automated Changesets version-PR dispatch.
+    outputs:
+      base_sha: ${{ steps.changes.outputs.base_sha }}
+      head_sha: ${{ steps.changes.outputs.head_sha }}
+      dependency_audit: ${{ steps.changes.outputs.dependency_audit }}
+      edge_image: ${{ steps.changes.outputs.edge_image }}
+      full_quality: ${{ steps.changes.outputs.full_quality }}
+      integration: ${{ steps.changes.outputs.integration }}
+      package_release: ${{ steps.changes.outputs.package_release }}
+      package_smoke: ${{ steps.changes.outputs.package_smoke }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Classify the event SHA range
+        id: changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+          GH_TOKEN: ${{ inputs.version_pr != '' && github.token || '' }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          VERSION_PR: ${{ inputs.version_pr || '' }}
+        run: |
+          event_name="$GITHUB_EVENT_NAME"
+          if [ -n "$VERSION_PR" ]; then
+            test "$event_name" = "workflow_dispatch"
+            [[ "$VERSION_PR" =~ ^[0-9]+$ ]]
+            pull="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$VERSION_PR")"
+            test "$(jq -r .state <<<"$pull")" = "open"
+            test "$(jq -r .base.ref <<<"$pull")" = "main"
+            test "$(jq -r .head.repo.full_name <<<"$pull")" = "$GITHUB_REPOSITORY"
+            test "$(jq -r .head.sha <<<"$pull")" = "$GITHUB_SHA"
+            BASE_SHA="$(jq -r .base.sha <<<"$pull")"
+            HEAD_SHA="$(jq -r .head.sha <<<"$pull")"
+            event_name="pull_request"
+          fi
+          node scripts/ci-change-classifier.mjs \
+            "$event_name" "$BASE_SHA" "$HEAD_SHA" "$GITHUB_OUTPUT"
+
   quality:
     name: CI quality
+    needs: classify
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -28,22 +78,53 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: turbo-${{ runner.os }}-
       - run: pnpm install --frozen-lockfile
+      - name: Check all files with Biome
+        if: needs.classify.outputs.full_quality == 'true'
+        run: pnpm exec biome ci .
       - name: Check changed files with Biome
-        if: github.event_name != 'workflow_dispatch'
+        if: needs.classify.outputs.full_quality != 'true'
         env:
-          BIOME_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          BIOME_BASE_SHA: ${{ needs.classify.outputs.base_sha }}
         run: pnpm exec biome ci --changed --since="$BIOME_BASE_SHA"
-      - name: Check version pull request changes with Biome
-        if: github.event_name == 'workflow_dispatch'
-        run: pnpm exec biome ci --changed --since=origin/main
-      - run: pnpm lint:workflows
-      - run: pnpm typecheck
-      - run: pnpm test:coverage
-      - run: pnpm test:packages
+      - name: Lint workflows
+        if: needs.classify.outputs.full_quality == 'true'
+        run: pnpm lint:workflows
+      - name: Test change classification
+        run: node --test scripts/ci-change-classifier.test.mjs
+      - name: Check all workspace types
+        if: needs.classify.outputs.full_quality == 'true'
+        run: pnpm typecheck
+      - name: Check affected workspace types
+        if: needs.classify.outputs.full_quality != 'true'
+        env:
+          TURBO_SCM_BASE: ${{ needs.classify.outputs.base_sha }}
+          TURBO_SCM_HEAD: ${{ needs.classify.outputs.head_sha }}
+        run: pnpm exec turbo run typecheck --affected
+      - name: Test all workspaces with coverage
+        if: needs.classify.outputs.full_quality == 'true'
+        run: pnpm test:coverage
+      - name: Test affected workspaces with coverage
+        if: needs.classify.outputs.full_quality != 'true'
+        env:
+          TURBO_SCM_BASE: ${{ needs.classify.outputs.base_sha }}
+          TURBO_SCM_HEAD: ${{ needs.classify.outputs.head_sha }}
+        run: pnpm exec turbo run test:coverage --affected
+      - name: Smoke-test affected package tarballs
+        if: needs.classify.outputs.package_smoke != ''
+        env:
+          PACKAGE_SMOKE: ${{ needs.classify.outputs.package_smoke }}
+        run: node scripts/package-tarball-smoke.mjs --packages="$PACKAGE_SMOKE"
 
-  integration:
-    name: CI integration
+  runtime-integration:
+    name: Runtime integration
+    needs: [classify, quality]
+    if: needs.classify.outputs.integration == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     services:
@@ -111,6 +192,30 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  integration:
+    name: CI integration
+    needs: [classify, quality, runtime-integration]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Report required integration result
+        env:
+          CLASSIFY_RESULT: ${{ needs.classify.result }}
+          QUALITY_RESULT: ${{ needs.quality.result }}
+          INTEGRATION_REQUIRED: ${{ needs.classify.outputs.integration }}
+          RUNTIME_RESULT: ${{ needs.runtime-integration.result }}
+        run: |
+          test "$CLASSIFY_RESULT" = "success"
+          if [ "$INTEGRATION_REQUIRED" = "true" ]; then
+            test "$QUALITY_RESULT" = "success"
+            test "$RUNTIME_RESULT" = "success"
+            echo "Required runtime integration passed."
+          else
+            test "$RUNTIME_RESULT" = "skipped"
+            echo "Runtime integration was not relevant to this change."
+          fi
+
   secret-history:
     name: Secret history
     runs-on: ubuntu-latest
@@ -124,24 +229,47 @@ jobs:
 
   lockfile-audit:
     name: Lockfile dependency audit
+    needs: classify
+    if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - name: Validate change classification
+        env:
+          CLASSIFY_RESULT: ${{ needs.classify.result }}
+        run: test "$CLASSIFY_RESULT" = "success"
+      - name: Explain skipped dependency audit
+        if: needs.classify.outputs.dependency_audit != 'true'
+        run: echo "Dependency inputs did not change."
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: needs.classify.outputs.dependency_audit == 'true'
         with:
           persist-credentials: false
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        if: needs.classify.outputs.dependency_audit == 'true'
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        if: needs.classify.outputs.dependency_audit == 'true'
         with:
           node-version: 24
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm audit:prod
+      - if: needs.classify.outputs.dependency_audit == 'true'
+        run: pnpm install --frozen-lockfile
+      - if: needs.classify.outputs.dependency_audit == 'true'
+        run: pnpm audit:prod
 
   dispatch-package-release:
     name: Dispatch package release
-    needs: [quality, integration, secret-history, lockfile-audit]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [classify, quality, integration, secret-history, lockfile-audit]
+    if: >-
+      always() &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      needs.classify.outputs.package_release == 'true' &&
+      needs.classify.result == 'success' &&
+      needs.quality.result == 'success' &&
+      needs.integration.result == 'success' &&
+      needs.secret-history.result == 'success' &&
+      needs.lockfile-audit.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -158,8 +286,17 @@ jobs:
 
   edge-image:
     name: Publish edge image
-    needs: [quality, integration, secret-history, lockfile-audit]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [classify, quality, integration, secret-history, lockfile-audit]
+    if: >-
+      always() &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      needs.classify.outputs.edge_image == 'true' &&
+      needs.classify.result == 'success' &&
+      needs.quality.result == 'success' &&
+      needs.integration.result == 'success' &&
+      needs.secret-history.result == 'success' &&
+      needs.lockfile-audit.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     concurrency:

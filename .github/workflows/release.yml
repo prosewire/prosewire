@@ -101,14 +101,19 @@ jobs:
           github-token: ${{ secrets.CHANGESETS_GITHUB_TOKEN || github.token }}
           pr-base-branch: main
           script: pnpm version-packages
-      - name: Run CI for the version pull request
+      - name: Run CI when GitHub suppresses pull request workflows
         if: steps.version.outputs.pr-number != ''
         env:
+          CHANGESETS_TOKEN_CONFIGURED: ${{ secrets.CHANGESETS_GITHUB_TOKEN != '' }}
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ steps.version.outputs.pr-number }}
         run: |
+          if [ "$CHANGESETS_TOKEN_CONFIGURED" = "true" ]; then
+            echo "The configured Changesets token will trigger pull request CI."
+            exit 0
+          fi
           branch="$(gh pr view "$PR_NUMBER" --json headRefName --jq .headRefName)"
-          gh workflow run ci.yml --ref "$branch"
+          gh workflow run ci.yml --ref "$branch" -f version_pr="$PR_NUMBER"
 
   publish:
     name: Publish npm packages

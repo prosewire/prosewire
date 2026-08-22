@@ -15,6 +15,13 @@ const executable = (name) =>
   );
 const npm = join(root, executable("npm"));
 const registryMode = process.argv.includes("--registry");
+const packageArgument = process.argv.find((argument) =>
+  argument.startsWith("--packages="),
+);
+const packageArgumentIndex = process.argv.indexOf("--packages");
+const requestedPackages =
+  packageArgument?.slice("--packages=".length) ??
+  (packageArgumentIndex >= 0 ? process.argv[packageArgumentIndex + 1] : "");
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -68,7 +75,7 @@ function assertCaretAccepts(range, version, packageName) {
   );
 }
 
-const packages = [
+const packageDefinitions = [
   ["sdk", "@prosewire/sdk"],
   ["cli", "@prosewire/cli"],
   ["mcp", "@prosewire/mcp"],
@@ -76,6 +83,33 @@ const packages = [
   ["astro", "@prosewire/astro"],
   ["create-prosewire", "create-prosewire"],
 ];
+const selectedDirectories = new Set(
+  requestedPackages
+    ? requestedPackages.split(",").filter(Boolean)
+    : packageDefinitions.map(([directory]) => directory),
+);
+for (const directory of selectedDirectories) {
+  assert.ok(
+    packageDefinitions.some(([candidate]) => candidate === directory),
+    `Unknown public package directory: ${directory}`,
+  );
+}
+if (
+  ["cli", "mcp", "next", "astro"].some((directory) =>
+    selectedDirectories.has(directory),
+  )
+)
+  selectedDirectories.add("sdk");
+const packages = packageDefinitions.filter(([directory]) =>
+  selectedDirectories.has(directory),
+);
+assert.ok(packages.length > 0, "At least one public package must be selected");
+if (registryMode)
+  assert.equal(
+    packages.length,
+    packageDefinitions.length,
+    "Registry verification must cover every public package",
+  );
 const temporary = await mkdtemp(join(tmpdir(), "prosewire-package-smoke-"));
 const tarballs = join(temporary, "tarballs");
 
@@ -197,41 +231,66 @@ try {
     join(temporary, "package.json"),
     `${JSON.stringify({ private: true, type: "module", dependencies }, null, 2)}\n`,
   );
+  const hasPackage = (name) =>
+    packages.some(([, candidate]) => candidate === name);
+  const javascript = ['import assert from "node:assert/strict";'];
+  const typescript = [];
+  if (hasPackage("@prosewire/sdk")) {
+    javascript.push(
+      'import { createClient, createPublicClient } from "@prosewire/sdk";',
+      'assert.equal(typeof createClient, "function");',
+      'assert.equal(typeof createPublicClient, "function");',
+    );
+    typescript.push(
+      'import { createClient, type Client } from "@prosewire/sdk";',
+      'const client: Client = createClient({ baseUrl: "https://example.com" });',
+    );
+  }
+  if (hasPackage("@prosewire/mcp")) {
+    javascript.push(
+      'import { createProsewireMcpServer } from "@prosewire/mcp/server";',
+      'assert.equal(typeof createProsewireMcpServer, "function");',
+    );
+    typescript.push(
+      'import { createProsewireMcpServer } from "@prosewire/mcp/server";',
+      "createProsewireMcpServer(client);",
+    );
+  }
+  if (hasPackage("@prosewire/next")) {
+    javascript.push(
+      'import { normalizeBasePath as normalizeNextPath } from "@prosewire/next";',
+      'import { createProsewireApp } from "@prosewire/next/app";',
+      'import { createProsewirePages } from "@prosewire/next/pages";',
+      'assert.equal(normalizeNextPath("blog/"), "/blog");',
+      'assert.equal(typeof createProsewireApp, "function");',
+      'assert.equal(typeof createProsewirePages, "function");',
+    );
+    typescript.push(
+      'import { type ProsewireNextOptions } from "@prosewire/next";',
+      'import { createProsewireApp } from "@prosewire/next/app";',
+      'import { createProsewirePages } from "@prosewire/next/pages";',
+      'const options: ProsewireNextOptions = { baseUrl: "https://example.com", publication: "fieldnotes" };',
+      "createProsewireApp(options);",
+      "createProsewirePages(options);",
+    );
+  }
+  if (hasPackage("@prosewire/astro")) {
+    javascript.push(
+      'import { createProsewire as createAstroClient } from "@prosewire/astro";',
+      'assert.equal(typeof createAstroClient, "function");',
+    );
+    typescript.push(
+      'import { createProsewire } from "@prosewire/astro";',
+      'createProsewire({ baseUrl: "https://example.com", publication: "fieldnotes" });',
+    );
+  }
   await writeFile(
     join(temporary, "consumer.mjs"),
-    `import assert from "node:assert/strict";
-import { createClient, createPublicClient } from "@prosewire/sdk";
-import { createProsewireMcpServer } from "@prosewire/mcp/server";
-import { normalizeBasePath as normalizeNextPath } from "@prosewire/next";
-import { createProsewireApp } from "@prosewire/next/app";
-import { createProsewirePages } from "@prosewire/next/pages";
-import { createProsewire as createAstroClient } from "@prosewire/astro";
-
-assert.equal(typeof createClient, "function");
-assert.equal(typeof createPublicClient, "function");
-assert.equal(typeof createProsewireMcpServer, "function");
-assert.equal(normalizeNextPath("blog/"), "/blog");
-assert.equal(typeof createProsewireApp, "function");
-assert.equal(typeof createProsewirePages, "function");
-assert.equal(typeof createAstroClient, "function");
-`,
+    `${javascript.join("\n")}\n`,
   );
   await writeFile(
     join(temporary, "consumer.ts"),
-    `import { createClient, type Client } from "@prosewire/sdk";
-import { createProsewireMcpServer } from "@prosewire/mcp/server";
-import { type ProsewireNextOptions } from "@prosewire/next";
-import { createProsewireApp } from "@prosewire/next/app";
-import { createProsewirePages } from "@prosewire/next/pages";
-import { createProsewire } from "@prosewire/astro";
-
-const client: Client = createClient({ baseUrl: "https://example.com" });
-createProsewireMcpServer(client);
-const options: ProsewireNextOptions = { baseUrl: "https://example.com", publication: "fieldnotes" };
-createProsewireApp(options);
-createProsewirePages(options);
-createProsewire({ ...options });
-`,
+    `${typescript.length > 0 ? typescript.join("\n") : "export {};"}\n`,
   );
 
   run(npm, ["install", "--ignore-scripts", "--no-audit", "--no-fund"], {
@@ -255,51 +314,43 @@ createProsewire({ ...options });
     }
   }
 
-  const sdkVersion = manifests.get("@prosewire/sdk").version;
-  assertCaretAccepts(
-    manifests.get("@prosewire/cli").dependencies["@prosewire/sdk"],
-    sdkVersion,
+  const sdkVersion = manifests.get("@prosewire/sdk")?.version;
+  for (const name of [
     "@prosewire/cli",
-  );
-  assertCaretAccepts(
-    manifests.get("@prosewire/mcp").dependencies["@prosewire/sdk"],
-    sdkVersion,
     "@prosewire/mcp",
-  );
-  assertCaretAccepts(
-    manifests.get("@prosewire/next").dependencies["@prosewire/sdk"],
-    sdkVersion,
     "@prosewire/next",
-  );
-  assertCaretAccepts(
-    manifests.get("@prosewire/astro").dependencies["@prosewire/sdk"],
-    sdkVersion,
     "@prosewire/astro",
-  );
+  ]) {
+    if (!manifests.has(name)) continue;
+    assertCaretAccepts(
+      manifests.get(name).dependencies["@prosewire/sdk"],
+      sdkVersion,
+      name,
+    );
+  }
 
-  const sdkDeclarations = await readFile(
-    join(temporary, "node_modules", "@prosewire", "sdk", "dist", "index.d.mts"),
-    "utf8",
-  );
-  assert.doesNotMatch(sdkDeclarations, /@prosewire\/contract/);
-  const cliDeclarations = await readFile(
-    join(temporary, "node_modules", "@prosewire", "cli", "dist", "index.d.mts"),
-    "utf8",
-  );
-  const mcpDeclarations = await readFile(
-    join(
-      temporary,
-      "node_modules",
-      "@prosewire",
-      "mcp",
-      "dist",
-      "server.d.mts",
-    ),
-    "utf8",
-  );
-  assert.doesNotMatch(cliDeclarations, /@prosewire\/contract/);
-  assert.doesNotMatch(mcpDeclarations, /@prosewire\/contract/);
-  for (const directory of ["next", "astro"]) {
+  for (const [directory, declaration] of [
+    ["sdk", "index.d.mts"],
+    ["cli", "index.d.mts"],
+    ["mcp", "server.d.mts"],
+  ]) {
+    if (!selectedDirectories.has(directory)) continue;
+    const contents = await readFile(
+      join(
+        temporary,
+        "node_modules",
+        "@prosewire",
+        directory,
+        "dist",
+        declaration,
+      ),
+      "utf8",
+    );
+    assert.doesNotMatch(contents, /@prosewire\/contract/);
+  }
+  for (const directory of ["next", "astro"].filter((candidate) =>
+    selectedDirectories.has(candidate),
+  )) {
     const declarations = await readFile(
       join(
         temporary,
@@ -331,85 +382,84 @@ createProsewire({ ...options });
     { cwd: temporary },
   );
 
-  const cli = spawnSync(executable("prosewire"), ["--help"], {
-    cwd: temporary,
-    encoding: "utf8",
-  });
-  assert.equal(cli.status, 0, cli.stderr);
-  assert.match(
-    cli.stdout,
-    /Publish and retrieve portable content from Prosewire/,
-  );
-
-  const cliVersionResult = spawnSync(executable("prosewire"), ["--version"], {
-    cwd: temporary,
-    encoding: "utf8",
-  });
-  assert.equal(cliVersionResult.status, 0, cliVersionResult.stderr);
-  assert.ok(
-    cliVersionResult.stdout.includes(manifests.get("@prosewire/cli").version),
-  );
-
-  const mcp = spawnSync(executable("prosewire-mcp"), [], {
-    cwd: temporary,
-    encoding: "utf8",
-    env: { ...process.env, PROSEWIRE_API_KEY: "" },
-  });
-  assert.equal(mcp.status, 2, mcp.stderr);
-  assert.match(mcp.stderr, /PROSEWIRE_API_KEY is required/);
-
-  const create = spawnSync(
-    executable("create-prosewire"),
-    ["--url", "https://example.com", "--blog", "fieldnotes", "--agent"],
-    {
+  if (selectedDirectories.has("cli")) {
+    const cli = spawnSync(executable("prosewire"), ["--help"], {
       cwd: temporary,
       encoding: "utf8",
-    },
-  );
-  assert.equal(create.status, 0, create.stderr);
-  assert.match(create.stdout, /Preserve the existing layout and styles/);
-
-  const workspaceApp = join(temporary, "apps", "web");
-  await mkdir(join(workspaceApp, "src", "app"), { recursive: true });
-  await writeFile(
-    join(workspaceApp, "package.json"),
-    `${JSON.stringify({ name: "web", dependencies: { next: "16.3.1" } }, null, 2)}\n`,
-  );
-  const createInWorkspace = spawnSync(
-    executable("create-prosewire"),
-    [
-      "--cwd",
-      "apps/web",
-      "--url",
-      "https://example.com",
-      "--blog",
-      "fieldnotes",
-      "--no-install",
-    ],
-    {
+    });
+    assert.equal(cli.status, 0, cli.stderr);
+    assert.match(
+      cli.stdout,
+      /Publish and retrieve portable content from Prosewire/,
+    );
+    const cliVersionResult = spawnSync(executable("prosewire"), ["--version"], {
       cwd: temporary,
       encoding: "utf8",
-    },
-  );
-  assert.equal(createInWorkspace.status, 0, createInWorkspace.stderr);
-  assert.match(
-    createInWorkspace.stdout,
-    /Added Prosewire to apps[/\\]web for next-app/,
-  );
-  const workspaceManifest = JSON.parse(
-    await readFile(join(workspaceApp, "package.json"), "utf8"),
-  );
-  assert.match(
-    workspaceManifest.dependencies["@prosewire/next"],
-    /^\^\d+\.\d+\.\d+$/,
-  );
-  assert.match(
-    await readFile(
-      join(workspaceApp, "src", "app", "blog", "page.tsx"),
-      "utf8",
-    ),
-    /blog\.index\.Page/,
-  );
+    });
+    assert.equal(cliVersionResult.status, 0, cliVersionResult.stderr);
+    assert.ok(
+      cliVersionResult.stdout.includes(manifests.get("@prosewire/cli").version),
+    );
+  }
+
+  if (selectedDirectories.has("mcp")) {
+    const mcp = spawnSync(executable("prosewire-mcp"), [], {
+      cwd: temporary,
+      encoding: "utf8",
+      env: { ...process.env, PROSEWIRE_API_KEY: "" },
+    });
+    assert.equal(mcp.status, 2, mcp.stderr);
+    assert.match(mcp.stderr, /PROSEWIRE_API_KEY is required/);
+  }
+
+  if (selectedDirectories.has("create-prosewire")) {
+    const create = spawnSync(
+      executable("create-prosewire"),
+      ["--url", "https://example.com", "--blog", "fieldnotes", "--agent"],
+      { cwd: temporary, encoding: "utf8" },
+    );
+    assert.equal(create.status, 0, create.stderr);
+    assert.match(create.stdout, /Preserve the existing layout and styles/);
+
+    const workspaceApp = join(temporary, "apps", "web");
+    await mkdir(join(workspaceApp, "src", "app"), { recursive: true });
+    await writeFile(
+      join(workspaceApp, "package.json"),
+      `${JSON.stringify({ name: "web", dependencies: { next: "16.3.1" } }, null, 2)}\n`,
+    );
+    const createInWorkspace = spawnSync(
+      executable("create-prosewire"),
+      [
+        "--cwd",
+        "apps/web",
+        "--url",
+        "https://example.com",
+        "--blog",
+        "fieldnotes",
+        "--no-install",
+      ],
+      { cwd: temporary, encoding: "utf8" },
+    );
+    assert.equal(createInWorkspace.status, 0, createInWorkspace.stderr);
+    assert.match(
+      createInWorkspace.stdout,
+      /Added Prosewire to apps[/\\]web for next-app/,
+    );
+    const workspaceManifest = JSON.parse(
+      await readFile(join(workspaceApp, "package.json"), "utf8"),
+    );
+    assert.match(
+      workspaceManifest.dependencies["@prosewire/next"],
+      /^\^\d+\.\d+\.\d+$/,
+    );
+    assert.match(
+      await readFile(
+        join(workspaceApp, "src", "app", "blog", "page.tsx"),
+        "utf8",
+      ),
+      /blog\.index\.Page/,
+    );
+  }
 
   process.stdout.write("Package tarball consumer smoke tests passed.\n");
 } finally {
