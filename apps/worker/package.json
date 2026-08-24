@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@prosewire/db": "workspace:*",
+    "@prosewire/jobs": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "effect": "4.0.0-rc.110",
     "nodemailer": "^9.0.5"

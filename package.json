@@ -14,7 +14,7 @@
     "dev:web": "node --env-file=.env --run dev:web:workspace",
     "dev:web:workspace": "pnpm --filter @prosewire/web dev",
     "dev:site": "pnpm --filter @prosewire/site dev",
-    "dev:services": "docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres",
+    "dev:services": "docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres redis",
     "lint": "biome lint .",
     "format": "biome check --write .",
     "typecheck": "turbo run typecheck",

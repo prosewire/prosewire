@@ -15,8 +15,12 @@ import {
 import { organization, user } from "./auth.ts";
 
 const timestamps = {
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 };
 
 export const blog = pgTable("blog", {
@@ -50,7 +54,9 @@ export const author = pgTable(
     userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
     ...timestamps,
   },
-  (table) => [uniqueIndex("author_blog_slug_unique").on(table.blogId, table.slug)],
+  (table) => [
+    uniqueIndex("author_blog_slug_unique").on(table.blogId, table.slug),
+  ],
 );
 
 export const category = pgTable(
@@ -65,7 +71,9 @@ export const category = pgTable(
     description: text("description"),
     ...timestamps,
   },
-  (table) => [uniqueIndex("category_blog_slug_unique").on(table.blogId, table.slug)],
+  (table) => [
+    uniqueIndex("category_blog_slug_unique").on(table.blogId, table.slug),
+  ],
 );
 
 export const post = pgTable(
@@ -85,7 +93,9 @@ export const post = pgTable(
     contentHtml: text("content_html").notNull().default(""),
     coverImageUrl: text("cover_image_url"),
     coverImageAlt: text("cover_image_alt"),
-    status: text("status", { enum: ["draft", "scheduled", "published", "archived"] })
+    status: text("status", {
+      enum: ["draft", "scheduled", "published", "archived"],
+    })
       .notNull()
       .default("draft"),
     locale: text("locale").notNull().default("en"),
@@ -97,13 +107,21 @@ export const post = pgTable(
     scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
     publishedAt: timestamp("published_at", { withTimezone: true }),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
-    createdById: text("created_by_id").references(() => user.id, { onDelete: "set null" }),
-    updatedById: text("updated_by_id").references(() => user.id, { onDelete: "set null" }),
+    createdById: text("created_by_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    updatedById: text("updated_by_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
     ...timestamps,
   },
   (table) => [
     uniqueIndex("post_blog_slug_unique").on(table.blogId, table.slug),
-    index("post_blog_status_published_idx").on(table.blogId, table.status, table.publishedAt),
+    index("post_blog_status_published_idx").on(
+      table.blogId,
+      table.status,
+      table.publishedAt,
+    ),
     check(
       "post_status_check",
       sql`${table.status} in ('draft', 'scheduled', 'published', 'archived')`,
@@ -139,10 +157,14 @@ export const postRevision = pgTable(
     postId: uuid("post_id")
       .notNull()
       .references(() => post.id, { onDelete: "cascade" }),
-    editorId: text("editor_id").references(() => user.id, { onDelete: "set null" }),
+    editorId: text("editor_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
     version: integer("version").notNull(),
     snapshot: jsonb("snapshot").notNull().$type<Record<string, unknown>>(),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (table) => [
     uniqueIndex("post_revision_version_unique").on(table.postId, table.version),
@@ -160,7 +182,9 @@ export const redirect = pgTable(
     fromPath: text("from_path").notNull(),
     toPath: text("to_path").notNull(),
     statusCode: integer("status_code").notNull().default(301),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (table) => [
     uniqueIndex("redirect_blog_path_unique").on(table.blogId, table.fromPath),
@@ -183,7 +207,9 @@ export const snippet = pgTable(
     contentMarkdown: text("content_markdown").notNull(),
     ...timestamps,
   },
-  (table) => [uniqueIndex("snippet_blog_key_unique").on(table.blogId, table.key)],
+  (table) => [
+    uniqueIndex("snippet_blog_key_unique").on(table.blogId, table.key),
+  ],
 );
 
 export const apiKey = pgTable(
@@ -199,7 +225,9 @@ export const apiKey = pgTable(
     scopes: text("scopes").array().notNull().default(["content:read"]),
     lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
     expiresAt: timestamp("expires_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (table) => [index("api_key_prefix_idx").on(table.prefix)],
 );
@@ -208,9 +236,13 @@ export const auditLog = pgTable(
   "audit_log",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    organizationId: text("organization_id").references(() => organization.id, { onDelete: "set null" }),
+    organizationId: text("organization_id").references(() => organization.id, {
+      onDelete: "set null",
+    }),
     blogId: uuid("blog_id").references(() => blog.id, { onDelete: "set null" }),
-    actorId: text("actor_id").references(() => user.id, { onDelete: "set null" }),
+    actorId: text("actor_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
     action: text("action").notNull(),
     entityType: text("entity_type").notNull(),
     entityId: text("entity_id"),
@@ -218,7 +250,9 @@ export const auditLog = pgTable(
     after: jsonb("after").$type<Record<string, unknown>>(),
     ipAddress: text("ip_address"),
     userAgent: text("user_agent"),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (table) => [
     index("audit_log_blog_created_idx").on(table.blogId, table.createdAt),
@@ -226,32 +260,6 @@ export const auditLog = pgTable(
       table.organizationId,
       table.createdAt,
     ),
-  ],
-);
-
-export const emailOutbox = pgTable(
-  "email_outbox",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    recipient: text("recipient").notNull(),
-    subject: text("subject").notNull(),
-    textBody: text("text_body").notNull(),
-    htmlBody: text("html_body"),
-    attempts: integer("attempts").notNull().default(0),
-    availableAt: timestamp("available_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    claimedAt: timestamp("claimed_at", { withTimezone: true }),
-    sentAt: timestamp("sent_at", { withTimezone: true }),
-    lastError: text("last_error"),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (table) => [
-    index("email_outbox_pending_idx")
-      .on(table.availableAt, table.createdAt)
-      .where(sql`${table.sentAt} is null`),
   ],
 );
 
@@ -265,13 +273,20 @@ export const postView = pgTable(
       .references(() => post.id, { onDelete: "cascade" }),
     referrer: text("referrer"),
     country: text("country"),
-    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
-  (table) => [index("post_view_post_occurred_idx").on(table.postId, table.occurredAt)],
+  (table) => [
+    index("post_view_post_occurred_idx").on(table.postId, table.occurredAt),
+  ],
 );
 
 export const blogRelations = relations(blog, ({ one, many }) => ({
-  workspace: one(organization, { fields: [blog.organizationId], references: [organization.id] }),
+  workspace: one(organization, {
+    fields: [blog.organizationId],
+    references: [organization.id],
+  }),
   authors: many(author),
   categories: many(category),
   posts: many(post),
@@ -297,7 +312,10 @@ export const postRelations = relations(post, ({ one, many }) => ({
 
 export const postCategoryRelations = relations(postCategory, ({ one }) => ({
   post: one(post, { fields: [postCategory.postId], references: [post.id] }),
-  category: one(category, { fields: [postCategory.categoryId], references: [category.id] }),
+  category: one(category, {
+    fields: [postCategory.categoryId],
+    references: [category.id],
+  }),
 }));
 
 export const postRevisionRelations = relations(postRevision, ({ one }) => ({
