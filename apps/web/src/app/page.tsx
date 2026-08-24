@@ -1,9 +1,13 @@
 import { redirect } from "next/navigation";
+import { SelfHostedHome } from "@/components/self-hosted-home";
 import { loadAuthenticationState } from "@/server/workspace-entrypoints";
 
 export const instant = false;
 
 export default async function HomePage() {
-  const { session } = await loadAuthenticationState();
-  redirect(session ? "/dashboard" : "/sign-in");
+  const { cloudDeployment, openRegistration, session } =
+    await loadAuthenticationState();
+  if (session) redirect("/dashboard");
+  if (cloudDeployment) redirect("/sign-in");
+  return <SelfHostedHome allowSignUp={openRegistration} />;
 }
