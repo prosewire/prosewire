@@ -11,17 +11,13 @@ export default defineConfig({
     exclude: [
       ...configDefaults.exclude,
       "acceptance/**",
-      ...(process.env.DATABASE_URL
-        ? []
-        : [
-            "src/server/database-behavior.test.ts",
-            "src/server/api-access.test.ts",
-            "src/server/auth-service.test.ts",
-            "src/server/authorization.test.ts",
-            "src/server/publishing.test.ts",
-            "src/server/workspace-management.test.ts",
-            "src/server/*.database.test.ts",
-          ]),
+      "src/server/database-behavior.test.ts",
+      "src/server/api-access.test.ts",
+      "src/server/auth-service.test.ts",
+      "src/server/authorization.test.ts",
+      "src/server/publishing.test.ts",
+      "src/server/workspace-management.test.ts",
+      "src/server/*.database.test.ts",
     ],
     coverage: {
       // The PostgreSQL lane measures these files with repository-specific thresholds.

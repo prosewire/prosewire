@@ -218,7 +218,9 @@ describe.skipIf(!databaseUrl)("PostgreSQL scheduled publishing", () => {
     let closed = 0;
     const config = Layer.succeed(WorkerConfig, {
       databaseUrl: Redacted.make(databaseUrl),
+      redisUrl: Redacted.make("redis://test"),
       analyticsRetentionDays: 365,
+      emailWorkerConcurrency: 4,
       smtpUrl: Option.none(),
       emailFrom: "Prosewire <prosewire@localhost>",
       environment: "test",

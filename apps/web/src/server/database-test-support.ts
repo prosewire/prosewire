@@ -1,5 +1,5 @@
 import type { Db } from "@prosewire/db/client";
-import { Effect, Layer, Option, Redacted } from "effect";
+import { Effect, Layer, Redacted } from "effect";
 import { WebConfig } from "./config.ts";
 import { Database, DatabaseError } from "./database.ts";
 
@@ -21,10 +21,9 @@ export function configLayer(url: string) {
     defaultBlog: "fieldnotes",
     publicUrl: "http://localhost:3000",
     databaseUrl: Redacted.make(url),
+    redisUrl: Redacted.make("redis://test"),
     authSecret: Redacted.make("test-secret-at-least-32-characters"),
     allowSignUp: false,
-    smtpUrl: Option.none(),
-    emailFrom: "Prosewire <prosewire@localhost>",
     environment: "test",
   });
 }

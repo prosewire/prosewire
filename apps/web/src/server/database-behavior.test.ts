@@ -1,8 +1,10 @@
 import { createHash, randomUUID } from "node:crypto";
 import { type Db, openDb } from "@prosewire/db/client";
 import * as schema from "@prosewire/db/schema";
+import type { EmailDeliveryJob } from "@prosewire/jobs/email-queue";
+import * as EmailQueue from "@prosewire/jobs/email-queue";
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { Effect, Layer, Option, Redacted } from "effect";
+import { Effect, Layer, Redacted } from "effect";
 import { describe, expect, it } from "vitest";
 import { ApiAccess } from "./api-access.ts";
 import {
@@ -47,19 +49,29 @@ function configLayer(url: string) {
     defaultBlog: "fieldnotes",
     publicUrl: "http://localhost:3000",
     databaseUrl: Redacted.make(url),
+    redisUrl: Redacted.make("redis://test"),
     authSecret: Redacted.make("test-secret-at-least-32-characters"),
     allowSignUp: false,
-    smtpUrl: Option.none(),
-    emailFrom: "Prosewire <prosewire@localhost>",
     environment: "test",
   });
 }
 
-async function workspaceManagement(client: Db, url: string) {
+async function workspaceManagement(
+  client: Db,
+  url: string,
+  queued: Array<EmailDeliveryJob> = [],
+) {
   const dependencies = Layer.mergeAll(
     databaseLayer(client),
     configLayer(url),
     PlatformCrypto.layer,
+    Layer.mock(EmailQueue.Service, {
+      offer: (job) =>
+        Effect.sync(() => {
+          queued.push(job);
+        }),
+      take: () => Effect.die("Email consumption is unavailable in web tests"),
+    }),
   );
   return Effect.runPromise(
     WorkspaceManagement.Service.pipe(
@@ -149,6 +161,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
     const release = deferred();
     let blockingTransaction: Promise<void> | undefined;
     let attempts: ReadonlyArray<Promise<unknown>> = [];
+    const queuedEmails: Array<EmailDeliveryJob> = [];
 
     try {
       await resource.client.insert(schema.user).values({
@@ -168,7 +181,11 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
         role: "owner",
       });
 
-      const management = await workspaceManagement(resource.client, serviceUrl);
+      const management = await workspaceManagement(
+        resource.client,
+        serviceUrl,
+        queuedEmails,
+      );
       const actor = {
         id: actorId,
         name: "A <script>alert(1)</script>",
@@ -218,14 +235,6 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
             eq(schema.auditLog.action, "invitation.created"),
           ),
         );
-      const queuedEmails = await resource.client
-        .select({
-          recipient: schema.emailOutbox.recipient,
-          htmlBody: schema.emailOutbox.htmlBody,
-        })
-        .from(schema.emailOutbox)
-        .where(eq(schema.emailOutbox.recipient, recipient));
-
       expect(invitations.map(({ status }) => status).sort()).toEqual([
         "canceled",
         "pending",
@@ -233,19 +242,15 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
       expect(auditEntries).toHaveLength(2);
       expect(queuedEmails).toHaveLength(2);
       for (const email of queuedEmails) {
-        expect(email.htmlBody).toContain(
-          "A &lt;script&gt;alert(1)&lt;/script&gt;",
-        );
-        expect(email.htmlBody).toContain("Studio &amp; Partners");
-        expect(email.htmlBody).not.toContain("<script>");
+        expect(email.recipient).toBe(recipient);
+        expect(email.html).toContain("A &lt;script&gt;alert(1)&lt;/script&gt;");
+        expect(email.html).toContain("Studio &amp; Partners");
+        expect(email.html).not.toContain("<script>");
       }
     } finally {
       release.resolve();
       await blockingTransaction?.catch(() => undefined);
       await Promise.allSettled(attempts);
-      await resource.client
-        .delete(schema.emailOutbox)
-        .where(eq(schema.emailOutbox.recipient, recipient));
       await resource.client
         .delete(schema.auditLog)
         .where(eq(schema.auditLog.actorId, actorId));
