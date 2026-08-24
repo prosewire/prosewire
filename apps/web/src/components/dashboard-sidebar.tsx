@@ -14,6 +14,7 @@ import { switchPublication, switchWorkspace } from "@/server/actions";
 import type { DashboardShellProps } from "./dashboard-shell-types";
 import { Logo } from "./logo";
 import { SignOutButton } from "./sign-out-button";
+import { ThemeToggle } from "./theme-toggle";
 
 const primary = [
   { href: "/dashboard", label: "Overview", icon: SquaresFour },
@@ -38,9 +39,12 @@ export function DashboardSidebar({
 }: DashboardShellProps) {
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-[248px] flex-col border-r border-[#dedfd9] bg-[#f8f7f2] px-4 py-5 lg:flex">
-      <Link href="/dashboard" className="px-2">
-        <Logo className="text-lg" />
-      </Link>
+      <div className="flex items-center justify-between px-2">
+        <Link href="/dashboard">
+          <Logo className="text-lg" />
+        </Link>
+        <ThemeToggle className="size-8 rounded-lg" />
+      </div>
 
       <div className="mt-7 space-y-2 rounded-xl border border-[#dedfd9] bg-white p-2.5 shadow-sm">
         <form action={switchWorkspace} className="flex items-center gap-2">

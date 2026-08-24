@@ -14,13 +14,13 @@
     "dev:web": "node --env-file=.env --run dev:web:workspace",
     "dev:web:workspace": "pnpm --filter @prosewire/web dev",
     "dev:site": "pnpm --filter @prosewire/site dev",
-    "dev:services": "docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres",
+    "dev:services": "docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres redis",
     "lint": "biome lint .",
     "format": "biome check --write .",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test && pnpm test:packages",
     "test:pre-push": "pnpm typecheck && pnpm test",
-    "test:database": "pnpm --filter @prosewire/db exec vitest run src/account-migration.test.ts src/invitation-migration.test.ts",
+    "test:database": "pnpm --filter @prosewire/db test:database && pnpm --filter @prosewire/web test:database && pnpm --filter @prosewire/worker test:database",
     "test:packages": "node scripts/package-tarball-smoke.mjs",
     "test:coverage": "turbo run test:coverage",
     "audit:prod": "pnpm audit --prod --audit-level=high",
@@ -33,11 +33,12 @@
     "db:studio": "pnpm --filter @prosewire/db studio",
     "prepare": "if git rev-parse --git-dir >/dev/null 2>&1; then lefthook install; fi && effect-tsgo patch",
     "changeset": "changeset",
-    "version-packages": "changeset version && node scripts/sync-package-versions.mjs",
+    "version-packages": "changeset version && node scripts/sync-package-versions.mjs && biome format --write package.json packages/*/package.json",
     "release:preflight": "node scripts/release-preflight.mjs && pnpm test:packages",
     "lint:workflows": "scripts/workflow-lint.sh",
     "scan:secrets": "scripts/secret-scan.sh",
-    "release": "pnpm release:preflight && changeset publish"
+    "release": "pnpm release:preflight && changeset publish",
+    "verify:registry": "node scripts/verify-published-packages.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.9",
@@ -46,6 +47,7 @@
     "@typescript/native": "npm:typescript@^7.0.2",
     "@vitest/coverage-v8": "^4.1.11",
     "lefthook": "^2.1.6",
+    "npm": "11.6.2",
     "turbo": "^2.10.11",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "vitest": "^4.1.11"

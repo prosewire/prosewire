@@ -1,5 +1,6 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Layer, Option, Redacted } from "effect";
+import { Effect, Layer, Redacted } from "effect";
+import { WebConfig } from "./config.ts";
 import { ContentQueries, type PublicPostOptions } from "./content-queries.ts";
 import {
   testAuthor,
@@ -8,7 +9,6 @@ import {
   testPostId,
   testPublicPost,
 } from "./content-test-fixtures.ts";
-import { WebConfig } from "./config.ts";
 import { BlogSlug } from "./domain.ts";
 import { PublicContent } from "./public-content.ts";
 
@@ -33,10 +33,9 @@ function layer(seen: PublicPostOptions[]) {
       defaultBlog: "fieldnotes",
       publicUrl: "https://content.example",
       databaseUrl: Redacted.make("postgres://test"),
+      redisUrl: Redacted.make("redis://test"),
       authSecret: Redacted.make("test-secret-at-least-32-characters"),
       allowSignUp: false,
-      smtpUrl: Option.none(),
-      emailFrom: "Prosewire <prosewire@localhost>",
       environment: "test",
     }),
   );
@@ -58,24 +57,27 @@ describe("PublicContent", () => {
     }).pipe(Effect.provide(layer(seen)));
   });
 
-  it.effect("filters author posts in SQL and delegates redirects and view events", () => {
-    const seen: PublicPostOptions[] = [];
-    return Effect.gen(function* () {
-      const service = yield* PublicContent.Service;
-      const author = yield* service.author(slug, "ada");
-      const redirect = yield* service.redirect(slug, "old-slug");
-      const redirects = yield* service.redirects(slug);
-      const accepted = yield* service.recordView(
-        testPostId,
-        "44444444-4444-4444-8444-444444444444",
-        "direct",
-      );
+  it.effect(
+    "filters author posts in SQL and delegates redirects and view events",
+    () => {
+      const seen: PublicPostOptions[] = [];
+      return Effect.gen(function* () {
+        const service = yield* PublicContent.Service;
+        const author = yield* service.author(slug, "ada");
+        const redirect = yield* service.redirect(slug, "old-slug");
+        const redirects = yield* service.redirects(slug);
+        const accepted = yield* service.recordView(
+          testPostId,
+          "44444444-4444-4444-8444-444444444444",
+          "direct",
+        );
 
-      expect(author?.posts).toHaveLength(1);
-      expect(seen).toContainEqual({ authorId: testAuthor.id, limit: null });
-      expect(redirect).toBe("new-slug");
-      expect(redirects).toEqual([]);
-      expect(accepted).toBe(true);
-    }).pipe(Effect.provide(layer(seen)));
-  });
+        expect(author?.posts).toHaveLength(1);
+        expect(seen).toContainEqual({ authorId: testAuthor.id, limit: null });
+        expect(redirect).toBe("new-slug");
+        expect(redirects).toEqual([]);
+        expect(accepted).toBe(true);
+      }).pipe(Effect.provide(layer(seen)));
+    },
+  );
 });

@@ -7,6 +7,7 @@ x-app: &app
   env_file: .env
   environment:
     DATABASE_URL: postgres://prosewire:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/prosewire
+    REDIS_URL: redis://redis:6379
   restart: unless-stopped
 
 services:
@@ -20,6 +21,25 @@ services:
       - prosewire_postgres:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U prosewire -d prosewire"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+      - --maxmemory-policy
+      - noeviction
+    volumes:
+      - prosewire_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -40,6 +60,8 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+      redis:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:3000/api/health"]
       interval: 15s
@@ -52,6 +74,9 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+      redis:
+        condition: service_healthy
 
 volumes:
   prosewire_postgres:
+  prosewire_redis:

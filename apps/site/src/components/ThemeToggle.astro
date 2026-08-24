@@ -1,0 +1,36 @@
+<button class="theme-toggle" type="button" aria-label="Toggle color theme" title="Toggle color theme" data-theme-toggle>
+  <svg class="theme-icon-light" viewBox="0 0 24 24" aria-hidden="true">
+    <circle cx="12" cy="12" r="4"></circle>
+    <path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42"></path>
+  </svg>
+  <svg class="theme-icon-dark" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M20.4 15.3A8.5 8.5 0 0 1 8.7 3.6 8.5 8.5 0 1 0 20.4 15.3Z"></path>
+  </svg>
+</button>
+
+<script is:inline>
+  (() => {
+    /** @param {boolean} dark */
+    const applyTheme = (dark) => {
+      document.documentElement.classList.toggle("dark", dark);
+      document.documentElement.style.colorScheme = dark ? "dark" : "light";
+    };
+    document.querySelectorAll("[data-theme-toggle]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const dark = !document.documentElement.classList.contains("dark");
+        try {
+          localStorage.setItem("theme", dark ? "dark" : "light");
+        } catch {}
+        applyTheme(dark);
+      });
+    });
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    media.addEventListener("change", (event) => {
+      try {
+        if (localStorage.getItem("theme") === null) applyTheme(event.matches);
+      } catch {
+        applyTheme(event.matches);
+      }
+    });
+  })();
+</script>

@@ -57,7 +57,10 @@ const sidebarItems = [
   [BracketsCurly, "Integrations"],
 ] as const;
 
-export function MarketingHome() {
+export function MarketingHome({ allowSignUp }: { allowSignUp: boolean }) {
+  const primaryHref = allowSignUp ? "/sign-up" : "/sign-in";
+  const primaryLabel = allowSignUp ? "Create account" : "Sign in";
+
   return (
     <main className="marketing-home min-h-screen overflow-hidden bg-[#fbfbfc] text-[#18181b]">
       <header className="sticky top-0 z-50 border-b border-black/[.07] bg-[#fbfbfc]/85 backdrop-blur-xl">
@@ -100,7 +103,7 @@ export function MarketingHome() {
               style={{ color: "#fff" }}
               className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#18181b] px-3.5 text-sm font-medium text-white shadow-sm transition hover:bg-[#2d2d31]"
             >
-              Open dashboard <ArrowRight className="size-3.5" />
+              Sign in <ArrowRight className="size-3.5" />
             </Link>
           </div>
         </nav>
@@ -129,11 +132,11 @@ export function MarketingHome() {
 
           <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link
-              href="/sign-in"
+              href={primaryHref}
               style={{ color: "#fff" }}
               className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#18181b] px-5 text-sm font-semibold text-white shadow-[0_8px_24px_rgb(24_24_27_/_0.12)] transition hover:-translate-y-px hover:bg-[#2d2d31] sm:w-auto"
             >
-              Open dashboard <ArrowRight className="size-4" />
+              {primaryLabel} <ArrowRight className="size-4" />
             </Link>
             <a
               href="#quickstart"
@@ -429,11 +432,11 @@ export function MarketingHome() {
             </p>
             <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
               <Link
-                href="/sign-in"
+                href={primaryHref}
                 style={{ color: "#18181b" }}
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-white px-5 text-sm font-semibold text-[#18181b] transition hover:bg-[#f1f1f2]"
               >
-                Open dashboard <ArrowRight className="size-4" />
+                {primaryLabel} <ArrowRight className="size-4" />
               </Link>
               <a
                 href="https://github.com/prosewire/prosewire"

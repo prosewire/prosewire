@@ -7,13 +7,15 @@
   "exports": {
     ".": "./src/index.ts",
     "./schema": "./src/schema/index.ts",
-    "./client": "./src/client.ts"
+    "./client": "./src/client.ts",
+    "./testing": "./src/testing.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
     "lint": "biome lint src drizzle.config.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:database": "vitest run src/account-migration.test.ts src/invitation-migration.test.ts",
     "test:coverage": "vitest run --coverage",
     "generate": "drizzle-kit generate",
     "migrate": "drizzle-kit migrate",

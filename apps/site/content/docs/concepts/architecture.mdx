@@ -29,6 +29,10 @@ Read [Choose an integration](/docs/integrate/) for authentication and rendering 
 
 ## Own the runtime
 
-The web app and worker run against your Postgres database. The worker checks for due scheduled posts and expired raw analytics events. Atomic Postgres transactions coordinate concurrent worker replicas. Content remains exportable, and the built-in public reader remains readable without client-side JavaScript.
+The web app and worker run against your Postgres database and share an Effect `PersistedQueue` in Redis. After an invitation transaction commits, the web app enqueues the complete typed email payload in Redis. Any worker replica can claim and deliver it; Redis holds the pending job, processing lock, attempt count, and terminal failure state.
+
+Postgres stores the invitation, but it is not an email queue. An unavailable Redis instance makes the invite request fail visibly after the invitation has been created, and loss of Redis persistence can lose queued email. Run Redis with durable storage and replication appropriate to your recovery requirements.
+
+The worker still checks Postgres for due scheduled posts and expired raw analytics events because those are time-based database operations, not queued messages. Atomic Postgres transactions coordinate concurrent worker replicas. Content remains exportable, and the built-in public reader remains readable without client-side JavaScript.
 
 Production uses a separate one-shot migration process before web and worker replicas start. The web process does not migrate or seed in production.

@@ -1,31 +1,51 @@
-import { and, count, desc, eq, ilike, or, sql } from "drizzle-orm";
-import { Context, Effect, Layer } from "effect";
+import type { Db } from "@prosewire/db/client";
 import * as schema from "@prosewire/db/schema";
+import { and, count, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { Context, Effect, Layer, Schema } from "effect";
 import { toApiPost } from "./api-content-models.ts";
 import { Database } from "./database.ts";
 import { BlogId, type PostId } from "./domain.ts";
+import { operationError } from "./operation-error.ts";
 import { PostErrors } from "./post-errors.ts";
 import { version } from "./version.ts";
 
 export interface PostListInput {
   readonly search?: string | undefined;
-  readonly status?: "draft" | "scheduled" | "published" | "archived" | undefined;
+  readonly status?:
+    | "draft"
+    | "scheduled"
+    | "published"
+    | "archived"
+    | undefined;
   readonly page: number;
   readonly pageSize: number;
 }
 
+export class PersistenceError extends Schema.TaggedError<PersistenceError>()(
+  "ApiContentPersistenceError",
+  {
+    operation: Schema.String,
+    cause: Schema.Defect(),
+  },
+) {}
+
 export const create = Effect.fn("ApiContent.create")(function* () {
   const database = yield* Database;
+  const persistenceError = operationError(
+    (input) => new PersistenceError(input),
+  );
+  const execute = <A>(
+    operation: string,
+    evaluate: (client: Db) => PromiseLike<A>,
+  ) => database.execute(operation, evaluate).pipe(persistenceError(operation));
 
   return {
     health: Effect.fn("ApiContent.health")(function* () {
-      yield* database.execute("health.ready", (client) =>
-        client.execute(sql`select 1`),
-      );
+      yield* execute("health.ready", (client) => client.execute(sql`select 1`));
       return { status: "ok" as const, version };
     }),
     listBlogs: Effect.fn("ApiContent.listBlogs")(function* (blogId: BlogId) {
-      const rows = yield* database.execute("blog.listApi", (client) =>
+      const rows = yield* execute("blog.listApi", (client) =>
         client.query.blog.findMany({ where: eq(schema.blog.id, blogId) }),
       );
       return rows.map((row) => ({
@@ -51,7 +71,7 @@ export const create = Effect.fn("ApiContent.create")(function* () {
       const where = and(...filters);
       const { rows, totals } = yield* Effect.all(
         {
-          rows: database.execute("post.listApi", (client) =>
+          rows: execute("post.listApi", (client) =>
             client.query.post.findMany({
               where,
               with: { author: true, categories: { with: { category: true } } },
@@ -60,7 +80,7 @@ export const create = Effect.fn("ApiContent.create")(function* () {
               offset: (input.page - 1) * input.pageSize,
             }),
           ),
-          totals: database.execute("post.countApi", (client) =>
+          totals: execute("post.countApi", (client) =>
             client.select({ value: count() }).from(schema.post).where(where),
           ),
         },
@@ -77,7 +97,7 @@ export const create = Effect.fn("ApiContent.create")(function* () {
       blogId: BlogId,
       postId: PostId,
     ) {
-      const row = yield* database.execute("post.getApi", (client) =>
+      const row = yield* execute("post.getApi", (client) =>
         client.query.post.findFirst({
           where: and(
             eq(schema.post.id, postId),
@@ -98,6 +118,9 @@ export class Service extends Context.Service<Service, Interface>()(
   "@prosewire/web/ApiContent",
 ) {}
 
-export const layer = Layer.effect(Service, create().pipe(Effect.map(Service.of)));
+export const layer = Layer.effect(
+  Service,
+  create().pipe(Effect.map(Service.of)),
+);
 
 export * as ApiContent from "./api-content";

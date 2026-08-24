@@ -27,10 +27,9 @@ export interface WebConfigShape {
   readonly defaultBlog: string;
   readonly publicUrl: string;
   readonly databaseUrl: Redacted.Redacted<string>;
+  readonly redisUrl: Redacted.Redacted<string>;
   readonly authSecret: Redacted.Redacted<string>;
   readonly allowSignUp: boolean;
-  readonly smtpUrl: Option.Option<Redacted.Redacted<string>>;
-  readonly emailFrom: string;
   readonly environment: string;
   readonly cloudSocialProviders?: Partial<
     Record<
@@ -56,13 +55,10 @@ export class WebConfig extends Context.Service<WebConfig, WebConfigShape>()(
         Config.withDefault("http://localhost:3000"),
       );
       const databaseUrl = yield* Config.redacted("DATABASE_URL");
+      const redisUrl = yield* Config.redacted("REDIS_URL");
       const authSecret = yield* Config.redacted("BETTER_AUTH_SECRET");
       const allowSignUp = yield* Config.boolean("PROSEWIRE_ALLOW_SIGN_UP").pipe(
         Config.withDefault(false),
-      );
-      const smtpUrl = yield* Config.option(Config.redacted("SMTP_URL"));
-      const emailFrom = yield* Config.string("EMAIL_FROM").pipe(
-        Config.withDefault("Prosewire <prosewire@localhost>"),
       );
       const environment = yield* Config.string("NODE_ENV").pipe(
         Config.withDefault("development"),
@@ -86,6 +82,12 @@ export class WebConfig extends Context.Service<WebConfig, WebConfigShape>()(
       if (Redacted.value(databaseUrl).trim() === "") {
         return yield* new ConfigurationError({
           message: "DATABASE_URL cannot be empty",
+        });
+      }
+
+      if (Redacted.value(redisUrl).trim() === "") {
+        return yield* new ConfigurationError({
+          message: "REDIS_URL cannot be empty",
         });
       }
 
@@ -156,10 +158,9 @@ export class WebConfig extends Context.Service<WebConfig, WebConfigShape>()(
         defaultBlog,
         publicUrl,
         databaseUrl,
+        redisUrl,
         authSecret,
         allowSignUp,
-        smtpUrl,
-        emailFrom,
         environment,
         ...(cloudSocialProviders ? { cloudSocialProviders } : {}),
       };

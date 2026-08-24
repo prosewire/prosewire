@@ -1,26 +1,40 @@
-import { Layer, ManagedRuntime, type Effect } from "effect";
-import { BlogAccess } from "./authorization.ts";
+import * as JobQueueConfig from "@prosewire/jobs/config";
+import type * as EmailQueue from "@prosewire/jobs/email-queue";
+import * as JobQueueRuntime from "@prosewire/jobs/runtime";
+import { Effect, Layer, ManagedRuntime } from "effect";
 import { ApiAccess } from "./api-access.ts";
 import { ApiContent } from "./api-content.ts";
 import { Auth } from "./auth-service.ts";
+import { BlogAccess } from "./authorization.ts";
 import { WebConfig } from "./config.ts";
 import { ContentQueries } from "./content-queries.ts";
 import { Dashboard } from "./dashboard.ts";
 import { Database } from "./database.ts";
-import { PostExport } from "./post-export.ts";
 import { PlatformCrypto } from "./platform-crypto.ts";
+import { PostExport } from "./post-export.ts";
+import { processSingleton } from "./process-singleton.ts";
 import { PublicContent } from "./public-content.ts";
 import { Publishing } from "./publishing.ts";
 import { WorkspaceManagement } from "./workspace-management.ts";
-import { processSingleton } from "./process-singleton.ts";
 
-const databaseLayer = Database.layer.pipe(
-  Layer.provideMerge(WebConfig.layer),
-);
+const configLayer = WebConfig.layer;
+
+const databaseLayer = Database.layer.pipe(Layer.provideMerge(configLayer));
+
+const jobQueueConfigLayer = Layer.effect(
+  JobQueueConfig.Service,
+  Effect.gen(function* () {
+    const config = yield* WebConfig;
+    return JobQueueConfig.Service.of({ redisUrl: config.redisUrl });
+  }),
+).pipe(Layer.provideMerge(configLayer));
+
+const jobQueueLayer = JobQueueRuntime.layer(jobQueueConfigLayer);
 
 const infrastructureLayer = Layer.mergeAll(
   Auth.layer,
   PlatformCrypto.layer,
+  jobQueueLayer,
 ).pipe(Layer.provideMerge(databaseLayer));
 
 const domainLayer = Layer.mergeAll(
@@ -34,18 +48,18 @@ const applicationLayer = Layer.mergeAll(
   Dashboard.layer,
   PostExport.layer,
   PublicContent.layer,
-  Publishing.layer,
-  WorkspaceManagement.layer,
+  Publishing.live,
+  WorkspaceManagement.live,
 ).pipe(Layer.provideMerge(domainLayer));
 
-export const appRuntime = processSingleton(
-  "@prosewire/web/AppRuntime/v1",
-  () => ManagedRuntime.make(applicationLayer),
+export const appRuntime = processSingleton("@prosewire/web/AppRuntime/v1", () =>
+  ManagedRuntime.make(applicationLayer),
 );
 
 export type AppServices =
   | Auth
   | WebConfig
+  | EmailQueue.Service
   | ContentQueries.Service
   | BlogAccess.Service
   | ApiAccess.Service

@@ -9,11 +9,14 @@ import { Clock, Context, Effect, Layer, Redacted, Schema } from "effect";
 import { invitationRegistrationHeader } from "@/lib/auth-headers";
 import { organizationAccess, organizationRoles } from "@/lib/permissions";
 import { WebConfig, type WebConfigShape } from "./config.ts";
-import { Database, type DatabaseError } from "./database.ts";
+import { Database } from "./database.ts";
 
 export class AuthInitializationError extends Schema.TaggedError<AuthInitializationError>()(
   "AuthInitializationError",
-  { cause: Schema.Defect() },
+  {
+    operation: Schema.String,
+    cause: Schema.Defect(),
+  },
 ) {
   override get message(): string {
     return "Authentication service initialization failed";
@@ -51,8 +54,34 @@ export const disabledOrganizationMutationPaths = [
   "/organization/update-team",
 ] as const;
 
-export async function requireRegistrationInvitation(
+export interface RegistrationInvitationLookup {
+  readonly hasPending: (input: {
+    readonly invitationId: string;
+    readonly email: string;
+    readonly now: Date;
+  }) => Promise<boolean>;
+}
+
+export function makeRegistrationInvitationLookup(
   database: Db,
+): RegistrationInvitationLookup {
+  return {
+    hasPending: async (input) => {
+      const invitation = await database.query.invitation.findFirst({
+        where: and(
+          eq(databaseSchema.invitation.id, input.invitationId),
+          eq(databaseSchema.invitation.email, input.email),
+          eq(databaseSchema.invitation.status, "pending"),
+          gt(databaseSchema.invitation.expiresAt, input.now),
+        ),
+      });
+      return invitation !== undefined;
+    },
+  };
+}
+
+export async function requireRegistrationInvitation(
+  invitations: RegistrationInvitationLookup,
   input: {
     readonly allowSignUp: boolean;
     readonly email: string;
@@ -67,15 +96,12 @@ export async function requireRegistrationInvitation(
       message: "Registration requires a workspace invitation",
     });
   }
-  const invitation = await database.query.invitation.findFirst({
-    where: and(
-      eq(databaseSchema.invitation.id, invitationId),
-      eq(databaseSchema.invitation.email, input.email.toLowerCase()),
-      eq(databaseSchema.invitation.status, "pending"),
-      gt(databaseSchema.invitation.expiresAt, input.now),
-    ),
+  const pending = await invitations.hasPending({
+    invitationId,
+    email: input.email.toLowerCase(),
+    now: input.now,
   });
-  if (!invitation) {
+  if (!pending) {
     throw new APIError("FORBIDDEN", {
       message: "Registration requires a workspace invitation",
     });
@@ -92,6 +118,7 @@ function buildAuth(
     readonly cloudSocialProviders: WebConfigShape["cloudSocialProviders"];
   },
 ) {
+  const invitations = makeRegistrationInvitationLookup(database);
   const socialProviders = {
     ...(config.cloudSocialProviders?.google
       ? {
@@ -151,7 +178,7 @@ function buildAuth(
       user: {
         create: {
           before: async (user, context) => {
-            await requireRegistrationInvitation(database, {
+            await requireRegistrationInvitation(invitations, {
               allowSignUp: config.allowSignUp,
               email: user.email,
               invitationId:
@@ -176,7 +203,7 @@ function buildAuth(
 type WebAuth = ReturnType<typeof buildAuth>;
 
 export interface AuthShape {
-  readonly get: Effect.Effect<WebAuth, DatabaseError | AuthInitializationError>;
+  readonly get: Effect.Effect<WebAuth, AuthInitializationError>;
 }
 
 export class Auth extends Context.Service<Auth, AuthShape>()(
@@ -190,7 +217,15 @@ export class Auth extends Context.Service<Auth, AuthShape>()(
       const clock = yield* Clock.Clock;
       const get = yield* Effect.cached(
         Effect.gen(function* () {
-          const client = yield* database.client;
+          const client = yield* database.client.pipe(
+            Effect.mapError(
+              (cause) =>
+                new AuthInitializationError({
+                  operation: "connect",
+                  cause,
+                }),
+            ),
+          );
           return yield* Effect.try({
             try: () =>
               buildAuth(client, {
@@ -201,7 +236,11 @@ export class Auth extends Context.Service<Auth, AuthShape>()(
                 now: () => new Date(clock.currentTimeMillisUnsafe()),
                 cloudSocialProviders: config.cloudSocialProviders,
               }),
-            catch: (cause) => new AuthInitializationError({ cause }),
+            catch: (cause) =>
+              new AuthInitializationError({
+                operation: "initialize",
+                cause,
+              }),
           });
         }),
       );

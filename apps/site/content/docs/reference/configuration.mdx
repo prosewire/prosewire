@@ -12,13 +12,16 @@ Keep production configuration in the deployment platform's secret store. Do not 
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `DATABASE_URL` | Yes | Postgres connection used by migrations, web, and worker |
+| `REDIS_URL` | Yes | Shared Redis connection used by web producers and worker consumers for the Effect persisted email queue |
 | `PROSEWIRE_PUBLIC_URL` | Production | External origin used by the server for links such as invitations |
 | `NEXT_PUBLIC_PROSEWIRE_PUBLIC_URL` | Production | Matching browser-visible origin used by the authentication client |
 | `PROSEWIRE_DEFAULT_BLOG` | No | Development default publication slug; defaults to `fieldnotes` |
 | `PROSEWIRE_MIGRATIONS_DIR` | Container default | Override the directory containing committed Drizzle migrations |
 | `POSTGRES_PASSWORD` | Default Compose only | Password interpolated into the bundled Postgres service and application URL |
 
-Use the same `DATABASE_URL` for the migration, web, and worker processes. In Compose, choose a URL-safe `POSTGRES_PASSWORD` because it is interpolated into a connection URL.
+Use the same `DATABASE_URL` for the migration, web, and worker processes. Every web and worker replica must use the same `REDIS_URL`. In Compose, choose a URL-safe `POSTGRES_PASSWORD` because it is interpolated into a connection URL.
+
+The Redis account must permit `SCRIPT LOAD`, `EVALSHA`, list, hash, string, and expiry commands. Use AOF persistence, replication, backups, and `maxmemory-policy noeviction` in production. Redis is the sole email queue: it owns pending jobs, processing locks, retry attempts, and failed jobs. Losing its persisted data can lose queued email.
 
 The two public URL values should be the same external HTTPS origin seen by users. Do not include a path suffix.
 
@@ -46,13 +49,14 @@ Generate the server-action key with `openssl rand -base64 32` and store it as a 
 
 Use an immutable version, commit, or digest as `NEXT_DEPLOYMENT_ID`. Change it when the deployed web assets change, not per replica or restart.
 
-## Worker retention
+## Worker configuration
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `PROSEWIRE_ANALYTICS_RETENTION_DAYS` | No | Positive integer controlling raw page-view retention; defaults to 365 |
+| `PROSEWIRE_EMAIL_WORKER_CONCURRENCY` | No | Redis email consumers per worker process; defaults to 4 |
 
-The worker removes raw view events older than the configured period. Aggregate metrics and your infrastructure's backup retention are separate concerns.
+The worker removes raw view events older than the configured period. Each worker process runs the configured number of competing email consumers. Total email concurrency is the value multiplied by the number of worker replicas. Failed deliveries are retried by the Effect queue and retained in Redis after the attempt limit. Aggregate metrics and your infrastructure's backup retention are separate concerns.
 
 ## Development seed only
 

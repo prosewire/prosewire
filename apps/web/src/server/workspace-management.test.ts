@@ -1,26 +1,29 @@
-import { describe, expect, it } from "@effect/vitest";
-import { Effect, Layer, Option, Redacted } from "effect";
-import type { Db } from "@prosewire/db/client";
-import * as databaseSchema from "@prosewire/db/schema";
-import { BlogAccess } from "./authorization.ts";
-import { WorkspaceAuthorization } from "./authorization-models.ts";
-import { WebConfig } from "./config.ts";
-import { Workspace } from "./content-models.ts";
-import { Database, DatabaseError } from "./database.ts";
 import {
-  InvitationId,
-  MemberId,
-  OrganizationId,
-  OrganizationSlug,
-  UserId,
-} from "./domain.ts";
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "@effect/vitest";
+import * as schema from "@prosewire/db/schema";
+import { openTestDatabase, type TestDatabase } from "@prosewire/db/testing";
+import type { EmailDeliveryJob } from "@prosewire/jobs/email-queue";
+import * as EmailQueue from "@prosewire/jobs/email-queue";
+import { eq } from "drizzle-orm";
+import { Effect, Layer, Redacted } from "effect";
+import { BlogAccess } from "./authorization.ts";
+import { WebConfig } from "./config.ts";
+import { testDatabaseLayer } from "./database.test-support.ts";
+import { InvitationId, OrganizationId, UserId } from "./domain.ts";
 import { PlatformCrypto } from "./platform-crypto.ts";
 import {
-  InviteMemberInput,
   InvitationMutationInput,
+  InviteMemberInput,
   WorkspaceManagement,
 } from "./workspace-management.ts";
 
+const databaseUrl = process.env.DATABASE_URL;
 const organizationId = OrganizationId.make("workspace-1");
 const invitationId = InvitationId.make("invitation-1");
 const actor = {
@@ -31,328 +34,275 @@ const actor = {
 };
 const input = new InvitationMutationInput({ invitationId });
 
-function workspaceAuthorizationRow(name = "Workspace") {
-  return {
-    workspace: {
-      id: organizationId,
-      name,
-      slug: "studio",
-      logo: null,
-      metadata: null,
-      createdAt: new Date("2026-01-01T00:00:00.000Z"),
-    },
-    memberId: "member-1",
-    role: "owner",
-  };
-}
+describe.skipIf(!databaseUrl)(
+  "workspace invitation transitions with PostgreSQL",
+  () => {
+    let testDatabase: TestDatabase;
 
-function dependencies(
-  client: Db,
-  options: {
-    readonly workspaceName?: string;
-  } = {},
-) {
-  return Layer.mergeAll(
-    Layer.succeed(Database, {
-      client: Effect.succeed(client),
-      execute: (operation, evaluate) =>
-        Effect.tryPromise({
-          try: () => evaluate(client),
-          catch: (cause) => new DatabaseError({ operation, cause }),
-        }),
-    }),
-    Layer.mock(BlogAccess.Service, {
-      requireMembersManage: () =>
-        Effect.succeed(new WorkspaceAuthorization({
-          workspace: new Workspace({
-            id: organizationId,
-            name: options.workspaceName ?? "Workspace",
-            slug: OrganizationSlug.make("studio"),
-            logo: null,
-            metadata: null,
-            createdAt: new Date("2026-01-01T00:00:00.000Z"),
-          }),
-          memberId: MemberId.make("member-1"),
-          role: "owner",
-        })),
-    }),
-    PlatformCrypto.layer,
-    Layer.succeed(WebConfig, {
-      defaultBlog: "fieldnotes",
-      publicUrl: "http://localhost:3000",
-      databaseUrl: Redacted.make("postgres://test"),
-      authSecret: Redacted.make("test-secret-at-least-32-characters"),
-      allowSignUp: false,
-      smtpUrl: Option.none(),
-      emailFrom: "Prosewire <prosewire@localhost>",
-      environment: "test",
-    }),
-  );
-}
+    beforeAll(async () => {
+      if (!databaseUrl) throw new Error("DATABASE_URL is required");
+      testDatabase = await openTestDatabase(databaseUrl, "web_workspace");
+    });
 
-function invitationClient(events: Array<string>, initiallyPending: boolean): Db {
-  let pending = initiallyPending;
-  const transaction = {
-    select: () => ({
-      from: () => ({
-        innerJoin: () => ({
-          where: () => ({
-            for: () => Promise.resolve([workspaceAuthorizationRow()]),
-          }),
-        }),
-      }),
-    }),
-    update: (table: unknown) => ({
-      set: (values: { status?: string }) => ({
-        where: () => {
-          if (table === databaseSchema.invitation) {
-            return {
-              returning: () => {
-                if (!pending) return Promise.resolve([]);
-                pending = false;
-                events.push(`claim:${values.status}`);
-                return Promise.resolve([
-                  {
-                    organizationId,
-                    email: actor.email,
-                    role: "editor",
-                  },
-                ]);
-              },
-            };
-          }
-          events.push("session");
-          return Promise.resolve();
+    beforeEach(async () => {
+      await testDatabase.reset();
+    });
+
+    afterAll(async () => {
+      await testDatabase?.close();
+    });
+
+    const seedWorkspace = async (
+      options: { readonly actorIsOwner?: boolean; readonly name?: string } = {},
+    ) => {
+      await testDatabase.client.insert(schema.user).values([
+        {
+          id: actor.id,
+          email: actor.email,
+          name: actor.name,
         },
-      }),
-    }),
-    insert: (table: unknown) => ({
-      values: () => {
-        if (table === databaseSchema.member) {
-          return {
-            onConflictDoNothing: () => {
-              events.push("member");
-              return Promise.resolve();
-            },
-          };
-        }
-        events.push("audit");
-        return Promise.resolve();
-      },
-    }),
-  };
-  return {
-    transaction: (evaluate: (tx: typeof transaction) => Promise<unknown>) =>
-      evaluate(transaction),
-    query: {
-      blog: {
-        findFirst: () => {
-          events.push("publication");
-          return Promise.resolve(undefined);
+        {
+          id: "inviter-1",
+          email: "inviter@example.com",
+          name: "Inviter",
         },
-      },
-    },
-  } as unknown as Db;
-}
-
-describe("workspace invitation transitions", () => {
-  it.effect("serializes invite creation and escapes untrusted email HTML", () => {
-    const events: Array<string> = [];
-    let queued: Record<string, unknown> | undefined;
-    const transaction = {
-      select: () => ({
-        from: () => ({
-          innerJoin: () => ({
-            where: () => ({
-              for: () =>
-                Promise.resolve([
-                  workspaceAuthorizationRow("Studio & Partners"),
-                ]),
-            }),
-          }),
-        }),
-      }),
-      execute: () => {
-        events.push("lock");
-        return Promise.resolve();
-      },
-      update: () => ({
-        set: () => ({
-          where: () => {
-            events.push("cancel-existing");
-            return Promise.resolve();
-          },
-        }),
-      }),
-      insert: (table: unknown) => ({
-        values: (values: Record<string, unknown>) => {
-          if (table === databaseSchema.emailOutbox) queued = values;
-          events.push(
-            table === databaseSchema.invitation
-              ? "invitation"
-              : table === databaseSchema.emailOutbox
-                ? "outbox"
-                : "audit",
-          );
-          return Promise.resolve();
-        },
-      }),
-    };
-    const client = {
-      select: () => ({
-        from: () => ({
-          innerJoin: () => ({ where: () => Promise.resolve([]) }),
-        }),
-      }),
-      transaction: (evaluate: (tx: typeof transaction) => Promise<unknown>) =>
-        evaluate(transaction),
-    } as unknown as Db;
-    const maliciousActor = { ...actor, name: "A <script>alert(1)</script>" };
-
-    return Effect.gen(function* () {
-      const management = yield* WorkspaceManagement.Service;
-      yield* management.inviteMember(
-        new InviteMemberInput({
+      ]);
+      await testDatabase.client.insert(schema.organization).values({
+        id: organizationId,
+        name: options.name ?? "Workspace",
+        slug: "studio",
+      });
+      await testDatabase.client.insert(schema.session).values({
+        id: actor.sessionId,
+        userId: actor.id,
+        token: "session-token",
+        expiresAt: new Date("2099-01-01T00:00:00.000Z"),
+      });
+      if (options.actorIsOwner) {
+        await testDatabase.client.insert(schema.member).values({
+          id: "member-1",
           organizationId,
-          email: "new@example.com",
-          role: "viewer",
-        }),
-        maliciousActor,
-      );
-
-      expect(events).toEqual([
-        "lock",
-        "cancel-existing",
-        "invitation",
-        "audit",
-        "outbox",
-      ]);
-      expect(queued?.["htmlBody"]).toContain(
-        "A &lt;script&gt;alert(1)&lt;/script&gt;",
-      );
-      expect(queued?.["htmlBody"]).toContain("Studio &amp; Partners");
-      expect(queued?.["htmlBody"]).not.toContain("<script>");
-    }).pipe(
-      Effect.provide(
-        WorkspaceManagement.layer.pipe(
-          Layer.provide(
-            dependencies(client, { workspaceName: "Studio & Partners" }),
-          ),
-        ),
-      ),
-    );
-  });
-
-  it.effect("does no membership, session, or audit writes after a lost accept claim", () => {
-    const events: Array<string> = [];
-    const client = invitationClient(events, false);
-
-    return Effect.gen(function* () {
-      const management = yield* WorkspaceManagement.Service;
-      const error = yield* Effect.flip(
-        management.acceptInvitation(input, actor),
-      );
-
-      expect(error._tag).toBe("InvitationNotFound");
-      expect(events).toEqual([]);
-    }).pipe(
-      Effect.provide(
-        WorkspaceManagement.layer.pipe(Layer.provide(dependencies(client))),
-      ),
-    );
-  });
-
-  it.effect("allows only one concurrent accept transition for a pending invitation", () => {
-    const events: Array<string> = [];
-    const client = invitationClient(events, true);
-
-    return Effect.gen(function* () {
-      const management = yield* WorkspaceManagement.Service;
-      const outcomes = yield* Effect.all(
-        [
-          management.acceptInvitation(input, actor),
-          management.acceptInvitation(input, actor),
-        ].map((attempt) =>
-          attempt.pipe(
-            Effect.match({
-              onFailure: (error) => error._tag,
-              onSuccess: () => "accepted" as const,
-            }),
-          ),
-        ),
-        { concurrency: "unbounded" },
-      );
-
-      expect([...outcomes].sort()).toEqual(
-        ["InvitationNotFound", "accepted"].sort(),
-      );
-      expect(events).toEqual([
-        "claim:accepted",
-        "member",
-        "session",
-        "audit",
-        "publication",
-      ]);
-    }).pipe(
-      Effect.provide(
-        WorkspaceManagement.layer.pipe(Layer.provide(dependencies(client))),
-      ),
-    );
-  });
-
-  it.effect("does not audit a cancellation that lost the pending-row claim", () => {
-    const events: Array<string> = [];
-    const client = invitationClient(events, false);
-
-    return Effect.gen(function* () {
-      const management = yield* WorkspaceManagement.Service;
-      const error = yield* Effect.flip(
-        management.cancelInvitation(organizationId, input, actor),
-      );
-
-      expect(error._tag).toBe("InvitationNotFound");
-      expect(events).toEqual([]);
-    }).pipe(
-      Effect.provide(
-        WorkspaceManagement.layer.pipe(Layer.provide(dependencies(client))),
-      ),
-    );
-  });
-
-  it.effect("does not mutate after authorization is lost before the transaction", () => {
-    let writes = 0;
-    const transaction = {
-      select: () => ({
-        from: () => ({
-          innerJoin: () => ({
-            where: () => ({
-              for: () => Promise.resolve([]),
-            }),
-          }),
-        }),
-      }),
-      update: () => {
-        writes += 1;
-        throw new Error("unauthorized transactions must not write");
-      },
+          userId: actor.id,
+          role: "owner",
+        });
+      }
     };
-    const client = {
-      transaction: (evaluate: (tx: typeof transaction) => Promise<unknown>) =>
-        evaluate(transaction),
-    } as unknown as Db;
 
-    return Effect.gen(function* () {
-      const management = yield* WorkspaceManagement.Service;
-      const error = yield* Effect.flip(
-        management.cancelInvitation(organizationId, input, actor),
+    const seedInvitation = async () => {
+      await testDatabase.client.insert(schema.invitation).values({
+        id: invitationId,
+        organizationId,
+        email: actor.email,
+        role: "editor",
+        inviterId: "inviter-1",
+        expiresAt: new Date("2099-01-01T00:00:00.000Z"),
+      });
+    };
+
+    const layer = (queued: Array<EmailDeliveryJob> = []) =>
+      WorkspaceManagement.live.pipe(
+        Layer.provide(
+          Layer.mergeAll(
+            testDatabaseLayer(testDatabase.client),
+            Layer.mock(BlogAccess.Service, {}),
+            PlatformCrypto.layer,
+            Layer.mock(EmailQueue.Service, {
+              offer: (job) =>
+                Effect.sync(() => {
+                  queued.push(job);
+                }),
+              take: () =>
+                Effect.die("Email consumption is unavailable in web tests"),
+            }),
+            Layer.succeed(WebConfig, {
+              defaultBlog: "fieldnotes",
+              publicUrl: "http://localhost:3000",
+              databaseUrl: Redacted.make(testDatabase.url),
+              redisUrl: Redacted.make("redis://test"),
+              authSecret: Redacted.make("test-secret-at-least-32-characters"),
+              allowSignUp: false,
+              environment: "test",
+            }),
+          ),
+        ),
       );
 
-      expect(error).toBeInstanceOf(BlogAccess.WorkspaceAccessDenied);
-      expect(writes).toBe(0);
-    }).pipe(
-      Effect.provide(
-        WorkspaceManagement.layer.pipe(Layer.provide(dependencies(client))),
-      ),
+    it.effect(
+      "serializes invite creation and escapes untrusted email HTML",
+      () => {
+        const queued: Array<EmailDeliveryJob> = [];
+        return Effect.gen(function* () {
+          yield* Effect.promise(() =>
+            seedWorkspace({ actorIsOwner: true, name: "Studio & Partners" }),
+          );
+          const maliciousActor = {
+            ...actor,
+            name: "A <script>alert(1)</script>",
+          };
+          const management = yield* WorkspaceManagement.Service;
+          yield* Effect.all(
+            [
+              management.inviteMember(
+                new InviteMemberInput({
+                  organizationId,
+                  email: "new@example.com",
+                  role: "viewer",
+                }),
+                maliciousActor,
+              ),
+              management.inviteMember(
+                new InviteMemberInput({
+                  organizationId,
+                  email: "new@example.com",
+                  role: "viewer",
+                }),
+                maliciousActor,
+              ),
+            ],
+            { concurrency: "unbounded" },
+          );
+
+          const invitations = yield* Effect.promise(() =>
+            testDatabase.client.query.invitation.findMany({
+              where: eq(schema.invitation.email, "new@example.com"),
+            }),
+          );
+          expect(invitations).toHaveLength(2);
+          expect(
+            invitations.filter(({ status }) => status === "pending"),
+          ).toHaveLength(1);
+          expect(
+            invitations.filter(({ status }) => status === "canceled"),
+          ).toHaveLength(1);
+          expect(queued).toHaveLength(2);
+          for (const message of queued) {
+            expect(message.html).toContain(
+              "A &lt;script&gt;alert(1)&lt;/script&gt;",
+            );
+            expect(message.html).toContain("Studio &amp; Partners");
+            expect(message.html).not.toContain("<script>");
+          }
+        }).pipe(Effect.provide(layer(queued)));
+      },
     );
-  });
-});
+
+    it.effect(
+      "does no membership, session, or audit writes after a lost accept claim",
+      () =>
+        Effect.gen(function* () {
+          yield* Effect.promise(() => seedWorkspace());
+          const management = yield* WorkspaceManagement.Service;
+          const error = yield* Effect.flip(
+            management.acceptInvitation(input, actor),
+          );
+
+          expect(error._tag).toBe("InvitationNotFound");
+          const members = yield* Effect.promise(() =>
+            testDatabase.client.query.member.findMany(),
+          );
+          const session = yield* Effect.promise(() =>
+            testDatabase.client.query.session.findFirst({
+              where: eq(schema.session.id, actor.sessionId),
+            }),
+          );
+          const audits = yield* Effect.promise(() =>
+            testDatabase.client.query.auditLog.findMany(),
+          );
+          expect(members).toHaveLength(0);
+          expect(session?.activeOrganizationId).toBeNull();
+          expect(audits).toHaveLength(0);
+        }).pipe(Effect.provide(layer())),
+    );
+
+    it.effect(
+      "allows only one concurrent accept transition for a pending invitation",
+      () =>
+        Effect.gen(function* () {
+          yield* Effect.promise(async () => {
+            await seedWorkspace();
+            await seedInvitation();
+          });
+          const management = yield* WorkspaceManagement.Service;
+          const outcomes = yield* Effect.all(
+            [
+              management.acceptInvitation(input, actor),
+              management.acceptInvitation(input, actor),
+            ].map((attempt) =>
+              attempt.pipe(
+                Effect.match({
+                  onFailure: (error) => error._tag,
+                  onSuccess: () => "accepted" as const,
+                }),
+              ),
+            ),
+            { concurrency: "unbounded" },
+          );
+
+          expect([...outcomes].sort()).toEqual(
+            ["InvitationNotFound", "accepted"].sort(),
+          );
+          const members = yield* Effect.promise(() =>
+            testDatabase.client.query.member.findMany(),
+          );
+          const session = yield* Effect.promise(() =>
+            testDatabase.client.query.session.findFirst({
+              where: eq(schema.session.id, actor.sessionId),
+            }),
+          );
+          const audits = yield* Effect.promise(() =>
+            testDatabase.client.query.auditLog.findMany(),
+          );
+          expect(members).toHaveLength(1);
+          expect(members[0]?.role).toBe("editor");
+          expect(session?.activeOrganizationId).toBe(organizationId);
+          expect(audits).toHaveLength(1);
+          expect(audits[0]?.action).toBe("invitation.accepted");
+        }).pipe(Effect.provide(layer())),
+    );
+
+    it.effect(
+      "does not audit a cancellation that lost the pending-row claim",
+      () =>
+        Effect.gen(function* () {
+          yield* Effect.promise(() => seedWorkspace({ actorIsOwner: true }));
+          const management = yield* WorkspaceManagement.Service;
+          const error = yield* Effect.flip(
+            management.cancelInvitation(organizationId, input, actor),
+          );
+
+          expect(error._tag).toBe("InvitationNotFound");
+          const audits = yield* Effect.promise(() =>
+            testDatabase.client.query.auditLog.findMany(),
+          );
+          expect(audits).toHaveLength(0);
+        }).pipe(Effect.provide(layer())),
+    );
+
+    it.effect(
+      "does not mutate after authorization is lost before the transaction",
+      () =>
+        Effect.gen(function* () {
+          yield* Effect.promise(async () => {
+            await seedWorkspace();
+            await seedInvitation();
+          });
+          const management = yield* WorkspaceManagement.Service;
+          const error = yield* Effect.flip(
+            management.cancelInvitation(organizationId, input, actor),
+          );
+
+          expect(error).toBeInstanceOf(BlogAccess.WorkspaceAccessDenied);
+          const invitation = yield* Effect.promise(() =>
+            testDatabase.client.query.invitation.findFirst({
+              where: eq(schema.invitation.id, invitationId),
+            }),
+          );
+          const audits = yield* Effect.promise(() =>
+            testDatabase.client.query.auditLog.findMany(),
+          );
+          expect(invitation?.status).toBe("pending");
+          expect(audits).toHaveLength(0);
+        }).pipe(Effect.provide(layer())),
+    );
+  },
+);

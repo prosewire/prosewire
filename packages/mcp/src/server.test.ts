@@ -1,4 +1,5 @@
-import { Context, Effect, Option, Stream } from "effect";
+import { ApiUnavailable } from "@prosewire/contract";
+import { Context, Deferred, Effect, Fiber, Option, Stream } from "effect";
 import { Tool } from "effect/unstable/ai";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -46,24 +47,27 @@ const post = {
 
 function mockClient(): ProsewireMcpClient {
   return {
-    blogs: { list: vi.fn().mockResolvedValue([]) },
+    blogs: { list: vi.fn(() => Effect.succeed([])) },
     posts: {
-      list: vi.fn().mockResolvedValue({
-        items: [], total: 0, page: 1, pageSize: 20,
-      }),
-      get: vi.fn().mockResolvedValue(post),
-      create: vi.fn().mockResolvedValue(post),
-      update: vi.fn().mockResolvedValue({ ...post, title: "Updated" }),
-      archive: vi.fn().mockResolvedValue({ ok: true }),
+      list: vi.fn(() =>
+        Effect.succeed({
+          items: [],
+          total: 0,
+          page: 1,
+          pageSize: 20,
+        }),
+      ),
+      get: vi.fn(() => Effect.succeed(post)),
+      create: vi.fn(() => Effect.succeed(post)),
+      update: vi.fn(() => Effect.succeed({ ...post, title: "Updated" })),
+      archive: vi.fn(() => Effect.succeed({ ok: true as const })),
     },
   };
 }
 
 async function buildToolkit(client: ProsewireMcpClient) {
   return Effect.runPromise(
-    ProsewireToolkit.pipe(
-      Effect.provide(createProsewireMcpHandlers(client)),
-    ),
+    ProsewireToolkit.pipe(Effect.provide(createProsewireMcpHandlers(client))),
   );
 }
 
@@ -99,47 +103,71 @@ describe("Prosewire Effect MCP server", () => {
       "posts_update",
       "posts_archive",
     ]);
-    expect(Context.get(ProsewireToolkit.tools.posts_list.annotations, Tool.Readonly))
-      .toBe(true);
-    expect(Context.get(ProsewireToolkit.tools.posts_list.annotations, Tool.Destructive))
-      .toBe(false);
-    expect(Context.get(ProsewireToolkit.tools.posts_archive.annotations, Tool.Readonly))
-      .toBe(false);
-    expect(Context.get(ProsewireToolkit.tools.posts_archive.annotations, Tool.Destructive))
-      .toBe(true);
+    expect(
+      Context.get(ProsewireToolkit.tools.posts_list.annotations, Tool.Readonly),
+    ).toBe(true);
+    expect(
+      Context.get(
+        ProsewireToolkit.tools.posts_list.annotations,
+        Tool.Destructive,
+      ),
+    ).toBe(false);
+    expect(
+      Context.get(
+        ProsewireToolkit.tools.posts_archive.annotations,
+        Tool.Readonly,
+      ),
+    ).toBe(false);
+    expect(
+      Context.get(
+        ProsewireToolkit.tools.posts_archive.annotations,
+        Tool.Destructive,
+      ),
+    ).toBe(true);
     expect(ProsewireToolkit.tools.posts_archive.needsApproval).toBe(true);
   });
 
-  it("validates inputs and delegates all tools to the Promise SDK facade", async () => {
+  it("validates inputs and delegates all tools to the Effect SDK", async () => {
     const client = mockClient();
-    await expect(runTool(client, (toolkit) =>
-      toolkit.handle("publication_get", {}))).resolves.toEqual({
+    await expect(
+      runTool(client, (toolkit) => toolkit.handle("publication_get", {})),
+    ).resolves.toEqual({
       publications: [],
     });
-    await expect(runTool(client, (toolkit) =>
-      toolkit.handle("posts_list", { status: "draft" }))).resolves
-      .toMatchObject({ total: 0 });
-    await expect(runTool(client, (toolkit) =>
-      toolkit.handle("posts_get", { id }))).resolves
-      .toMatchObject({ id });
-    await expect(runTool(client, (toolkit) => toolkit.handle("posts_create", {
-      blogId: id,
-      authorId: id,
-      title: "Draft",
-      slug: "draft",
-      contentMarkdown: "",
-      status: "draft",
-      locale: "en",
-      featured: false,
-      categoryIds: [],
-    }))).resolves.toMatchObject({ id });
-    await expect(runTool(client, (toolkit) => toolkit.handle("posts_update", {
-      id,
-      body: { title: "Updated" },
-    }))).resolves.toMatchObject({ title: "Updated" });
-    await expect(runTool(client, (toolkit) =>
-      toolkit.handle("posts_archive", { id }))).resolves
-      .toEqual({ ok: true });
+    await expect(
+      runTool(client, (toolkit) =>
+        toolkit.handle("posts_list", { status: "draft" }),
+      ),
+    ).resolves.toMatchObject({ total: 0 });
+    await expect(
+      runTool(client, (toolkit) => toolkit.handle("posts_get", { id })),
+    ).resolves.toMatchObject({ id });
+    await expect(
+      runTool(client, (toolkit) =>
+        toolkit.handle("posts_create", {
+          blogId: id,
+          authorId: id,
+          title: "Draft",
+          slug: "draft",
+          contentMarkdown: "",
+          status: "draft",
+          locale: "en",
+          featured: false,
+          categoryIds: [],
+        }),
+      ),
+    ).resolves.toMatchObject({ id });
+    await expect(
+      runTool(client, (toolkit) =>
+        toolkit.handle("posts_update", {
+          id,
+          body: { title: "Updated" },
+        }),
+      ),
+    ).resolves.toMatchObject({ title: "Updated" });
+    await expect(
+      runTool(client, (toolkit) => toolkit.handle("posts_archive", { id })),
+    ).resolves.toEqual({ ok: true });
 
     expect(client.posts.list).toHaveBeenCalledWith({
       status: "draft",
@@ -167,29 +195,65 @@ describe("Prosewire Effect MCP server", () => {
 
   it("rejects invalid UUIDs before calling the SDK", async () => {
     const client = mockClient();
-    await expect(runTool(client, (toolkit) =>
-      toolkit.handle("posts_archive", { id: "not-a-uuid" })))
-      .rejects.toThrow();
+    await expect(
+      runTool(client, (toolkit) =>
+        toolkit.handle("posts_archive", { id: "not-a-uuid" }),
+      ),
+    ).rejects.toThrow();
     expect(client.posts.archive).not.toHaveBeenCalled();
   });
 
   it("preserves SDK error messages and falls back for unknown failures", async () => {
     const client = mockClient();
     vi.mocked(client.posts.list)
-      .mockRejectedValueOnce(new Error("SDK unavailable"))
-      .mockRejectedValueOnce("offline");
+      .mockReturnValueOnce(
+        Effect.fail(new ApiUnavailable({ message: "SDK unavailable" })),
+      )
+      .mockReturnValueOnce(Effect.fail("offline"));
 
-    await expect(runTool(client, (toolkit) =>
-      toolkit.handle("posts_list", { page: 2, pageSize: 10 })))
-      .rejects.toThrow("SDK unavailable");
-    await expect(runTool(client, (toolkit) =>
-      toolkit.handle("posts_list", { page: 2, pageSize: 10 })))
-      .rejects.toThrow("Prosewire request failed");
+    await expect(
+      runTool(client, (toolkit) =>
+        toolkit.handle("posts_list", { page: 2, pageSize: 10 }),
+      ),
+    ).rejects.toThrow("SDK unavailable");
+    await expect(
+      runTool(client, (toolkit) =>
+        toolkit.handle("posts_list", { page: 2, pageSize: 10 }),
+      ),
+    ).rejects.toThrow("Prosewire request failed");
 
     expect(client.posts.list).toHaveBeenNthCalledWith(1, {
       page: 2,
       pageSize: 10,
     });
+  });
+
+  it("interrupts an in-flight SDK effect when a tool is cancelled", async () => {
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const started = yield* Deferred.make<void>();
+        const interrupted = yield* Deferred.make<void>();
+        const client = mockClient();
+        vi.mocked(client.posts.archive).mockReturnValue(
+          Deferred.succeed(started, undefined).pipe(
+            Effect.andThen(Effect.never),
+            Effect.onInterrupt(() => Deferred.succeed(interrupted, undefined)),
+            Effect.as({ ok: true as const }),
+          ),
+        );
+        const toolkit = yield* ProsewireToolkit.pipe(
+          Effect.provide(createProsewireMcpHandlers(client)),
+        );
+        const fiber = yield* toolkit
+          .handle("posts_archive", { id })
+          .pipe(Effect.flatMap(Stream.runDrain), Effect.forkChild);
+
+        yield* Deferred.await(started);
+        yield* Fiber.interrupt(fiber);
+
+        expect(yield* Deferred.isDone(interrupted)).toBe(true);
+      }),
+    );
   });
 
   it("builds both MCP server entrypoint aliases", () => {

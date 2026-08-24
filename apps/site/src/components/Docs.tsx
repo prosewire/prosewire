@@ -25,26 +25,46 @@ export function Docs({
       pathname={pathname}
       params={params}
       navigate={navigate}
-      theme={{ enabled: false }}
       search={{ SearchDialog: ProsewireSearch }}
     >
       <DocsLayout
         tree={tree}
         githubUrl="https://github.com/prosewire/prosewire"
-        themeSwitch={{ enabled: false }}
+        themeSwitch={{ enabled: true, mode: "light-dark-system" }}
         nav={{
           title: (
             <span className="flex items-center gap-2.5 font-bold tracking-[-0.035em] text-fd-foreground">
-              <img src="/icon.png" alt="" width={32} height={32} className="size-8 rounded-[0.65rem] shadow-sm" />
+              <span className="relative size-8 shrink-0">
+                <img
+                  src="/icon.png"
+                  alt=""
+                  width={32}
+                  height={32}
+                  className="theme-logo-light size-8 rounded-[0.65rem] shadow-sm"
+                />
+                <img
+                  src="/icon-dark.png"
+                  alt=""
+                  width={32}
+                  height={32}
+                  className="theme-logo-dark absolute inset-0 size-8 rounded-[0.65rem] shadow-sm"
+                />
+              </span>
               <span>Prosewire</span>
-              <span className="text-xs font-normal tracking-normal text-fd-muted-foreground">Docs</span>
+              <span className="text-xs font-normal tracking-normal text-fd-muted-foreground">
+                Docs
+              </span>
             </span>
           ),
           url: "/docs/",
         }}
         links={[
           { text: "Website", url: "/" },
-          { text: "GitHub", url: "https://github.com/prosewire/prosewire", external: true },
+          {
+            text: "GitHub",
+            url: "https://github.com/prosewire/prosewire",
+            external: true,
+          },
         ]}
       >
         <DocsPage {...page}>{children}</DocsPage>

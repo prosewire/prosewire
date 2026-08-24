@@ -1,4 +1,3 @@
-import assert from "node:assert/strict";
 import { readdir, readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -36,19 +35,9 @@ check(
 const changesetConfig = JSON.parse(
   await readFile(join(root, ".changeset", "config.json"), "utf8"),
 );
-const coreLinked = changesetConfig.linked?.[0] ?? [];
 check(
-  ["@prosewire/sdk", "@prosewire/cli", "@prosewire/mcp"].every((name) =>
-    coreLinked.includes(name),
-  ) && coreLinked.length === 3,
-  "the SDK, CLI, and MCP packages must remain in one Changesets linked group",
-);
-const frameworkLinked = changesetConfig.linked?.[1] ?? [];
-check(
-  ["@prosewire/next", "@prosewire/astro", "create-prosewire"].every((name) =>
-    frameworkLinked.includes(name),
-  ) && frameworkLinked.length === 3,
-  "the Next.js, Astro, and scaffolding packages must remain in one Changesets linked group",
+  Array.isArray(changesetConfig.linked) && changesetConfig.linked.length === 0,
+  "public packages must not be coupled through Changesets linked groups",
 );
 
 const manifests = new Map();
@@ -130,37 +119,8 @@ for (const definition of packages) {
   );
 }
 
-const coreVersions = new Set(
-  coreLinked.map((name) => manifests.get(name)?.version),
-);
-check(coreVersions.size === 1, "core public package versions are not aligned");
-const frameworkVersions = new Set(
-  frameworkLinked.map((name) => manifests.get(name)?.version),
-);
-check(
-  frameworkVersions.size === 1,
-  "framework package versions are not aligned",
-);
-const publicVersion = manifests.get("@prosewire/sdk")?.version;
-const rootManifest = JSON.parse(
-  await readFile(join(root, "package.json"), "utf8"),
-);
-check(
-  rootManifest.version === publicVersion,
-  "root release version is not aligned",
-);
-const webVersion = await readFile(
-  join(root, "apps", "web", "src", "server", "version.ts"),
-  "utf8",
-);
-check(
-  webVersion.includes(`export const version = "${publicVersion}";`),
-  "web health version is not aligned",
-);
-
 for (const directory of ["cli", "mcp"]) {
   const manifest = manifests.get(`@prosewire/${directory}`);
-  const sdkVersion = manifests.get("@prosewire/sdk").version;
   check(
     manifest.dependencies?.["@prosewire/sdk"] === "workspace:^",
     `@prosewire/${directory}: source dependency on the SDK must use workspace:^`,
@@ -173,7 +133,6 @@ for (const directory of ["cli", "mcp"]) {
     runtimeVersion.includes(`export const version = "${manifest.version}";`),
     `@prosewire/${directory}: runtime version does not match the manifest; run pnpm version-packages`,
   );
-  check(/^\d+\.\d+\.\d+$/.test(sdkVersion), "SDK version is not plain semver");
 }
 
 for (const directory of ["next", "astro"]) {
@@ -184,24 +143,24 @@ for (const directory of ["next", "astro"]) {
   );
 }
 
-const createManifest = manifests.get("create-prosewire");
-const createVersion = await readFile(
+const createVersions = await readFile(
   join(root, "packages", "create-prosewire", "src", "version.ts"),
   "utf8",
 );
-check(
-  createVersion.includes(`export const version = "${createManifest.version}";`),
-  "create-prosewire: generated dependency version does not match the manifest; run pnpm version-packages",
-);
+for (const name of ["@prosewire/next", "@prosewire/astro"]) {
+  const escapedName = name.replace("/", "\\/");
+  check(
+    new RegExp(`"${escapedName}": "\\d+\\.\\d+\\.\\d+"`).test(createVersions),
+    `create-prosewire: ${name} target must be a plain semver`,
+  );
+}
 
 if (failures.length > 0) {
   process.stderr.write("Release preflight failed:\n");
   for (const failure of failures) process.stderr.write(`- ${failure}\n`);
   process.exitCode = 1;
 } else {
-  const version = publicVersion;
-  assert.ok(version);
   process.stdout.write(
-    `Release metadata is consistent for public packages at core ${version}; no Changesets remain.\n`,
+    "Release metadata is consistent for independently versioned public packages; no Changesets remain.\n",
   );
 }
