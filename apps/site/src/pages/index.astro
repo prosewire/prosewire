@@ -1,187 +1,501 @@
 ---
 import SiteFooter from "../components/SiteFooter.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
+import "../styles/landing.css";
+
+const setupCommand = `pnpm create prosewire@latest \\
+  --url https://publish.example.com \\
+  --blog fieldnotes \\
+  --route /blog`;
+
+const nextSnippet = `import { createProsewireApp } from "@prosewire/next/app";
+
+export const blog = createProsewireApp({
+  baseUrl: "https://publish.example.com",
+  publication: "fieldnotes",
+  basePath: "/blog",
+});`;
+
+const astroSnippet = `import prosewire from "@prosewire/astro";
+
+export default defineConfig({
+  integrations: [
+    prosewire({
+      baseUrl: "https://publish.example.com",
+      publication: "fieldnotes",
+      basePath: "/blog",
+    }),
+  ],
+});`;
+
+const apiSnippet = `import { createPublicClient } from "@prosewire/sdk";
+
+const content = createPublicClient({
+  baseUrl: "https://publish.example.com",
+  blog: "fieldnotes",
+});
+
+const posts = await content.listPosts({
+  page: 1,
+  pageSize: 10,
+});`;
 
 const features = [
-  [
-    "01",
-    "Editorial control",
-    "Draft, schedule, publish, revise, localize, organize, and archive from one focused workspace.",
-  ],
-  [
-    "02",
-    "Discovery foundations",
-    "Canonical URLs, automatic redirects, metadata, JSON-LD, RSS, sitemaps, authors, and content checks.",
-  ],
-  [
-    "03",
-    "Flexible delivery",
-    "Use an embed, rendered HTML, public JSON, or the typed SDK. No iframe and no forced frontend.",
-  ],
-  [
-    "04",
-    "Controlled automation",
-    "Scoped keys, the management API, CLI, and MCP tools keep read, write, and destructive operations explicit.",
-  ],
-];
-
-const paths = [
   {
     number: "01",
-    eyebrow: "Managed",
-    title: "Start on Prosewire Cloud",
-    copy: "Create a workspace and publish without operating the Prosewire services yourself.",
-    href: "https://cloud.prosewire.com",
-    link: "Open Cloud",
+    title: "A focused editorial workspace",
+    copy: "Draft, schedule, publish, localize, and organize posts without turning your application into a CMS dashboard.",
+    href: "/docs/operate/content-lifecycle/",
+    link: "Explore the workflow",
   },
   {
     number: "02",
-    eyebrow: "Explore",
-    title: "See a running deployment",
-    copy: "Walk through the product in a hosted Prosewire instance before choosing your setup.",
-    href: "https://demo.prosewire.com",
-    link: "View live demo",
+    title: "Your content stays in Postgres",
+    copy: "Back up the database yourself and export posts, authors, categories, redirects, metadata, and revision snapshots.",
+    href: "/docs/operate/content-lifecycle/",
+    link: "Read about exports",
   },
   {
     number: "03",
-    eyebrow: "Self-host",
-    title: "Run the complete stack",
-    copy: "Deploy the web app, worker, Postgres, and Redis on infrastructure you control.",
-    href: "/docs/self-host/docker/",
-    link: "Read the deployment guide",
+    title: "Every destructive edit leaves a record",
+    copy: "Prosewire stores versioned revision snapshots with actor data before destructive content changes.",
+    href: "/docs/operate/content-lifecycle/",
+    link: "See content history",
   },
   {
     number: "04",
-    eyebrow: "Open source",
-    title: "Read, fork, and contribute",
-    copy: "Inspect the Apache-2.0 codebase, follow development, or open an issue on GitHub.",
-    href: "https://github.com/prosewire/prosewire",
-    link: "Explore GitHub",
+    title: "Native delivery by default",
+    copy: "Use framework routes, semantic HTML, public JSON, or the typed SDK. Prosewire does not force an iframe or a frontend.",
+    href: "/docs/integrate/",
+    link: "Open the API reference",
+  },
+];
+
+const faqs = [
+  {
+    question: "Is Prosewire really open source?",
+    answer:
+      "Yes. The repository is available under the Apache-2.0 license, including the dashboard, APIs, reader, SDK, CLI, and MCP server.",
+  },
+  {
+    question: "Will it work with my existing Next.js or Astro site?",
+    answer:
+      "Yes. The scaffolder detects Next.js App Router, Next.js Pages Router, or Astro and writes thin native routes without overwriting an existing route.",
+  },
+  {
+    question: "Does Prosewire ship frontend styles?",
+    answer:
+      "No. The framework packages render semantic pw-* markup without a bundled stylesheet or client runtime, so the blog can use your design system.",
+  },
+  {
+    question: "Can I move my content later?",
+    answer:
+      "Yes. Versioned JSON exports include publication relationships and revision snapshots, while CSV covers posts and related identifiers.",
+  },
+  {
+    question: "What does self-hosting require?",
+    answer:
+      "The complete stack runs the web app, a worker, one-shot migrations, Postgres, and Redis. The Docker Compose guide covers the topology and production checks.",
+  },
+  {
+    question: "Is there a managed option?",
+    answer:
+      "Yes. Prosewire Cloud runs the platform for you, while the self-hosted project remains available when you need full infrastructure control.",
   },
 ];
 ---
 
-<BaseLayout>
-  <main class="site-shell">
-    <section class="hero">
-      <div class="hero-copy">
-        <a class="release-note" href="https://github.com/prosewire/prosewire">
-          <span>Apache-2.0</span> Publishing infrastructure you can own <b aria-hidden="true">→</b>
-        </a>
-        <h1>Own your publishing.<br /><em>Keep your website.</em></h1>
-        <p class="hero-lede">Prosewire gives editors a focused publishing workspace. Developers can add the same published content to an existing site with native routes, an embed, rendered HTML, or JSON.</p>
-        <div class="hero-actions">
-          <a class="button button-primary" href="https://cloud.prosewire.com">Start on Cloud <span aria-hidden="true">↗</span></a>
-          <a class="button button-secondary" href="https://demo.prosewire.com">View live demo <span aria-hidden="true">↗</span></a>
-        </div>
-        <p class="hero-proof"><a href="/docs/getting-started/">Run locally</a><span aria-hidden="true">·</span><a href="https://github.com/prosewire/prosewire">View on GitHub</a><span aria-hidden="true">·</span>Apache-2.0</p>
+<BaseLayout
+  title="Prosewire — Add a blog to Next.js or Astro"
+  description="Add native blog routes to an existing Next.js or Astro site in about five minutes. Use Prosewire Cloud or self-host the full publishing stack."
+>
+  <main class="landing-v2">
+    <section class="lp-hero" aria-labelledby="lp-title">
+      <a class="lp-license-note" href="https://github.com/prosewire/prosewire/blob/main/LICENSE">
+        <span>Apache-2.0</span>
+        Publishing infrastructure you can own
+      </a>
+      <h1 id="lp-title">Add a production blog to Next.js or Astro in about five minutes.</h1>
+      <p>Run one command to add native blog routes. Prosewire handles the editorial workspace, scheduling, metadata, feeds, and content APIs.</p>
+      <div class="lp-hero-actions">
+        <a class="lp-primary-button" href="#quickstart">Add Prosewire to your site</a>
+        <a class="lp-demo-link" href="https://demo.prosewire.com">View the live demo</a>
+      </div>
+      <div class="lp-command" aria-label="Prosewire setup command">
+        <code id="hero-command">pnpm create prosewire@latest</code>
+        <button type="button" data-copy="#hero-command">Copy</button>
+      </div>
+      <p class="lp-proof">
+        <a href="/docs/getting-started/">Run locally</a>
+        <span aria-hidden="true">·</span>
+        <a href="https://github.com/prosewire/prosewire">View on GitHub</a>
+        <span aria-hidden="true">·</span>
+        <span>Self-hosted or Cloud</span>
+      </p>
+    </section>
+
+    <section class="lp-product" id="quickstart" aria-label="Prosewire integration preview">
+      <div class="lp-window-bar" aria-hidden="true">
+        <p>prosewire / fieldnotes</p>
       </div>
 
-      <div class="workspace-frame" id="product" aria-label="A preview of the Prosewire editor">
-        <div class="frame-top">
-          <div class="traffic-lights" aria-hidden="true"><i></i><i></i><i></i></div>
-          <span>prosewire / fieldnotes</span>
-          <span class="publish-control">Publish ↗</span>
+      <div class="lp-demo-tabs" role="tablist" aria-label="Product preview">
+        <button id="tab-quickstart" type="button" role="tab" aria-selected="true" aria-controls="panel-quickstart" tabindex="0" data-demo-tab="quickstart">Quickstart</button>
+        <button id="tab-frameworks" type="button" role="tab" aria-selected="false" aria-controls="panel-frameworks" tabindex="-1" data-demo-tab="frameworks">Frameworks</button>
+        <button id="tab-self-hosting" type="button" role="tab" aria-selected="false" aria-controls="panel-self-hosting" tabindex="-1" data-demo-tab="self-hosting">Self-hosting</button>
+        <button id="tab-api" type="button" role="tab" aria-selected="false" aria-controls="panel-api" tabindex="-1" data-demo-tab="api">Content API</button>
+      </div>
+
+      <div id="panel-quickstart" class="lp-demo-panel" role="tabpanel" aria-labelledby="tab-quickstart" data-demo-panel="quickstart">
+        <div class="lp-framework-tabs" role="tablist" aria-label="Framework quickstart">
+          <button id="framework-next" type="button" role="tab" aria-selected="true" aria-controls="framework-panel-next" tabindex="0" data-framework-tab="next">Next.js</button>
+          <button id="framework-astro" type="button" role="tab" aria-selected="false" aria-controls="framework-panel-astro" tabindex="-1" data-framework-tab="astro">Astro</button>
         </div>
-        <div class="editor-grid">
-          <aside class="editor-rail" aria-hidden="true">
-            <img src="/icon.png" alt="" width="25" height="25" />
-            <span class="rail-dot active"></span><span class="rail-dot"></span><span class="rail-dot"></span><span class="rail-dot rail-bottom"></span>
-          </aside>
-          <article class="editor-canvas">
-            <p class="eyebrow">DRAFT · 6 MIN READ</p>
-            <h2>Your content should outlive your website stack.</h2>
-            <p>Portable publishing starts with a clean source of truth and ends with a reading experience that feels entirely your own.</p>
-            <div class="editor-rule"></div>
-            <h3>One story, every surface</h3>
-            <p class="muted-lines">Write once, then deliver semantic HTML, structured JSON, or a native SDK response wherever your readers already are.</p>
+        <div id="framework-panel-next" class="lp-quickstart-grid" role="tabpanel" aria-labelledby="framework-next" data-framework-panel="next">
+          <div class="lp-setup-steps">
+            <article>
+              <span>1</span>
+              <div><h2>Run the scaffolder</h2><p>Point it at a Prosewire deployment and choose the native route.</p></div>
+            </article>
+            <div class="lp-code-block lp-command-code">
+              <pre><code id="setup-command-next">{setupCommand}</code></pre>
+              <button type="button" data-copy="#setup-command-next">Copy</button>
+            </div>
+            <article>
+              <span>2</span>
+              <div><h2>Review the written routes</h2><p>The command refuses to overwrite a route that already exists.</p></div>
+            </article>
+            <article>
+              <span>3</span>
+              <div><h2>Start your app</h2><p>Style the semantic pw-* hooks or replace the typed components.</p></div>
+            </article>
+          </div>
+
+          <div class="lp-route-output" aria-label="Generated Next.js routes">
+            <p class="lp-output-status">Routes written</p>
+            <code>app/blog/page.tsx</code>
+            <code>app/blog/[slug]/page.tsx</code>
+            <code>lib/prosewire.ts</code>
+            <hr />
+            <p class="lp-output-status">Dependency added</p>
+            <code>@prosewire/next</code>
+            <hr />
+            <p class="lp-output-status">Done</p>
+            <span>Your blog now renders inside the site you already have.</span>
+          </div>
+
+          <div class="lp-native-preview">
+            <p class="lp-preview-label">Native page preview</p>
+            <div class="lp-browser-address">localhost:3000/blog/shipyard-notes</div>
+            <div class="lp-reader-card">
+              <nav><b>Fieldnotes</b><span>Home&nbsp;&nbsp; Blog&nbsp;&nbsp; About</span></nav>
+              <p>May 24, 2026 · Shipyard notes</p>
+              <h2>Shipyard Notes</h2>
+              <img src="/article-cover-botanical.jpg" alt="Botanical leaves in a vintage ink illustration" width="1200" height="800" />
+              <p>A quiet morning in the shipyard. Notes on small details, materials, and what lasts.</p>
+            </div>
+          </div>
+        </div>
+
+        <div id="framework-panel-astro" class="lp-quickstart-grid" role="tabpanel" aria-labelledby="framework-astro" data-framework-panel="astro" hidden>
+          <div class="lp-setup-steps">
+            <article>
+              <span>1</span>
+              <div><h2>Run the same command</h2><p>The scaffolder detects Astro and adds the matching integration package.</p></div>
+            </article>
+            <div class="lp-code-block lp-command-code">
+              <pre><code id="setup-command-astro">{setupCommand}</code></pre>
+              <button type="button" data-copy="#setup-command-astro">Copy</button>
+            </div>
+            <article>
+              <span>2</span>
+              <div><h2>Choose static or server rendering</h2><p>Static projects fetch content at build time. Server projects resolve it per request.</p></div>
+            </article>
+            <article>
+              <span>3</span>
+              <div><h2>Keep your layouts</h2><p>Use injected routes for speed or compose the exported Astro components yourself.</p></div>
+            </article>
+          </div>
+
+          <div class="lp-route-output" aria-label="Generated Astro integration">
+            <p class="lp-output-status">Integration added</p>
+            <code>astro.config.mjs</code>
+            <code>@prosewire/astro</code>
+            <hr />
+            <p class="lp-output-status">Routes injected</p>
+            <code>GET /blog</code>
+            <code>GET /blog/[slug]</code>
+            <hr />
+            <p class="lp-output-status">Done</p>
+            <span>Native Astro pages, with no bundled stylesheet or client runtime.</span>
+          </div>
+
+          <div class="lp-native-preview">
+            <p class="lp-preview-label">Native page preview</p>
+            <div class="lp-browser-address">localhost:4321/blog/shipyard-notes</div>
+            <div class="lp-reader-card">
+              <nav><b>Fieldnotes</b><span>Home&nbsp;&nbsp; Blog&nbsp;&nbsp; About</span></nav>
+              <p>May 24, 2026 · Shipyard notes</p>
+              <h2>Shipyard Notes</h2>
+              <img src="/article-cover-botanical.jpg" alt="Botanical leaves in a vintage ink illustration" width="1200" height="800" />
+              <p>The same content, rendered by Astro and styled by your site.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="panel-frameworks" class="lp-demo-panel lp-snippet-panel" role="tabpanel" aria-labelledby="tab-frameworks" data-demo-panel="frameworks" hidden>
+        <div class="lp-panel-intro">
+          <p>Use the generated routes or keep the small typed setup in your own codebase.</p>
+          <a href="/docs/integrate/">Read the integration guide</a>
+        </div>
+        <div class="lp-snippet-grid">
+          <article>
+            <header><span>Next.js</span><button type="button" data-copy="#next-snippet">Copy</button></header>
+            <pre><code id="next-snippet">{nextSnippet}</code></pre>
           </article>
-          <aside class="checks-panel">
-            <div class="checks-heading"><span>CONTENT CHECKS</span><b>86</b></div>
-            <div class="score"><div>86<small>/100</small></div></div>
-            <p class="ready"><span></span> Ready to publish</p>
-            <div class="check-row"><span>Search title</span><b class="pass">Pass</b></div>
-            <div class="check-row"><span>Description</span><b class="pass">Pass</b></div>
-            <div class="check-row"><span>Structure</span><b class="pass">Pass</b></div>
-            <div class="check-row"><span>Alt text</span><b class="review">Review</b></div>
-          </aside>
+          <article>
+            <header><span>Astro</span><button type="button" data-copy="#astro-snippet">Copy</button></header>
+            <pre><code id="astro-snippet">{astroSnippet}</code></pre>
+          </article>
         </div>
       </div>
+
+      <div id="panel-self-hosting" class="lp-demo-panel lp-selfhost-panel" role="tabpanel" aria-labelledby="tab-self-hosting" data-demo-panel="self-hosting" hidden>
+        <div class="lp-selfhost-copy">
+          <p class="lp-output-status">Self-host the complete stack</p>
+          <h2>Your infrastructure, your Postgres, your backups.</h2>
+          <p>The repository includes web, worker, migration, Postgres, and Redis services. Use an immutable tag or commit for production.</p>
+          <a href="/docs/self-host/docker/">Open the Docker Compose guide</a>
+        </div>
+        <div class="lp-code-block lp-selfhost-code">
+          <pre><code id="selfhost-command">git clone https://github.com/prosewire/prosewire.git
+cd prosewire
+cp .env.example .env
+
+# Replace the local-only credentials, then:
+docker compose up -d --build
+docker compose ps</code></pre>
+          <button type="button" data-copy="#selfhost-command">Copy</button>
+        </div>
+      </div>
+
+      <div id="panel-api" class="lp-demo-panel lp-api-panel" role="tabpanel" aria-labelledby="tab-api" data-demo-panel="api" hidden>
+        <div class="lp-code-block lp-api-code">
+          <pre><code id="api-snippet">{apiSnippet}</code></pre>
+          <button type="button" data-copy="#api-snippet">Copy</button>
+        </div>
+        <div class="lp-api-result">
+          <p class="lp-output-status">Published content</p>
+          <pre><code>{`{
+  "items": [
+    {
+      "title": "Shipyard Notes",
+      "slug": "shipyard-notes",
+      "status": "published"
+    }
+  ],
+  "page": 1,
+  "pageSize": 10
+}`}</code></pre>
+          <a href="/docs/integrate/">Compare every delivery option</a>
+        </div>
+      </div>
+
+      <p class="lp-product-help">Need help? <a href="/docs/integrate/">Read the complete integration guide</a></p>
     </section>
 
-    <section class="outcomes-section">
-      <div class="section-heading">
-        <p>ONE SYSTEM, FROM DRAFT TO DELIVERY</p>
-        <h2>Editorial control without a frontend rebuild.</h2>
-        <span>Writers get a dedicated publishing workflow. Developers choose how published content reaches the site and keep control of the surrounding experience.</span>
+    <section class="lp-steps" aria-labelledby="steps-title">
+      <h2 id="steps-title">From one command to a published blog.</h2>
+      <div>
+        <article><span>1</span><h3>Connect</h3><p>Point the scaffolder at your Prosewire deployment and publication.</p></article>
+        <article><span>2</span><h3>Generate</h3><p>Add native routes and a small typed configuration to your project.</p></article>
+        <article><span>3</span><h3>Publish</h3><p>Write in Prosewire, then render the result inside your existing site.</p></article>
       </div>
-      <div class="feature-list">
-        {features.map(([number, title, copy]) => (
-          <article><span>{number}</span><h3>{title}</h3><p>{copy}</p></article>
+    </section>
+
+    <section class="lp-transformation" aria-label="Why teams switch to Prosewire">
+      <article>
+        <p>The old approach</p>
+        <h2>Blogs bolted on with an iframe or rented CMS.</h2>
+        <ul>
+          <li>The blog looks and behaves like a separate website.</li>
+          <li>Content becomes harder to export or move.</li>
+          <li>Editorial history lives behind someone else's terms.</li>
+        </ul>
+      </article>
+      <article>
+        <p>The Prosewire approach</p>
+        <h2>Native pages, portable content, and infrastructure you control.</h2>
+        <ul>
+          <li>Blog routes remain first-class pages in your app.</li>
+          <li>Postgres and versioned exports keep the content portable.</li>
+          <li>Revision snapshots retain actor and version data.</li>
+        </ul>
+      </article>
+    </section>
+
+    <section class="lp-features" aria-labelledby="features-title">
+      <div class="lp-section-heading">
+        <p>Built for editors and developers</p>
+        <h2 id="features-title">Publishing that fits the product you already have.</h2>
+      </div>
+      <div class="lp-feature-grid">
+        {features.map((feature) => (
+          <article>
+            <span>{feature.number}</span>
+            <h3>{feature.title}</h3>
+            <p>{feature.copy}</p>
+            <a href={feature.href}>{feature.link}</a>
+          </article>
         ))}
       </div>
     </section>
 
-    <section class="paths-section" id="start">
-      <div class="section-heading paths-heading">
-        <p>CHOOSE YOUR PATH</p>
-        <h2>Start with the setup that fits.</h2>
-        <span>Use the managed platform, explore a running deployment, or own the full stack. The same publishing model and integrations are available either way.</span>
+    <section class="lp-selfhost" aria-labelledby="selfhost-title">
+      <div class="lp-selfhost-summary">
+        <p>Self-hosted, always available</p>
+        <h2 id="selfhost-title">Run the full publishing stack in your environment.</h2>
+        <p>Build from the open repository, keep Postgres on infrastructure you trust, and define your own backup and retention policy.</p>
+        <ul>
+          <li>Docker Compose topology documented</li>
+          <li>Postgres for durable content storage</li>
+          <li>Redis-backed worker for scheduled work</li>
+          <li>Versioned JSON and CSV exports</li>
+        </ul>
+        <a href="/docs/self-host/docker/">Read the self-hosting guide</a>
       </div>
-      <div class="path-grid">
-        {paths.map((path) => (
-          <a class="path-card" href={path.href}>
-            <span class="path-number">{path.number}</span>
-            <p>{path.eyebrow}</p>
-            <h3>{path.title}</h3>
-            <span class="path-copy">{path.copy}</span>
-            <b>{path.link} <span aria-hidden="true">→</span></b>
-          </a>
+
+      <div class="lp-code-block lp-compose-code">
+        <header><span>docker-compose.yml</span><button type="button" data-copy="#compose-snippet">Copy</button></header>
+        <pre><code id="compose-snippet">services:
+  postgres:
+    image: postgres:17-alpine
+    volumes:
+      - prosewire_postgres:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    command: [redis-server, --appendonly, "yes"]
+
+  migrate:
+    build: .
+    command: [node, apps/worker/dist/migrate.mjs]
+
+  web:
+    build: .
+    ports: ["3000:3000"]
+
+  worker:
+    build: .
+    command: [node, apps/worker/dist/index.mjs]</code></pre>
+      </div>
+
+      <div class="lp-selfhost-facts">
+        <article><span>01</span><h3>Open repository</h3><p>Read the code, pin a commit, and operate the same stack yourself.</p><a href="https://github.com/prosewire/prosewire">Open GitHub</a></article>
+        <article><span>02</span><h3>Portable exports</h3><p>Export publication relationships, revision snapshots, and post fields.</p><a href="/docs/operate/content-lifecycle/">Read about exports</a></article>
+        <article><span>03</span><h3>Postgres first</h3><p>Your deployment owns the database, backups, encryption, and retention policy.</p><a href="/docs/self-host/docker/">Review operations</a></article>
+      </div>
+    </section>
+
+    <section class="lp-faq" aria-labelledby="faq-title">
+      <div class="lp-section-heading lp-faq-heading">
+        <p>Questions before you start</p>
+        <h2 id="faq-title">Frequently asked questions</h2>
+      </div>
+      <div class="lp-faq-list">
+        {faqs.map((faq, index) => (
+          <details open={index === 0}>
+            <summary>{faq.question}</summary>
+            <p>{faq.answer}</p>
+          </details>
         ))}
       </div>
     </section>
 
-    <section class="delivery-section">
-      <div class="delivery-copy">
-        <p class="section-label">ONE SOURCE, EVERY SURFACE</p>
-        <h2>Embed first.<br />Build custom when you need to.</h2>
-        <p>Start with one script, then move to rendered HTML, public JSON, or the typed SDK without migrating content to another system.</p>
-        <a class="text-link" href="/docs/integrate/">Compare integrations <span aria-hidden="true">→</span></a>
+    <section class="lp-final-cta">
+      <h2>Ship your blog. Keep your content.</h2>
+      <div>
+        <a class="lp-primary-button" href="#quickstart">Add Prosewire to your site</a>
+        <a class="lp-demo-link" href="https://cloud.prosewire.com">Open Prosewire Cloud</a>
       </div>
-      <div class="code-window">
-        <div class="code-tabs"><span class="active">Embed</span><span>TypeScript</span><span>HTTP</span></div>
-        <pre><code><i>&lt;div</i> data-prosewire=<b>&quot;fieldnotes&quot;</b><i>&gt;&lt;/div&gt;</i>
-<i>&lt;script</i>
-  async
-  src=<b>&quot;https://publish.example.com/embed.js&quot;</b>
-  data-blog=<b>&quot;fieldnotes&quot;</b>
-<i>&gt;&lt;/script&gt;</i></code></pre>
-        <div class="code-status"><span><i></i> Connected</span><b>Semantic HTML · no iframe</b></div>
-      </div>
+      <p>Open source · Apache-2.0 · Self-hosted or Cloud</p>
     </section>
 
-    <section class="ownership-section">
-      <div class="ownership-card coral-card">
-        <p>PORTABLE BY DESIGN</p><h2>Your content. Your database. Your exit plan.</h2>
-        <span>Run the complete stack yourself and export posts, authors, categories, redirects, and metadata whenever you need them.</span>
-        <a href="/docs/self-host/docker/">Self-hosting guide <b aria-hidden="true">→</b></a>
-      </div>
-      <div class="ownership-card ink-card">
-        <p>EXPLICIT AUTOMATION BOUNDARIES</p><h2>Automate publishing without hiding the risk.</h2>
-        <span>Publication-scoped keys, audit history, and declared read, write, and destructive operations keep API, CLI, and MCP workflows understandable.</span>
-        <a href="/docs/concepts/architecture/">See the architecture <b aria-hidden="true">→</b></a>
-      </div>
-    </section>
-
-    <section class="final-cta">
-      <p>CHOOSE CLOUD OR SELF-HOST</p>
-      <h2>Publish first.<br /><em>Keep every option.</em></h2>
-      <div class="hero-actions">
-        <a class="button button-primary" href="https://cloud.prosewire.com">Start on Cloud <span aria-hidden="true">↗</span></a>
-        <a class="button button-secondary" href="https://demo.prosewire.com">View live demo <span aria-hidden="true">↗</span></a>
-      </div>
-      <a class="final-docs-link" href="/docs/getting-started/">Or run Prosewire locally <span aria-hidden="true">→</span></a>
-    </section>
     <SiteFooter />
   </main>
+
+  <script is:inline>
+    (() => {
+      /**
+       * @param {string} tabSelector
+       * @param {string} panelSelector
+       * @param {string} attribute
+       */
+      const bindTabs = (tabSelector, panelSelector, attribute) => {
+        const tabs = Array.from(document.querySelectorAll(tabSelector));
+        const panels = Array.from(document.querySelectorAll(panelSelector));
+
+        /** @param {Element} tab */
+        const activate = (tab) => {
+          const value = tab.getAttribute(attribute);
+          tabs.forEach((item) => {
+            const selected = item === tab;
+            item.setAttribute("aria-selected", String(selected));
+            item.setAttribute("tabindex", selected ? "0" : "-1");
+          });
+          panels.forEach((panel) => {
+            if (!(panel instanceof HTMLElement)) return;
+            panel.hidden = panel.getAttribute(attribute.replace("-tab", "-panel")) !== value;
+          });
+        };
+
+        tabs.forEach((tab, index) => {
+          tab.addEventListener("click", () => activate(tab));
+          tab.addEventListener("keydown", (event) => {
+            if (!(event instanceof KeyboardEvent)) return;
+            if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+            event.preventDefault();
+            const delta = event.key === "ArrowRight" ? 1 : -1;
+            const next = tabs[(index + delta + tabs.length) % tabs.length];
+            if (!(next instanceof HTMLElement)) return;
+            activate(next);
+            next.focus();
+          });
+        });
+      };
+
+      bindTabs("[data-demo-tab]", "[data-demo-panel]", "data-demo-tab");
+      bindTabs("[data-framework-tab]", "[data-framework-panel]", "data-framework-tab");
+
+      document.querySelectorAll("[data-copy]").forEach((button) => {
+        button.addEventListener("click", async () => {
+          const selector = button.getAttribute("data-copy");
+          const target = selector && document.querySelector(selector);
+          if (!target) return;
+          const original = button.textContent;
+          try {
+            const text = target.textContent || "";
+            if (navigator.clipboard && window.isSecureContext) {
+              await navigator.clipboard.writeText(text);
+            } else {
+              const range = document.createRange();
+              range.selectNodeContents(target);
+              const selection = window.getSelection();
+              selection?.removeAllRanges();
+              selection?.addRange(range);
+              if (!document.execCommand("copy")) throw new Error("Copy failed");
+              selection?.removeAllRanges();
+            }
+            button.textContent = "Copied";
+          } catch {
+            button.textContent = "Select text";
+          }
+          window.setTimeout(() => {
+            button.textContent = original;
+          }, 1600);
+        });
+      });
+    })();
+  </script>
 </BaseLayout>
