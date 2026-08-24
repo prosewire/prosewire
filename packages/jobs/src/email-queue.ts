@@ -1,11 +1,13 @@
 import { Context, Effect, Layer, Schema } from "effect";
 import * as PersistedQueue from "effect/unstable/persistence/PersistedQueue";
-import { EmailOutboxId } from "./domain.ts";
 
 export class EmailDeliveryJob extends Schema.Class<EmailDeliveryJob>(
   "EmailQueue.EmailDeliveryJob",
 )({
-  outboxId: EmailOutboxId,
+  recipient: Schema.String,
+  subject: Schema.String,
+  text: Schema.String,
+  html: Schema.NullOr(Schema.String),
 }) {}
 
 export class EmailQueueError extends Schema.TaggedError<EmailQueueError>()(
@@ -18,7 +20,7 @@ export class EmailQueueError extends Schema.TaggedError<EmailQueueError>()(
 
 export interface Interface {
   readonly offer: (
-    outboxId: EmailOutboxId,
+    job: EmailDeliveryJob,
   ) => Effect.Effect<void, EmailQueueError>;
   readonly take: <E>(
     handle: (job: EmailDeliveryJob) => Effect.Effect<void, E>,
@@ -26,7 +28,7 @@ export interface Interface {
 }
 
 export class Service extends Context.Service<Service, Interface>()(
-  "@prosewire/worker/EmailQueue",
+  "@prosewire/jobs/EmailQueue",
 ) {}
 
 export const layer = Layer.effect(
@@ -36,6 +38,7 @@ export const layer = Layer.effect(
       name: "prosewire-email-v1",
       schema: EmailDeliveryJob,
     });
+
     const mapQueueError =
       (operation: string) =>
       <A, E>(effect: Effect.Effect<A, E>): Effect.Effect<A, EmailQueueError> =>
@@ -61,14 +64,12 @@ export const layer = Layer.effect(
       );
 
     return Service.of({
-      offer: Effect.fn("EmailQueue.offer")((outboxId: EmailOutboxId) =>
+      offer: Effect.fn("EmailQueue.offer")((job: EmailDeliveryJob) =>
         queue
-          .offer(new EmailDeliveryJob({ outboxId }))
+          .offer(job)
           .pipe(Effect.asVoid, mapQueueError("offer email delivery")),
       ),
       take: Effect.fn("EmailQueue.take")(take),
     });
   }),
 );
-
-export * as EmailQueue from "./email-queue.js";

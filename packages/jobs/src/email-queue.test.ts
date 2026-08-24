@@ -1,8 +1,8 @@
 import { describe, expect, it } from "@effect/vitest";
 import { Effect, Layer } from "effect";
 import * as PersistedQueue from "effect/unstable/persistence/PersistedQueue";
-import { EmailOutboxId } from "./domain.ts";
-import { EmailQueue } from "./email-queue.ts";
+import * as EmailQueue from "./email-queue.ts";
+import { EmailDeliveryJob } from "./email-queue.ts";
 
 const queueLayer = EmailQueue.layer.pipe(
   Layer.provide(
@@ -10,35 +10,36 @@ const queueLayer = EmailQueue.layer.pipe(
   ),
 );
 
+const job = new EmailDeliveryJob({
+  recipient: "person@example.com",
+  subject: "Invitation",
+  text: "Join the workspace",
+  html: "<p>Join the workspace</p>",
+});
+
 describe("EmailQueue", () => {
-  it.effect("encodes and delivers a typed outbox identifier", () =>
+  it.effect("encodes and delivers a complete typed email payload", () =>
     Effect.gen(function* () {
       const queue = yield* EmailQueue.Service;
-      const outboxId = EmailOutboxId.make(
-        "11111111-1111-4111-8111-111111111111",
-      );
-      let taken: EmailOutboxId | undefined;
+      let taken: EmailDeliveryJob | undefined;
 
-      yield* queue.offer(outboxId);
-      yield* queue.take((job) =>
+      yield* queue.offer(job);
+      yield* queue.take((message) =>
         Effect.sync(() => {
-          taken = job.outboxId;
+          taken = message;
         }),
       );
 
-      expect(taken).toBe(outboxId);
+      expect(taken).toEqual(job);
     }).pipe(Effect.provide(queueLayer)),
   );
 
   it.effect("preserves errors raised by the delivery handler", () =>
     Effect.gen(function* () {
       const queue = yield* EmailQueue.Service;
-      const outboxId = EmailOutboxId.make(
-        "11111111-1111-4111-8111-111111111111",
-      );
-      const failure = new Error("database unavailable");
+      const failure = new Error("SMTP unavailable");
 
-      yield* queue.offer(outboxId);
+      yield* queue.offer(job);
       const error = yield* Effect.flip(queue.take(() => Effect.fail(failure)));
 
       expect(error).toBe(failure);

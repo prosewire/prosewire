@@ -8,8 +8,10 @@ import {
 } from "@effect/vitest";
 import * as schema from "@prosewire/db/schema";
 import { openTestDatabase, type TestDatabase } from "@prosewire/db/testing";
+import type { EmailDeliveryJob } from "@prosewire/jobs/email-queue";
+import * as EmailQueue from "@prosewire/jobs/email-queue";
 import { eq } from "drizzle-orm";
-import { Effect, Layer, Option, Redacted } from "effect";
+import { Effect, Layer, Redacted } from "effect";
 import { BlogAccess } from "./authorization.ts";
 import { WebConfig } from "./config.ts";
 import { testDatabaseLayer } from "./database.test-support.ts";
@@ -97,21 +99,28 @@ describe.skipIf(!databaseUrl)(
       });
     };
 
-    const layer = () =>
+    const layer = (queued: Array<EmailDeliveryJob> = []) =>
       WorkspaceManagement.live.pipe(
         Layer.provide(
           Layer.mergeAll(
             testDatabaseLayer(testDatabase.client),
             Layer.mock(BlogAccess.Service, {}),
             PlatformCrypto.layer,
+            Layer.mock(EmailQueue.Service, {
+              offer: (job) =>
+                Effect.sync(() => {
+                  queued.push(job);
+                }),
+              take: () =>
+                Effect.die("Email consumption is unavailable in web tests"),
+            }),
             Layer.succeed(WebConfig, {
               defaultBlog: "fieldnotes",
               publicUrl: "http://localhost:3000",
               databaseUrl: Redacted.make(testDatabase.url),
+              redisUrl: Redacted.make("redis://test"),
               authSecret: Redacted.make("test-secret-at-least-32-characters"),
               allowSignUp: false,
-              smtpUrl: Option.none(),
-              emailFrom: "Prosewire <prosewire@localhost>",
               environment: "test",
             }),
           ),
@@ -120,8 +129,9 @@ describe.skipIf(!databaseUrl)(
 
     it.effect(
       "serializes invite creation and escapes untrusted email HTML",
-      () =>
-        Effect.gen(function* () {
+      () => {
+        const queued: Array<EmailDeliveryJob> = [];
+        return Effect.gen(function* () {
           yield* Effect.promise(() =>
             seedWorkspace({ actorIsOwner: true, name: "Studio & Partners" }),
           );
@@ -157,9 +167,6 @@ describe.skipIf(!databaseUrl)(
               where: eq(schema.invitation.email, "new@example.com"),
             }),
           );
-          const outbox = yield* Effect.promise(() =>
-            testDatabase.client.query.emailOutbox.findMany(),
-          );
           expect(invitations).toHaveLength(2);
           expect(
             invitations.filter(({ status }) => status === "pending"),
@@ -167,15 +174,16 @@ describe.skipIf(!databaseUrl)(
           expect(
             invitations.filter(({ status }) => status === "canceled"),
           ).toHaveLength(1);
-          expect(outbox).toHaveLength(2);
-          for (const message of outbox) {
-            expect(message.htmlBody).toContain(
+          expect(queued).toHaveLength(2);
+          for (const message of queued) {
+            expect(message.html).toContain(
               "A &lt;script&gt;alert(1)&lt;/script&gt;",
             );
-            expect(message.htmlBody).toContain("Studio &amp; Partners");
-            expect(message.htmlBody).not.toContain("<script>");
+            expect(message.html).toContain("Studio &amp; Partners");
+            expect(message.html).not.toContain("<script>");
           }
-        }).pipe(Effect.provide(layer())),
+        }).pipe(Effect.provide(layer(queued)));
+      },
     );
 
     it.effect(

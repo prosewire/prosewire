@@ -1,12 +1,10 @@
 import { Duration, Effect, Schedule } from "effect";
 
 export const publishingInterval = Duration.seconds(30);
-export const emailOutboxInterval = Duration.seconds(5);
-export const emailConsumerFailureInterval = Duration.seconds(1);
+export const emailRetryInterval = Duration.seconds(30);
 export const analyticsRetentionInterval = Duration.days(1);
 
 export const publishingSchedule = Schedule.spaced(publishingInterval);
-export const emailOutboxSchedule = Schedule.spaced(emailOutboxInterval);
 export const analyticsRetentionSchedule = Schedule.spaced(
   analyticsRetentionInterval,
 );

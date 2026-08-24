@@ -1,10 +1,10 @@
 import { createClient } from "@redis/client";
 import { Context, Effect, Layer, Redacted, Schema } from "effect";
 import * as PersistenceRedis from "effect/unstable/persistence/Redis";
-import { WorkerConfig } from "./worker-config.ts";
+import * as JobQueueConfig from "./config.ts";
 
-export class WorkerRedisError extends Schema.TaggedError<WorkerRedisError>()(
-  "WorkerRedisError",
+export class ConnectionError extends Schema.TaggedError<ConnectionError>()(
+  "JobRedisConnectionError",
   {
     operation: Schema.String,
     cause: Schema.Defect(),
@@ -12,7 +12,7 @@ export class WorkerRedisError extends Schema.TaggedError<WorkerRedisError>()(
 ) {}
 
 export interface Interface {
-  readonly ping: Effect.Effect<void, WorkerRedisError>;
+  readonly ping: Effect.Effect<void, ConnectionError>;
   readonly send: <A = unknown>(
     command: string,
     ...args: ReadonlyArray<string>
@@ -20,13 +20,13 @@ export interface Interface {
 }
 
 export class Service extends Context.Service<Service, Interface>()(
-  "@prosewire/worker/Redis",
+  "@prosewire/jobs/Redis",
 ) {}
 
 export const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
-    const config = yield* WorkerConfig;
+    const config = yield* JobQueueConfig.Service;
     const client = createClient({
       url: Redacted.value(config.redisUrl),
       disableOfflineQueue: true,
@@ -39,7 +39,7 @@ export const layer = Layer.effect(
       Effect.tryPromise({
         try: () => client.connect(),
         catch: (cause) =>
-          new WorkerRedisError({ operation: "connect to Redis", cause }),
+          new ConnectionError({ operation: "connect to Redis", cause }),
       }),
       () =>
         Effect.promise(async () => {
@@ -55,11 +55,12 @@ export const layer = Layer.effect(
         try: () => client.sendCommand<A>([command, ...args]),
         catch: (cause) => new PersistenceRedis.RedisError({ cause }),
       });
+
     const ping = send<string>("PING").pipe(
       Effect.asVoid,
       Effect.mapError(
         (error) =>
-          new WorkerRedisError({ operation: "ping Redis", cause: error.cause }),
+          new ConnectionError({ operation: "ping Redis", cause: error.cause }),
       ),
     );
 
@@ -74,5 +75,3 @@ export const persistenceLayer = Layer.effect(
     return yield* PersistenceRedis.make({ send: redis.send });
   }),
 );
-
-export * as WorkerRedis from "./redis.js";

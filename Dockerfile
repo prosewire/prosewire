@@ -13,6 +13,7 @@ COPY packages/config/package.json packages/config/package.json
 COPY packages/contract/package.json packages/contract/package.json
 COPY packages/core/package.json packages/core/package.json
 COPY packages/db/package.json packages/db/package.json
+COPY packages/jobs/package.json packages/jobs/package.json
 COPY packages/sdk/package.json packages/sdk/package.json
 COPY packages/cli/package.json packages/cli/package.json
 COPY packages/mcp/package.json packages/mcp/package.json
