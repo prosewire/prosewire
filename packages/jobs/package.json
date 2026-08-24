@@ -1,0 +1,32 @@
+{
+  "name": "@prosewire/jobs",
+  "version": "0.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./config": "./src/config.ts",
+    "./email-queue": "./src/email-queue.ts",
+    "./redis": "./src/redis.ts",
+    "./runtime": "./src/runtime.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "lint": "biome lint src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@redis/client": "^6.2.1",
+    "effect": "4.0.0-rc.110"
+  },
+  "devDependencies": {
+    "@effect/vitest": "4.0.0-rc.110",
+    "@prosewire/config": "workspace:*",
+    "@types/node": "^26.2.0",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "vitest": "^4.1.11"
+  }
+}

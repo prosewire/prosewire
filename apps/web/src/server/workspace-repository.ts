@@ -6,6 +6,8 @@ import {
 } from "@prosewire/core";
 import type { Db } from "@prosewire/db/client";
 import * as schema from "@prosewire/db/schema";
+import * as EmailQueue from "@prosewire/jobs/email-queue";
+import { EmailDeliveryJob } from "@prosewire/jobs/email-queue";
 import { and, eq, gt, sql } from "drizzle-orm";
 import { Clock, Context, Crypto, Effect, Layer, Result, Schema } from "effect";
 import { BlogAccess } from "./authorization.ts";
@@ -146,6 +148,7 @@ export class PersistenceError extends Schema.TaggedError<PersistenceError>()(
 
 export type Error =
   | PersistenceError
+  | EmailQueue.EmailQueueError
   | BlogAccess.Error
   | InvalidWorkspaceInput
   | InvitationNotFound
@@ -219,6 +222,7 @@ function escapeHtml(value: string): string {
 
 export const create = Effect.fn("WorkspaceRepository.create")(function* () {
   const database = yield* Database;
+  const emailQueue = yield* EmailQueue.Service;
   const crypto = yield* Crypto.Crypto;
   const config = yield* WebConfig;
 
@@ -570,64 +574,67 @@ export const create = Effect.fn("WorkspaceRepository.create")(function* () {
     const now = new Date(yield* Clock.currentTimeMillis);
     const expiresAt = new Date(now.getTime() + 48 * 60 * 60 * 1000);
     const invitationUrl = `${config.publicUrl}/accept-invitation/${invitationId}`;
-    yield* executeResult<void, BlogAccess.WorkspaceAccessDenied>(
-      "invitation.create",
-      (client) =>
-        client.transaction(async (tx) => {
-          const authorization = await lockWorkspaceAuthorization(
-            tx,
-            input.organizationId,
-            actor.id,
-            "members:manage",
+    const email = yield* executeResult<
+      EmailDeliveryJob,
+      BlogAccess.WorkspaceAccessDenied
+    >("invitation.create", (client) =>
+      client.transaction(async (tx) => {
+        const authorization = await lockWorkspaceAuthorization(
+          tx,
+          input.organizationId,
+          actor.id,
+          "members:manage",
+        );
+        if (!authorization) {
+          return Result.fail(
+            new BlogAccess.WorkspaceAccessDenied({
+              organizationId: input.organizationId,
+              userId: actor.id,
+              capability: "members:manage",
+            }),
           );
-          if (!authorization) {
-            return Result.fail(
-              new BlogAccess.WorkspaceAccessDenied({
-                organizationId: input.organizationId,
-                userId: actor.id,
-                capability: "members:manage",
-              }),
-            );
-          }
-          await tx.execute(
-            sql`select pg_advisory_xact_lock(hashtextextended(${`${input.organizationId}:${recipient}`}, 0))`,
+        }
+        await tx.execute(
+          sql`select pg_advisory_xact_lock(hashtextextended(${`${input.organizationId}:${recipient}`}, 0))`,
+        );
+        await tx
+          .update(schema.invitation)
+          .set({ status: "canceled" })
+          .where(
+            and(
+              eq(schema.invitation.organizationId, input.organizationId),
+              eq(schema.invitation.email, recipient),
+              eq(schema.invitation.status, "pending"),
+            ),
           );
-          await tx
-            .update(schema.invitation)
-            .set({ status: "canceled" })
-            .where(
-              and(
-                eq(schema.invitation.organizationId, input.organizationId),
-                eq(schema.invitation.email, recipient),
-                eq(schema.invitation.status, "pending"),
-              ),
-            );
-          await tx.insert(schema.invitation).values({
-            id: invitationId,
-            organizationId: input.organizationId,
-            email: recipient,
-            role: input.role,
-            inviterId: actor.id,
-            expiresAt,
-          });
-          await tx.insert(schema.auditLog).values({
-            organizationId: input.organizationId,
-            actorId: actor.id,
-            action: "invitation.created",
-            entityType: "invitation",
-            entityId: invitationId,
-            after: { email: recipient, role: input.role },
-          });
-          const workspaceName = authorization.workspace.name;
-          await tx.insert(schema.emailOutbox).values({
+        await tx.insert(schema.invitation).values({
+          id: invitationId,
+          organizationId: input.organizationId,
+          email: recipient,
+          role: input.role,
+          inviterId: actor.id,
+          expiresAt,
+        });
+        await tx.insert(schema.auditLog).values({
+          organizationId: input.organizationId,
+          actorId: actor.id,
+          action: "invitation.created",
+          entityType: "invitation",
+          entityId: invitationId,
+          after: { email: recipient, role: input.role },
+        });
+        const workspaceName = authorization.workspace.name;
+        return Result.succeed(
+          new EmailDeliveryJob({
             recipient,
             subject: `Join ${workspaceName} on Prosewire`,
-            textBody: `${actor.name} invited you to join ${workspaceName} as ${input.role}. Accept the invitation: ${invitationUrl}`,
-            htmlBody: `<p>${escapeHtml(actor.name)} invited you to join <strong>${escapeHtml(workspaceName)}</strong> as ${escapeHtml(input.role)}.</p><p><a href="${escapeHtml(invitationUrl)}">Accept invitation</a></p>`,
-          });
-          return Result.succeed(undefined);
-        }),
+            text: `${actor.name} invited you to join ${workspaceName} as ${input.role}. Accept the invitation: ${invitationUrl}`,
+            html: `<p>${escapeHtml(actor.name)} invited you to join <strong>${escapeHtml(workspaceName)}</strong> as ${escapeHtml(input.role)}.</p><p><a href="${escapeHtml(invitationUrl)}">Accept invitation</a></p>`,
+          }),
+        );
+      }),
     );
+    yield* emailQueue.offer(email);
     return invitationId;
   });
 

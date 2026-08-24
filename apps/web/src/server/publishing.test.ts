@@ -9,7 +9,7 @@ import {
 import * as schema from "@prosewire/db/schema";
 import { openTestDatabase, type TestDatabase } from "@prosewire/db/testing";
 import { eq } from "drizzle-orm";
-import { Effect, Layer, Option, Redacted, Schema } from "effect";
+import { Effect, Layer, Redacted, Schema } from "effect";
 import { ApiAccess } from "./api-access.ts";
 import { BlogAccess } from "./authorization.ts";
 import { WebConfig } from "./config.ts";
@@ -38,10 +38,9 @@ function configLayer(url = "postgres://test") {
     defaultBlog: "fieldnotes",
     publicUrl: "http://localhost:3000",
     databaseUrl: Redacted.make(url),
+    redisUrl: Redacted.make("redis://test"),
     authSecret: Redacted.make("test-secret-at-least-32-characters"),
     allowSignUp: false,
-    smtpUrl: Option.none(),
-    emailFrom: "Prosewire <prosewire@localhost>",
     environment: "test",
   });
 }

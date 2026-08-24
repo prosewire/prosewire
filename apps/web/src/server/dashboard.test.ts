@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Layer, Option, Redacted } from "effect";
+import { Effect, Layer, Redacted } from "effect";
 import { BlogAccess } from "./authorization.ts";
 import {
   DashboardContext,
@@ -18,7 +18,10 @@ import { UserId } from "./domain.ts";
 const actorId = UserId.make("user-1");
 const organizationId = testWorkspace.id;
 
-function dashboardLayer(role: "admin" | "viewer", invitationReads: Array<string>) {
+function dashboardLayer(
+  role: "admin" | "viewer",
+  invitationReads: Array<string>,
+) {
   const context = new DashboardContext({
     userId: actorId,
     role,
@@ -33,11 +36,13 @@ function dashboardLayer(role: "admin" | "viewer", invitationReads: Array<string>
       dashboardContext: () => Effect.succeed(context),
       requireMembersManage: () =>
         role === "admin"
-          ? Effect.succeed(new WorkspaceAuthorization({
-              workspace: testWorkspace,
-              memberId: testMemberId,
-              role,
-            }))
+          ? Effect.succeed(
+              new WorkspaceAuthorization({
+                workspace: testWorkspace,
+                memberId: testMemberId,
+                role,
+              }),
+            )
           : Effect.fail(
               new BlogAccess.WorkspaceAccessDenied({
                 organizationId,
@@ -57,10 +62,9 @@ function dashboardLayer(role: "admin" | "viewer", invitationReads: Array<string>
       defaultBlog: "fieldnotes",
       publicUrl: "http://localhost:3000",
       databaseUrl: Redacted.make("postgres://test"),
+      redisUrl: Redacted.make("redis://test"),
       authSecret: Redacted.make("test-secret-at-least-32-characters"),
       allowSignUp: false,
-      smtpUrl: Option.none(),
-      emailFrom: "Prosewire <prosewire@localhost>",
       environment: "test",
     }),
   );

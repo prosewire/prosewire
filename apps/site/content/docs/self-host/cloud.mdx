@@ -1,6 +1,6 @@
 ---
 title: Deploy with managed services
-description: Run an immutable Prosewire image with external Postgres, SMTP, and a load balancer.
+description: Run an immutable Prosewire image with external Postgres, Redis, SMTP, and a load balancer.
 section: Operate
 order: 7
 ---
@@ -17,7 +17,7 @@ A cloud deployment runs three commands from the same immutable image:
 | Web | `node apps/web/server.js` | One or more replicas |
 | Worker | `node apps/worker/dist/index.mjs` | One or more replicas |
 
-Provide Postgres through `DATABASE_URL`. Run the migration job to completion before replacing web and worker replicas. Do not let an orchestrator repeatedly restart a completed migration as a long-running service.
+Provide Postgres through `DATABASE_URL` and Redis through `REDIS_URL`. Run the migration job to completion before replacing web and worker replicas. Do not let an orchestrator repeatedly restart a completed migration as a long-running service.
 
 ## Build and publish an image
 
@@ -39,7 +39,7 @@ PROSEWIRE_IMAGE=registry.example.com/team/prosewire:0.2.0 \
   docker compose -f docker-compose.cloud.yml up -d
 ```
 
-Your `.env` must contain the external database, public origins, authentication secret, server-action encryption key, deployment ID, and SMTP settings. The cloud file does not provision Postgres, SMTP, TLS, backups, or a load balancer.
+Your `.env` must contain the external database, Redis URL, public origins, authentication secret, server-action encryption key, deployment ID, and SMTP settings. The cloud file does not provision Postgres, Redis, SMTP, TLS, backups, or a load balancer.
 
 ## Bootstrap the first owner
 
@@ -52,9 +52,11 @@ Set `PROSEWIRE_ALLOW_SIGN_UP=true` only while creating the first account and wor
 - Route traffic only after `/api/health` returns 200
 - Allow graceful termination so in-flight requests can finish
 - Run web, worker, and migration from the same immutable image digest
-- Back up Postgres independently of the application lifecycle and test restoration
+- Back up Postgres and Redis independently of the application lifecycle and test restoration
 - Encrypt and network-restrict Postgres connections
-- Keep at least one worker replica running for scheduled publishing and retention
+- Configure Redis persistence, backups, and replication; disable key eviction; and restrict it to the private application network
+- Keep at least one worker replica running for scheduled publishing, retention, and email delivery
+- Set `PROSEWIRE_EMAIL_WORKER_CONCURRENCY` per worker so replica count multiplied by per-process concurrency stays within SMTP provider limits
 - Capture migration, web, and worker logs in the platform's logging system
 
-No managed Prosewire control plane or billing service is required. The runtime is self-contained apart from Postgres, SMTP, TLS termination, and the infrastructure services you choose.
+No managed Prosewire control plane or billing service is required. The runtime is self-contained apart from Postgres, Redis, SMTP, TLS termination, and the infrastructure services you choose.
