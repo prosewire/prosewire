@@ -1,14 +1,14 @@
 import { Clock, Effect } from "effect";
-import {
-  disposeWorkerRuntime,
-  runWorkerEffect,
-} from "./app-runtime.ts";
 import { AnalyticsRetention } from "./analytics-retention.ts";
+import { disposeWorkerRuntime, runWorkerEffect } from "./app-runtime.ts";
 import { EmailOutbox } from "./email-outbox.ts";
 import { Publishing } from "./publishing.ts";
+import { WorkerRedis } from "./redis.ts";
 import { runUntilShutdown } from "./shutdown.ts";
+import { WorkerConfig } from "./worker-config.ts";
 import {
   analyticsRetentionSchedule,
+  emailConsumerFailureInterval,
   emailOutboxSchedule,
   publishingSchedule,
   repeatScheduled,
@@ -18,6 +18,10 @@ const runWorker = Effect.gen(function* () {
   const publishing = yield* Publishing.Service;
   const analyticsRetention = yield* AnalyticsRetention.Service;
   const emailOutbox = yield* EmailOutbox.Service;
+  const redis = yield* WorkerRedis.Service;
+  const config = yield* WorkerConfig;
+
+  yield* redis.ping;
 
   const publishScheduled = repeatScheduled(
     "Scheduled publishing",
@@ -33,27 +37,46 @@ const runWorker = Effect.gen(function* () {
     }),
     analyticsRetentionSchedule,
   );
-  const deliverEmail = repeatScheduled(
-    "Email outbox",
+  const dispatchEmail = repeatScheduled(
+    "Email outbox dispatch",
     Effect.gen(function* () {
       const now = new Date(yield* Clock.currentTimeMillis);
-      const summary = yield* emailOutbox.processPending(now);
+      const summary = yield* emailOutbox.dispatchPending(now);
       if (summary.claimed > 0) {
         yield* Effect.logInfo(
-          `Processed ${summary.claimed} email(s): ${summary.sent} sent, ${summary.deferred} deferred`,
+          `Queued ${summary.queued} of ${summary.claimed} pending email(s)`,
         );
       }
     }),
     emailOutboxSchedule,
   );
 
+  const consumeEmail = (consumer: number) =>
+    emailOutbox.processNext.pipe(
+      Effect.tapError((error) =>
+        Effect.logError("Email queue consumer failed", { consumer, error }),
+      ),
+      Effect.catch(() => Effect.sleep(emailConsumerFailureInterval)),
+      Effect.forever,
+    );
+  const consumeEmails = Effect.all(
+    Array.from({ length: config.emailWorkerConcurrency }, (_, consumer) =>
+      consumeEmail(consumer + 1),
+    ),
+    { concurrency: "unbounded", discard: true },
+  );
+
   yield* Effect.logInfo("Publishing worker ready", {
-    scheduler: "effect",
+    queue: "effect-persisted-redis",
+    emailConcurrency: config.emailWorkerConcurrency,
   });
-  return yield* Effect.all([publishScheduled, pruneAnalytics, deliverEmail], {
-    concurrency: "unbounded",
-    discard: true,
-  });
+  return yield* Effect.all(
+    [publishScheduled, pruneAnalytics, dispatchEmail, consumeEmails],
+    {
+      concurrency: "unbounded",
+      discard: true,
+    },
+  );
 });
 
 const program = Effect.gen(function* () {

@@ -29,6 +29,8 @@ Read [Choose an integration](/docs/integrate/) for authentication and rendering 
 
 ## Own the runtime
 
-The web app and worker run against your Postgres database. The worker checks for due scheduled posts and expired raw analytics events. Atomic Postgres transactions coordinate concurrent worker replicas. Content remains exportable, and the built-in public reader remains readable without client-side JavaScript.
+The web app and worker run against your Postgres database. Invitation creation writes its email to a Postgres outbox in the same transaction, then workers dispatch the outbox identifier to an Effect `PersistedQueue` in Redis. Any worker replica can consume the job. A Postgres lease prevents duplicate queue messages from sending concurrently, and stale rows are dispatched again after a worker or Redis failure.
+
+The worker still checks Postgres for due scheduled posts and expired raw analytics events because those are time-based database operations, not queued messages. Atomic Postgres transactions coordinate concurrent worker replicas. Content remains exportable, and the built-in public reader remains readable without client-side JavaScript.
 
 Production uses a separate one-shot migration process before web and worker replicas start. The web process does not migrate or seed in production.

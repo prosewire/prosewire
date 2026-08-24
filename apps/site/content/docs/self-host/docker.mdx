@@ -1,6 +1,6 @@
 ---
 title: Self-host with Docker Compose
-description: Build from source and run migrations, web, worker, and Postgres as one portable stack.
+description: Build from source and run migrations, web, worker, Postgres, and Redis as one portable stack.
 section: Operate
 order: 6
 ---
@@ -37,23 +37,24 @@ Read the [configuration map](/docs/reference/configuration/) before starting.
 
 ## Understand the Compose topology
 
-The default Compose file contains four services:
+The default Compose file contains five services:
 
 | Service | Purpose | Exposed publicly |
 | --- | --- | --- |
 | `postgres` | Persistent application database | No |
+| `redis` | Persistent Effect queue with AOF enabled | No |
 | `migrate` | One-shot committed schema migration | No |
 | `web` | Dashboard, APIs, embed, and public reader | Port 3000 |
-| `worker` | Scheduled publishing and analytics retention | No |
+| `worker` | Scheduled publishing, analytics retention, and queued email delivery | No |
 
-The web and worker wait for the migration service to complete. Production startup does not create the development administrator, API key, publication, or sample posts.
+The web and worker wait for the migration service to complete, and the worker also waits for Redis. Production startup does not create the development administrator, API key, publication, or sample posts.
 
 ## Start and bootstrap
 
 ```shell
 docker compose up -d --build
 docker compose ps
-docker compose logs migrate web worker
+docker compose logs migrate redis web worker
 ```
 
 Confirm that `migrate` exited successfully and that the health endpoint responds:
@@ -97,10 +98,11 @@ Portable JSON and CSV exports improve content portability but are not substitute
 
 - Terminate HTTPS at a trusted reverse proxy or load balancer
 - Keep Postgres off the public internet and encrypt remote database connections
+- Keep Redis on a private network, retain AOF persistence, and use `maxmemory-policy noeviction`
 - Keep authentication, database, SMTP, API-key, and server-action secrets out of images and source control
 - Configure SMTP and test an invitation before onboarding the team
 - Keep `PROSEWIRE_ALLOW_SIGN_UP=false` after bootstrap unless open registration is intentional
 - Pin an immutable source commit or image digest instead of `latest`
-- Run at least one worker replica; multiple replicas coordinate through Postgres
-- Monitor migration exit status, web health, worker failures, disk usage, and database capacity
+- Run at least one worker replica; multiple replicas coordinate through Postgres and consume the same Redis queue
+- Monitor migration exit status, web health, worker failures, Redis queue age, disk usage, and database capacity
 - Verify a database restore and content export before launch

@@ -52,7 +52,7 @@ The entire stack is portable and Apache-2.0 licensed. Run it locally, self-host 
 - **Discovery** — canonical URLs, automatic slug redirects, search, related posts, table of contents, RSS, XML sitemap, and JSON-LD
 - **Reader experience** — server-rendered blog and author pages, reading progress, view events, and custom CSS
 - **Integration surfaces** — headless Next.js and Astro readers, a safe scaffolding CLI, JavaScript embed without an iframe, rendered HTML, public JSON, TypeScript SDK, CLI, and MCP server
-- **Operations** — Better Auth sessions, scoped hashed API keys, audit records, portable JSON and CSV exports, Postgres 17, Effect schedules, and Docker Compose
+- **Operations** — Better Auth sessions, scoped hashed API keys, audit records, portable JSON and CSV exports, Postgres 17, Redis-backed Effect queues, and Docker Compose
 
 See [the product coverage map](docs/feature-coverage.md) for implemented behavior, partial workflows, and known gaps.
 
@@ -140,7 +140,7 @@ Prosewire keeps its product surfaces in one TypeScript monorepo:
 ```text
 apps/web           Next.js 16 dashboard, auth, APIs, embed, and public reader
 apps/site          Astro landing page and MDX documentation
-apps/worker        Effect scheduled-publishing and retention worker
+apps/worker        Effect scheduled jobs and Redis-backed email delivery worker
 packages/db        Postgres 17 schema and Drizzle migrations
 packages/core      Rendering, sanitization, slugs, reading time, and SEO checks
 packages/contract  Effect Schema and HttpApi contract

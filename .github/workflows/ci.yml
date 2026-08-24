@@ -193,6 +193,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm db:migrate
       - run: pnpm test:database
+      - run: pnpm --filter @prosewire/worker exec vitest run src/email-queue.redis.test.ts src/email-outbox.integration.test.ts
       - run: pnpm exec turbo run build --filter=@prosewire/web
       - run: pnpm test:acceptance
       - name: Upload Playwright failure artifacts

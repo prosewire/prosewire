@@ -1,0 +1,78 @@
+import { createClient } from "@redis/client";
+import { Context, Effect, Layer, Redacted, Schema } from "effect";
+import * as PersistenceRedis from "effect/unstable/persistence/Redis";
+import { WorkerConfig } from "./worker-config.ts";
+
+export class WorkerRedisError extends Schema.TaggedError<WorkerRedisError>()(
+  "WorkerRedisError",
+  {
+    operation: Schema.String,
+    cause: Schema.Defect(),
+  },
+) {}
+
+export interface Interface {
+  readonly ping: Effect.Effect<void, WorkerRedisError>;
+  readonly send: <A = unknown>(
+    command: string,
+    ...args: ReadonlyArray<string>
+  ) => Effect.Effect<A, PersistenceRedis.RedisError>;
+}
+
+export class Service extends Context.Service<Service, Interface>()(
+  "@prosewire/worker/Redis",
+) {}
+
+export const layer = Layer.effect(
+  Service,
+  Effect.gen(function* () {
+    const config = yield* WorkerConfig;
+    const client = createClient({
+      url: Redacted.value(config.redisUrl),
+      disableOfflineQueue: true,
+    });
+    client.on("error", (cause) => {
+      console.error("Redis client error", cause);
+    });
+
+    yield* Effect.acquireRelease(
+      Effect.tryPromise({
+        try: () => client.connect(),
+        catch: (cause) =>
+          new WorkerRedisError({ operation: "connect to Redis", cause }),
+      }),
+      () =>
+        Effect.promise(async () => {
+          if (client.isOpen) await client.close();
+        }),
+    );
+
+    const send = <A = unknown>(
+      command: string,
+      ...args: ReadonlyArray<string>
+    ) =>
+      Effect.tryPromise({
+        try: () => client.sendCommand<A>([command, ...args]),
+        catch: (cause) => new PersistenceRedis.RedisError({ cause }),
+      });
+    const ping = send<string>("PING").pipe(
+      Effect.asVoid,
+      Effect.mapError(
+        (error) =>
+          new WorkerRedisError({ operation: "ping Redis", cause: error.cause }),
+      ),
+    );
+
+    return Service.of({ ping, send });
+  }),
+);
+
+export const persistenceLayer = Layer.effect(
+  PersistenceRedis.Redis,
+  Effect.gen(function* () {
+    const redis = yield* Service;
+    return yield* PersistenceRedis.make({ send: redis.send });
+  }),
+);
+
+export * as WorkerRedis from "./redis.js";
