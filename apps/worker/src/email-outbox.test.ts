@@ -1,64 +1,43 @@
-import { describe, expect, it } from "@effect/vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "@effect/vitest";
+import * as schema from "@prosewire/db/schema";
+import { openTestDatabase, type TestDatabase } from "@prosewire/db/testing";
+import { asc, sql } from "drizzle-orm";
 import { Effect } from "effect";
-import type { Db } from "@prosewire/db/client";
 import {
   EmailOutboxPersistenceError,
-  make,
   type Message,
+  make,
 } from "./email-outbox.ts";
 
+const databaseUrl = process.env.DATABASE_URL;
 const now = new Date("2026-08-21T12:00:00.000Z");
 
-function row(id: string, recipient: string) {
-  return {
-    id,
-    recipient,
-    subject: "Invitation",
-    textBody: "Join the workspace",
-    htmlBody: "<p>Join the workspace</p>",
-    attempts: 0,
-    availableAt: now,
-    claimedAt: null,
-    sentAt: null,
-    lastError: null,
-    createdAt: now,
-  };
-}
+describe.skipIf(!databaseUrl)("EmailOutbox with PostgreSQL", () => {
+  let testDatabase: TestDatabase;
 
-describe("EmailOutbox", () => {
+  beforeAll(async () => {
+    if (!databaseUrl) throw new Error("DATABASE_URL is required");
+    testDatabase = await openTestDatabase(databaseUrl, "worker_email_outbox");
+  });
+
+  beforeEach(async () => {
+    await testDatabase.reset();
+  });
+
+  afterAll(async () => {
+    await testDatabase?.close();
+  });
+
   it.effect("claims once, delivers successes, and defers failures", () => {
-    const rows = [row("email-1", "sent@example.com"), row("email-2", "retry@example.com")];
-    const updates: Array<Record<string, unknown>> = [];
     const delivered: Array<Message> = [];
-    const update = () => ({
-      set: (values: Record<string, unknown>) => ({
-        where: () => {
-          updates.push(values);
-          return Promise.resolve();
-        },
-      }),
-    });
-    const transaction = {
-      select: () => ({
-        from: () => ({
-          where: () => ({
-            orderBy: () => ({
-              limit: () => ({
-                for: () => Promise.resolve(rows),
-              }),
-            }),
-          }),
-        }),
-      }),
-      update,
-    };
-    const db = {
-      transaction: async (
-        evaluate: (tx: typeof transaction) => Promise<unknown>,
-      ) => await evaluate(transaction),
-      update,
-    } as unknown as Db;
-    const outbox = make(db, (message) => {
+    const outbox = make(testDatabase.client, (message) => {
       delivered.push(message);
       if (message.recipient === "retry@example.com") {
         return Promise.reject(new Error("SMTP unavailable"));
@@ -67,6 +46,26 @@ describe("EmailOutbox", () => {
     });
 
     return Effect.gen(function* () {
+      yield* Effect.promise(() =>
+        testDatabase.client.insert(schema.emailOutbox).values([
+          {
+            id: "11111111-1111-4111-8111-111111111111",
+            recipient: "sent@example.com",
+            subject: "Invitation",
+            textBody: "Join the workspace",
+            htmlBody: "<p>Join the workspace</p>",
+            availableAt: now,
+          },
+          {
+            id: "22222222-2222-4222-8222-222222222222",
+            recipient: "retry@example.com",
+            subject: "Invitation",
+            textBody: "Join the workspace",
+            htmlBody: "<p>Join the workspace</p>",
+            availableAt: now,
+          },
+        ]),
+      );
       const summary = yield* outbox.processPending(now);
 
       expect(summary).toEqual({ claimed: 2, sent: 1, deferred: 1 });
@@ -74,13 +73,24 @@ describe("EmailOutbox", () => {
         "sent@example.com",
         "retry@example.com",
       ]);
-      expect(updates[0]).toEqual({ claimedAt: now });
-      expect(updates[1]).toMatchObject({
+      const persisted = yield* Effect.promise(() =>
+        testDatabase.client
+          .select()
+          .from(schema.emailOutbox)
+          .orderBy(asc(schema.emailOutbox.recipient)),
+      );
+      const retry = persisted.find(
+        ({ recipient }) => recipient === "retry@example.com",
+      );
+      const sent = persisted.find(
+        ({ recipient }) => recipient === "sent@example.com",
+      );
+      expect(sent).toMatchObject({
         sentAt: now,
         claimedAt: null,
         lastError: null,
       });
-      expect(updates[2]).toMatchObject({
+      expect(retry).toMatchObject({
         attempts: 1,
         availableAt: new Date("2026-08-21T12:01:00.000Z"),
         claimedAt: null,
@@ -90,14 +100,31 @@ describe("EmailOutbox", () => {
   });
 
   it.effect("exposes database failures as capability-owned errors", () => {
-    const db = {
-      transaction: () => Promise.reject(new Error("database unavailable")),
-    } as unknown as Db;
+    const outbox = make(testDatabase.client, () => Promise.resolve());
 
     return Effect.gen(function* () {
-      const error = yield* Effect.flip(
-        make(db, () => Promise.resolve()).processPending(now),
-      );
+      yield* Effect.promise(async () => {
+        await testDatabase.client.insert(schema.emailOutbox).values({
+          recipient: "person@example.com",
+          subject: "Invitation",
+          textBody: "Join the workspace",
+          availableAt: now,
+        });
+        await testDatabase.client.execute(
+          sql.raw(`
+            create function fail_outbox_update() returns trigger
+            language plpgsql as $$
+            begin
+              raise exception 'database unavailable';
+            end;
+            $$;
+            create trigger fail_outbox_update_trigger
+            before update on email_outbox
+            for each row execute function fail_outbox_update()
+          `),
+        );
+      });
+      const error = yield* Effect.flip(outbox.processPending(now));
 
       expect(error).toBeInstanceOf(EmailOutboxPersistenceError);
       expect(error.operation).toBe("process pending email deliveries");

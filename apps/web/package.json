@@ -10,6 +10,7 @@
     "lint": "biome lint .",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
+    "test:database": "vitest run src/server/api-access.test.ts src/server/auth-service.test.ts src/server/authorization.test.ts src/server/publishing.test.ts src/server/workspace-management.test.ts",
     "test:coverage": "vitest run --coverage",
     "test:acceptance": "playwright test"
   },

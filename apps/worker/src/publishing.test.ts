@@ -1,15 +1,28 @@
-import { describe, expect, it } from "@effect/vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from "@effect/vitest";
+import { openDb } from "@prosewire/db/client";
+import * as schema from "@prosewire/db/schema";
+import { openTestDatabase, type TestDatabase } from "@prosewire/db/testing";
+import { eq, sql } from "drizzle-orm";
 import { Effect, Layer, ManagedRuntime, Option, Redacted } from "effect";
-import type { Db } from "@prosewire/db/client";
-
 import { AnalyticsRetention } from "./analytics-retention.ts";
-import { PostId, PublishedPost } from "./domain.ts";
 import { WorkerDatabase } from "./database.ts";
+import { PostId, PublishedPost } from "./domain.ts";
 import { Publishing } from "./publishing.ts";
 import { PublishingRepository } from "./publishing-repository.ts";
 import { WorkerConfig } from "./worker-config.ts";
 
+const databaseUrl = process.env.DATABASE_URL;
 const postId = PostId.make("11111111-1111-4111-8111-111111111111");
+const blogId = "22222222-2222-4222-8222-222222222222";
+const authorId = "33333333-3333-4333-8333-333333333333";
+const now = new Date("2026-08-20T00:00:00.000Z");
 
 describe("publishScheduledPosts", () => {
   it.effect("publishes due posts through the repository", () => {
@@ -18,15 +31,12 @@ describe("publishScheduledPosts", () => {
     ];
     let requestedAt: Date | undefined;
 
-    const repository = Layer.succeed(
-      PublishingRepository.Service,
-      {
-        publishDue: (now) => {
-          requestedAt = now;
-          return Effect.succeed(expected);
-        },
+    const repository = Layer.succeed(PublishingRepository.Service, {
+      publishDue: (requested) => {
+        requestedAt = requested;
+        return Effect.succeed(expected);
       },
-    );
+    });
 
     return Effect.gen(function* () {
       const publishing = yield* Publishing.Service;
@@ -34,27 +44,20 @@ describe("publishScheduledPosts", () => {
 
       expect(result).toEqual(expected);
       expect(requestedAt).toBeInstanceOf(Date);
-    }).pipe(
-      Effect.provide(Publishing.layer.pipe(Layer.provide(repository))),
-    );
+    }).pipe(Effect.provide(Publishing.layer.pipe(Layer.provide(repository))));
   });
 
   it.effect("succeeds when no scheduled posts are due", () => {
-    const repository = Layer.succeed(
-      PublishingRepository.Service,
-      {
-        publishDue: () => Effect.succeed([]),
-      },
-    );
+    const repository = Layer.succeed(PublishingRepository.Service, {
+      publishDue: () => Effect.succeed([]),
+    });
 
     return Effect.gen(function* () {
       const publishing = yield* Publishing.Service;
       const result = yield* publishing.publishScheduled();
 
       expect(result).toEqual([]);
-    }).pipe(
-      Effect.provide(Publishing.layer.pipe(Layer.provide(repository))),
-    );
+    }).pipe(Effect.provide(Publishing.layer.pipe(Layer.provide(repository))));
   });
 
   it("shares and closes one database resource across worker services", async () => {
@@ -69,11 +72,12 @@ describe("publishScheduledPosts", () => {
     });
     const database = WorkerDatabase.layerWith(() => {
       opened += 1;
+      const resource = openDb("postgres://test");
       return {
-        client: {} as Db,
-        close: () => {
+        client: resource.client,
+        close: async () => {
           closed += 1;
-          return Promise.resolve();
+          await resource.close();
         },
       };
     }).pipe(Layer.provideMerge(config));
@@ -103,109 +107,115 @@ describe("publishScheduledPosts", () => {
 
     expect(closed).toBe(1);
   });
-
-  it.effect("writes scheduled publication audits in the update transaction", () => {
-    let transactionCalls = 0;
-    let audits: ReadonlyArray<Record<string, unknown>> = [];
-    const updateBuilder: Record<string, unknown> = {};
-    updateBuilder["set"] = () => updateBuilder;
-    updateBuilder["where"] = () => updateBuilder;
-    updateBuilder["returning"] = () => Promise.resolve([
-      {
-        id: "11111111-1111-4111-8111-111111111111",
-        title: "Scheduled post",
-        blogId: "22222222-2222-4222-8222-222222222222",
-      },
-    ]);
-    const tx = {
-      update: () => updateBuilder,
-      select: () => ({
-        from: () => ({
-          where: () =>
-            Promise.resolve([
-              {
-                id: "22222222-2222-4222-8222-222222222222",
-                organizationId: "workspace-1",
-              },
-            ]),
-        }),
-      }),
-      insert: () => ({
-        values: (values: ReadonlyArray<Record<string, unknown>>) => {
-          audits = values;
-          return Promise.resolve();
-        },
-      }),
-    };
-    const db = {
-      transaction: async (evaluate: (transaction: typeof tx) => Promise<unknown>) => {
-        transactionCalls += 1;
-        return evaluate(tx);
-      },
-    } as unknown as Db;
-    const repository = PublishingRepository.make(db);
-
-    return Effect.gen(function* () {
-      const published = yield* repository.publishDue(new Date("2026-08-20T00:00:00Z"));
-
-      expect(transactionCalls).toBe(1);
-      expect(published).toEqual([
-        new PublishedPost({ id: postId, title: "Scheduled post" }),
-      ]);
-      expect(audits).toEqual([
-        expect.objectContaining({
-          organizationId: "workspace-1",
-          blogId: "22222222-2222-4222-8222-222222222222",
-          action: "post.published_scheduled",
-          entityId: "11111111-1111-4111-8111-111111111111",
-        }),
-      ]);
-    });
-  });
-
-  it.effect("fails the whole publication transaction when its audit write fails", () => {
-    let committed = false;
-    const updateBuilder: Record<string, unknown> = {};
-    updateBuilder["set"] = () => updateBuilder;
-    updateBuilder["where"] = () => updateBuilder;
-    updateBuilder["returning"] = () => Promise.resolve([
-      {
-        id: "11111111-1111-4111-8111-111111111111",
-        title: "Scheduled post",
-        blogId: "22222222-2222-4222-8222-222222222222",
-      },
-    ]);
-    const tx = {
-      update: () => updateBuilder,
-      select: () => ({
-        from: () => ({
-          where: () =>
-            Promise.resolve([
-              {
-                id: "22222222-2222-4222-8222-222222222222",
-                organizationId: "workspace-1",
-              },
-            ]),
-        }),
-      }),
-      insert: () => ({ values: () => Promise.reject(new Error("audit unavailable")) }),
-    };
-    const db = {
-      transaction: async (evaluate: (transaction: typeof tx) => Promise<unknown>) => {
-        const result = await evaluate(tx);
-        committed = true;
-        return result;
-      },
-    } as unknown as Db;
-    const repository = PublishingRepository.make(db);
-
-    return Effect.gen(function* () {
-      const error = yield* Effect.flip(
-        repository.publishDue(new Date("2026-08-20T00:00:00Z")),
-      );
-
-      expect(error._tag).toBe("PublishingDatabaseError");
-      expect(committed).toBe(false);
-    });
-  });
 });
+
+describe.skipIf(!databaseUrl)(
+  "scheduled publishing repository with PostgreSQL",
+  () => {
+    let testDatabase: TestDatabase;
+
+    beforeAll(async () => {
+      if (!databaseUrl) throw new Error("DATABASE_URL is required");
+      testDatabase = await openTestDatabase(databaseUrl, "worker_publishing");
+    });
+
+    beforeEach(async () => {
+      await testDatabase.reset();
+      await testDatabase.client.insert(schema.organization).values({
+        id: "workspace-1",
+        name: "Studio",
+        slug: "studio",
+      });
+      await testDatabase.client.insert(schema.blog).values({
+        id: blogId,
+        organizationId: "workspace-1",
+        name: "Fieldnotes",
+        slug: "fieldnotes",
+      });
+      await testDatabase.client.insert(schema.author).values({
+        id: authorId,
+        blogId,
+        name: "Author",
+        slug: "author",
+      });
+      await testDatabase.client.insert(schema.post).values({
+        id: postId,
+        blogId,
+        authorId,
+        title: "Scheduled post",
+        slug: "scheduled-post",
+        status: "scheduled",
+        scheduledAt: new Date("2026-08-19T00:00:00.000Z"),
+      });
+    });
+
+    afterAll(async () => {
+      await testDatabase?.close();
+    });
+
+    it.effect(
+      "writes scheduled publication audits in the update transaction",
+      () => {
+        const repository = PublishingRepository.make(testDatabase.client);
+
+        return Effect.gen(function* () {
+          const published = yield* repository.publishDue(now);
+
+          expect(published).toEqual([
+            new PublishedPost({ id: postId, title: "Scheduled post" }),
+          ]);
+          const persisted = yield* Effect.promise(() =>
+            testDatabase.client.query.post.findFirst({
+              where: eq(schema.post.id, postId),
+            }),
+          );
+          const audits = yield* Effect.promise(() =>
+            testDatabase.client.query.auditLog.findMany(),
+          );
+          expect(persisted?.status).toBe("published");
+          expect(persisted?.publishedAt).toEqual(now);
+          expect(audits).toEqual([
+            expect.objectContaining({
+              organizationId: "workspace-1",
+              blogId,
+              action: "post.published_scheduled",
+              entityId: postId,
+            }),
+          ]);
+        });
+      },
+    );
+
+    it.effect("rolls back publication when its audit write fails", () => {
+      const repository = PublishingRepository.make(testDatabase.client);
+
+      return Effect.gen(function* () {
+        yield* Effect.promise(() =>
+          testDatabase.client.execute(
+            sql.raw(`
+            create function fail_worker_audit() returns trigger
+            language plpgsql as $$
+            begin
+              raise exception 'audit unavailable';
+            end;
+            $$;
+            create trigger fail_worker_audit_insert
+            before insert on audit_log
+            for each row execute function fail_worker_audit()
+          `),
+          ),
+        );
+        const error = yield* Effect.flip(repository.publishDue(now));
+
+        expect(error._tag).toBe("PublishingDatabaseError");
+        const persisted = yield* Effect.promise(() =>
+          testDatabase.client.query.post.findFirst({
+            where: eq(schema.post.id, postId),
+          }),
+        );
+        expect(persisted?.status).toBe("scheduled");
+        expect(persisted?.publishedAt).toBeNull();
+      });
+    });
+  },
+);
