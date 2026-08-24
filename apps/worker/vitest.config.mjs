@@ -4,13 +4,20 @@ export default defineConfig({
   test: {
     exclude: [
       ...configDefaults.exclude,
-      ...(process.env.DATABASE_URL ? [] : ["src/*.database.test.ts"]),
+      ...(process.env.DATABASE_URL
+        ? []
+        : [
+            "src/email-outbox.test.ts",
+            "src/publishing.test.ts",
+            "src/*.database.test.ts",
+          ]),
     ],
     coverage: {
       // The PostgreSQL lane measures these files with repository-specific thresholds.
       exclude: [
         "src/database.ts",
         "src/email-outbox.ts",
+        "src/publishing.ts",
         "src/publishing-repository.ts",
       ],
     },

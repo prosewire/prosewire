@@ -15,6 +15,11 @@ export default defineConfig({
         ? []
         : [
             "src/server/database-behavior.test.ts",
+            "src/server/api-access.test.ts",
+            "src/server/auth-service.test.ts",
+            "src/server/authorization.test.ts",
+            "src/server/publishing.test.ts",
+            "src/server/workspace-management.test.ts",
             "src/server/*.database.test.ts",
           ]),
     ],
@@ -25,6 +30,7 @@ export default defineConfig({
         "src/server/auth-service.ts",
         "src/server/authorization.ts",
         "src/server/content-queries.ts",
+        "src/server/publishing.ts",
         "src/server/publishing-repository.ts",
         "src/server/transactional-access.ts",
         "src/server/workspace-management.ts",

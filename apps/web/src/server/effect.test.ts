@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
-import type { Db } from "@prosewire/db/client";
+import { openDb } from "@prosewire/db/client";
 import {
   ConfigProvider,
   Effect,
@@ -288,11 +288,12 @@ describe("web infrastructure", () => {
     });
     const database = Database.layerWith(() => {
       opened += 1;
+      const resource = openDb("postgres://test");
       return {
-        client: {} as Db,
-        close: () => {
+        client: resource.client,
+        close: async () => {
           closed += 1;
-          return Promise.resolve();
+          await resource.close();
         },
       };
     }).pipe(Layer.provide(config));

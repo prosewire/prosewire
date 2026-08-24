@@ -49,7 +49,7 @@ async function management(
   return Effect.runPromise(
     WorkspaceManagement.Service.pipe(
       Effect.provide(
-        WorkspaceManagement.layer.pipe(Layer.provide(dependencies)),
+        WorkspaceManagement.live.pipe(Layer.provide(dependencies)),
       ),
     ),
   );

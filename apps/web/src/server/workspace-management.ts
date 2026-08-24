@@ -1,6 +1,7 @@
 import { Context, Effect, Layer } from "effect";
 import { WorkspaceRepository } from "./workspace-repository.ts";
 
+export type { Actor, Error } from "./workspace-repository.ts";
 export {
   ApiKeyNotFound,
   CreateApiKeyInput,
@@ -18,7 +19,6 @@ export {
   UpdateMemberRoleInput,
   UpdateWorkspaceInput,
 } from "./workspace-repository.ts";
-export type { Actor, Error } from "./workspace-repository.ts";
 
 export const create = Effect.fn("WorkspaceManagement.create")(function* () {
   const repository = yield* WorkspaceRepository.Service;
@@ -45,8 +45,11 @@ export class Service extends Context.Service<Service, Interface>()(
   "@prosewire/web/WorkspaceManagement",
 ) {}
 
-export const layer = Layer.effect(Service, create().pipe(Effect.map(Service.of))).pipe(
-  Layer.provide(WorkspaceRepository.layer),
+export const layer = Layer.effect(
+  Service,
+  create().pipe(Effect.map(Service.of)),
 );
+
+export const live = layer.pipe(Layer.provide(WorkspaceRepository.layer));
 
 export * as WorkspaceManagement from "./workspace-management";

@@ -5,7 +5,10 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { Effect, Layer, Option, Redacted } from "effect";
 import { describe, expect, it } from "vitest";
 import { ApiAccess } from "./api-access.ts";
-import { requireRegistrationInvitation } from "./auth-service.ts";
+import {
+  makeRegistrationInvitationLookup,
+  requireRegistrationInvitation,
+} from "./auth-service.ts";
 import { BlogAccess } from "./authorization.ts";
 import { WebConfig } from "./config.ts";
 import { Database, DatabaseError } from "./database.ts";
@@ -61,7 +64,7 @@ async function workspaceManagement(client: Db, url: string) {
   return Effect.runPromise(
     WorkspaceManagement.Service.pipe(
       Effect.provide(
-        WorkspaceManagement.layer.pipe(Layer.provide(dependencies)),
+        WorkspaceManagement.live.pipe(Layer.provide(dependencies)),
       ),
     ),
   );
@@ -71,7 +74,7 @@ async function publishing(client: Db) {
   return Effect.runPromise(
     Publishing.Service.pipe(
       Effect.provide(
-        Publishing.layer.pipe(Layer.provide(databaseLayer(client))),
+        Publishing.live.pipe(Layer.provide(databaseLayer(client))),
       ),
     ),
   );
@@ -858,8 +861,9 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
         },
       ]);
 
+      const invitations = makeRegistrationInvitationLookup(resource.client);
       await expect(
-        requireRegistrationInvitation(resource.client, {
+        requireRegistrationInvitation(invitations, {
           allowSignUp: true,
           email,
           invitationId: null,
@@ -867,7 +871,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
         }),
       ).resolves.toBeUndefined();
       await expect(
-        requireRegistrationInvitation(resource.client, {
+        requireRegistrationInvitation(invitations, {
           allowSignUp: false,
           email,
           invitationId: null,
@@ -880,7 +884,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
         [expiredId, expiredEmail],
       ] as const) {
         await expect(
-          requireRegistrationInvitation(resource.client, {
+          requireRegistrationInvitation(invitations, {
             allowSignUp: false,
             email: attemptedEmail,
             invitationId,
@@ -889,7 +893,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
         ).rejects.toThrow("Registration requires a workspace invitation");
       }
       await expect(
-        requireRegistrationInvitation(resource.client, {
+        requireRegistrationInvitation(invitations, {
           allowSignUp: false,
           email: email.toUpperCase(),
           invitationId: pendingId,

@@ -1,22 +1,20 @@
-import { Layer, ManagedRuntime, type Effect } from "effect";
-import { BlogAccess } from "./authorization.ts";
+import { type Effect, Layer, ManagedRuntime } from "effect";
 import { ApiAccess } from "./api-access.ts";
 import { ApiContent } from "./api-content.ts";
 import { Auth } from "./auth-service.ts";
+import { BlogAccess } from "./authorization.ts";
 import { WebConfig } from "./config.ts";
 import { ContentQueries } from "./content-queries.ts";
 import { Dashboard } from "./dashboard.ts";
 import { Database } from "./database.ts";
-import { PostExport } from "./post-export.ts";
 import { PlatformCrypto } from "./platform-crypto.ts";
+import { PostExport } from "./post-export.ts";
+import { processSingleton } from "./process-singleton.ts";
 import { PublicContent } from "./public-content.ts";
 import { Publishing } from "./publishing.ts";
 import { WorkspaceManagement } from "./workspace-management.ts";
-import { processSingleton } from "./process-singleton.ts";
 
-const databaseLayer = Database.layer.pipe(
-  Layer.provideMerge(WebConfig.layer),
-);
+const databaseLayer = Database.layer.pipe(Layer.provideMerge(WebConfig.layer));
 
 const infrastructureLayer = Layer.mergeAll(
   Auth.layer,
@@ -34,13 +32,12 @@ const applicationLayer = Layer.mergeAll(
   Dashboard.layer,
   PostExport.layer,
   PublicContent.layer,
-  Publishing.layer,
-  WorkspaceManagement.layer,
+  Publishing.live,
+  WorkspaceManagement.live,
 ).pipe(Layer.provideMerge(domainLayer));
 
-export const appRuntime = processSingleton(
-  "@prosewire/web/AppRuntime/v1",
-  () => ManagedRuntime.make(applicationLayer),
+export const appRuntime = processSingleton("@prosewire/web/AppRuntime/v1", () =>
+  ManagedRuntime.make(applicationLayer),
 );
 
 export type AppServices =

@@ -27,7 +27,7 @@ async function publishing(client: ReturnType<typeof openDb>["client"]) {
   return Effect.runPromise(
     Publishing.Service.pipe(
       Effect.provide(
-        Publishing.layer.pipe(Layer.provide(databaseLayer(client))),
+        Publishing.live.pipe(Layer.provide(databaseLayer(client))),
       ),
     ),
   );

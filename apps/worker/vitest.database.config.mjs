@@ -2,11 +2,16 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
-    include: ["src/*.database.test.ts"],
+    include: [
+      "src/email-outbox.test.ts",
+      "src/publishing.test.ts",
+      "src/*.database.test.ts",
+    ],
     coverage: {
       include: [
         "src/database.ts",
         "src/email-outbox.ts",
+        "src/publishing.ts",
         "src/publishing-repository.ts",
       ],
       reportsDirectory: "coverage/database",

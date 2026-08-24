@@ -32,6 +32,8 @@ export class Service extends Context.Service<Service, Interface>()(
 export const layer = Layer.effect(
   Service,
   create().pipe(Effect.map(Service.of)),
-).pipe(Layer.provide(PublishingRepository.layer));
+);
+
+export const live = layer.pipe(Layer.provide(PublishingRepository.layer));
 
 export * as Publishing from "./publishing";
