@@ -20,7 +20,7 @@
     "typecheck": "turbo run typecheck",
     "test": "turbo run test && pnpm test:packages",
     "test:pre-push": "pnpm typecheck && pnpm test",
-    "test:database": "pnpm --filter @prosewire/db exec vitest run src/account-migration.test.ts src/invitation-migration.test.ts && pnpm --filter @prosewire/web exec vitest run src/server/database-behavior.test.ts && pnpm --filter @prosewire/worker exec vitest run src/email-outbox.database.test.ts src/publishing-repository.database.test.ts",
+    "test:database": "pnpm --filter @prosewire/db exec vitest run src/account-migration.test.ts src/invitation-migration.test.ts && pnpm --filter @prosewire/web test:database && pnpm --filter @prosewire/worker test:database",
     "test:packages": "node scripts/package-tarball-smoke.mjs",
     "test:coverage": "turbo run test:coverage",
     "audit:prod": "pnpm audit --prod --audit-level=high",

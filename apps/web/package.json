@@ -10,6 +10,7 @@
     "lint": "biome lint .",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
+    "test:database": "vitest run --config vitest.database.config.mjs --coverage",
     "test:coverage": "vitest run --coverage",
     "test:acceptance": "playwright test"
   },

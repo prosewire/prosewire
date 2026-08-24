@@ -11,6 +11,7 @@
     "lint": "biome lint src tsdown.config.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:database": "vitest run --config vitest.database.config.mjs --coverage",
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
