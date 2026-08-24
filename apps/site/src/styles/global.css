@@ -291,6 +291,13 @@ html.dark .theme-icon-dark {
 .button:hover {
   transform: translateY(-2px);
 }
+.button:focus-visible,
+.text-link:focus-visible,
+.path-card:focus-visible,
+.final-docs-link:focus-visible {
+  outline: 2px solid var(--coral);
+  outline-offset: 4px;
+}
 .button-primary {
   background: var(--coral);
   color: white;
@@ -302,13 +309,23 @@ html.dark .theme-icon-dark {
   color: #354248;
 }
 .hero-proof {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
   margin: 19px 0 0;
   color: #7a8589;
   font-size: 12px;
 }
-.hero-proof span {
-  color: var(--green);
-  font-weight: 800;
+.hero-proof a {
+  border-bottom: 1px solid transparent;
+  transition:
+    border-color 0.18s ease,
+    color 0.18s ease;
+}
+.hero-proof a:hover {
+  border-color: currentColor;
+  color: var(--ink);
 }
 .workspace-frame {
   position: relative;
@@ -578,6 +595,87 @@ html.dark .theme-icon-dark {
   font-size: 13px;
   line-height: 1.66;
 }
+.paths-section {
+  width: min(1240px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 0 0 115px;
+}
+.paths-heading {
+  grid-template-columns: 0.85fr 1.5fr 1fr;
+}
+.path-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  padding-top: 18px;
+}
+.path-card {
+  position: relative;
+  min-height: 315px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 32px;
+  border: 1px solid var(--line);
+  border-radius: 17px;
+  background: var(--white);
+  box-shadow: 0 8px 30px rgb(23 35 41 / 0.035);
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+.path-card:hover {
+  border-color: #c8cbc4;
+  box-shadow: 0 18px 42px rgb(23 35 41 / 0.08);
+  transform: translateY(-3px);
+}
+.path-number {
+  position: absolute;
+  top: 32px;
+  right: 32px;
+  color: #9ca4a5;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+}
+.path-card > p {
+  margin: 0;
+  color: var(--coral);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+.path-card h3 {
+  max-width: 440px;
+  margin: 58px 0 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(32px, 3.2vw, 45px);
+  font-weight: 400;
+  line-height: 1.05;
+  letter-spacing: -0.045em;
+}
+.path-copy {
+  max-width: 470px;
+  margin-top: 18px;
+  color: #69767b;
+  font-size: 13px;
+  line-height: 1.65;
+}
+.path-card > b {
+  display: inline-flex;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 28px;
+  font-size: 12px;
+}
+.path-card > b span {
+  color: var(--coral);
+  transition: transform 0.18s ease;
+}
+.path-card:hover > b span {
+  transform: translateX(3px);
+}
 .delivery-section {
   display: grid;
   grid-template-columns: 0.84fr 1.16fr;
@@ -750,6 +848,20 @@ html.dark .theme-icon-dark {
 .final-cta h2 em {
   color: var(--coral);
   font-weight: 400;
+}
+.final-docs-link {
+  display: inline-flex;
+  gap: 7px;
+  margin-top: 24px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+.final-docs-link:hover {
+  border-color: var(--ink);
+  color: var(--ink);
 }
 .site-footer {
   width: min(1240px, calc(100% - 40px));
@@ -1178,6 +1290,7 @@ html.dark .hero-proof,
 html.dark .editor-canvas > p:not(.eyebrow),
 html.dark .section-heading > span,
 html.dark .feature-list p,
+html.dark .path-copy,
 html.dark .site-footer > p,
 html.dark .site-footer nav,
 html.dark .docs-intro,
@@ -1207,6 +1320,15 @@ html.dark .docs-home-link,
 html.dark .docs-card {
   background: var(--white);
   border-color: var(--line);
+}
+html.dark .path-card {
+  background: var(--white);
+  border-color: var(--line);
+  box-shadow: 0 8px 30px rgb(0 0 0 / 0.12);
+}
+html.dark .path-card:hover {
+  border-color: #52636a;
+  box-shadow: 0 18px 42px rgb(0 0 0 / 0.22);
 }
 
 html.dark .release-note {
@@ -1332,6 +1454,9 @@ html.dark .doc-prose blockquote {
   .hero-actions {
     flex-direction: column;
   }
+  .hero-proof {
+    flex-wrap: wrap;
+  }
   .workspace-frame {
     margin-top: 56px;
   }
@@ -1369,6 +1494,21 @@ html.dark .doc-prose blockquote {
   }
   .feature-list h3 {
     margin-top: 34px;
+  }
+  .paths-section {
+    width: min(100% - 28px, 1240px);
+    padding-bottom: 80px;
+  }
+  .path-grid {
+    grid-template-columns: 1fr;
+  }
+  .path-card {
+    min-height: 290px;
+    padding: 27px;
+  }
+  .path-number {
+    top: 27px;
+    right: 27px;
   }
   .delivery-section {
     grid-template-columns: 1fr;

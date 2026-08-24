@@ -1,12 +1,63 @@
 ---
-import BaseLayout from "../layouts/BaseLayout.astro";
 import SiteFooter from "../components/SiteFooter.astro";
+import BaseLayout from "../layouts/BaseLayout.astro";
 
 const features = [
-  ["01", "Editorial control", "Draft, schedule, publish, revise, localize, organize, and archive from one focused workspace."],
-  ["02", "Discovery foundations", "Canonical URLs, automatic redirects, metadata, JSON-LD, RSS, sitemaps, authors, and content checks."],
-  ["03", "Flexible delivery", "Use an embed, rendered HTML, public JSON, or the typed SDK. No iframe and no forced frontend."],
-  ["04", "Controlled automation", "Scoped keys, the management API, CLI, and MCP tools keep read, write, and destructive operations explicit."],
+  [
+    "01",
+    "Editorial control",
+    "Draft, schedule, publish, revise, localize, organize, and archive from one focused workspace.",
+  ],
+  [
+    "02",
+    "Discovery foundations",
+    "Canonical URLs, automatic redirects, metadata, JSON-LD, RSS, sitemaps, authors, and content checks.",
+  ],
+  [
+    "03",
+    "Flexible delivery",
+    "Use an embed, rendered HTML, public JSON, or the typed SDK. No iframe and no forced frontend.",
+  ],
+  [
+    "04",
+    "Controlled automation",
+    "Scoped keys, the management API, CLI, and MCP tools keep read, write, and destructive operations explicit.",
+  ],
+];
+
+const paths = [
+  {
+    number: "01",
+    eyebrow: "Managed",
+    title: "Start on Prosewire Cloud",
+    copy: "Create a workspace and publish without operating the Prosewire services yourself.",
+    href: "https://cloud.prosewire.com",
+    link: "Open Cloud",
+  },
+  {
+    number: "02",
+    eyebrow: "Explore",
+    title: "See a running deployment",
+    copy: "Walk through the product in a hosted Prosewire instance before choosing your setup.",
+    href: "https://demo.prosewire.com",
+    link: "View live demo",
+  },
+  {
+    number: "03",
+    eyebrow: "Self-host",
+    title: "Run the complete stack",
+    copy: "Deploy the web app, worker, Postgres, and Redis on infrastructure you control.",
+    href: "/docs/self-host/docker/",
+    link: "Read the deployment guide",
+  },
+  {
+    number: "04",
+    eyebrow: "Open source",
+    title: "Read, fork, and contribute",
+    copy: "Inspect the Apache-2.0 codebase, follow development, or open an issue on GitHub.",
+    href: "https://github.com/prosewire/prosewire",
+    link: "Explore GitHub",
+  },
 ];
 ---
 
@@ -18,12 +69,12 @@ const features = [
           <span>Apache-2.0</span> Publishing infrastructure you can own <b aria-hidden="true">→</b>
         </a>
         <h1>Own your publishing.<br /><em>Keep your website.</em></h1>
-        <p class="hero-lede">Prosewire gives editors a focused publishing workspace and gives developers several ways to bring the same content into an existing site.</p>
+        <p class="hero-lede">Prosewire gives editors a focused publishing workspace. Developers can add the same published content to an existing site with native routes, an embed, rendered HTML, or JSON.</p>
         <div class="hero-actions">
-          <a class="button button-primary" href="/docs/getting-started/">Run it locally <span aria-hidden="true">→</span></a>
-          <a class="button button-secondary" href="https://github.com/prosewire/prosewire">Explore GitHub <span aria-hidden="true">↗</span></a>
+          <a class="button button-primary" href="https://cloud.prosewire.com">Start on Cloud <span aria-hidden="true">↗</span></a>
+          <a class="button button-secondary" href="https://demo.prosewire.com">View live demo <span aria-hidden="true">↗</span></a>
         </div>
-        <p class="hero-proof"><span aria-hidden="true">✓</span> Self-hostable · portable exports · no iframe</p>
+        <p class="hero-proof"><a href="/docs/getting-started/">Run locally</a><span aria-hidden="true">·</span><a href="https://github.com/prosewire/prosewire">View on GitHub</a><span aria-hidden="true">·</span>Apache-2.0</p>
       </div>
 
       <div class="workspace-frame" id="product" aria-label="A preview of the Prosewire editor">
@@ -71,6 +122,25 @@ const features = [
       </div>
     </section>
 
+    <section class="paths-section" id="start">
+      <div class="section-heading paths-heading">
+        <p>CHOOSE YOUR PATH</p>
+        <h2>Start with the setup that fits.</h2>
+        <span>Use the managed platform, explore a running deployment, or own the full stack. The same publishing model and integrations are available either way.</span>
+      </div>
+      <div class="path-grid">
+        {paths.map((path) => (
+          <a class="path-card" href={path.href}>
+            <span class="path-number">{path.number}</span>
+            <p>{path.eyebrow}</p>
+            <h3>{path.title}</h3>
+            <span class="path-copy">{path.copy}</span>
+            <b>{path.link} <span aria-hidden="true">→</span></b>
+          </a>
+        ))}
+      </div>
+    </section>
+
     <section class="delivery-section">
       <div class="delivery-copy">
         <p class="section-label">ONE SOURCE, EVERY SURFACE</p>
@@ -104,12 +174,13 @@ const features = [
     </section>
 
     <section class="final-cta">
-      <p>OPEN SOURCE PUBLISHING INFRASTRUCTURE</p>
-      <h2>Bring publishing<br /><em>into your stack.</em></h2>
+      <p>CHOOSE CLOUD OR SELF-HOST</p>
+      <h2>Publish first.<br /><em>Keep every option.</em></h2>
       <div class="hero-actions">
-        <a class="button button-primary" href="/docs/getting-started/">Run Prosewire locally <span aria-hidden="true">→</span></a>
-        <a class="button button-secondary" href="https://github.com/prosewire/prosewire">Star on GitHub <span aria-hidden="true">↗</span></a>
+        <a class="button button-primary" href="https://cloud.prosewire.com">Start on Cloud <span aria-hidden="true">↗</span></a>
+        <a class="button button-secondary" href="https://demo.prosewire.com">View live demo <span aria-hidden="true">↗</span></a>
       </div>
+      <a class="final-docs-link" href="/docs/getting-started/">Or run Prosewire locally <span aria-hidden="true">→</span></a>
     </section>
     <SiteFooter />
   </main>
