@@ -20,8 +20,12 @@ function inspect(format) {
 const manifest = inspect("{{json .Manifest}}");
 const images = inspect("{{json .Image}}");
 const imagesByPlatform =
-  images.os && images.architecture ? { [`${images.os}/${images.architecture}`]: images } : images;
-const expectedDigest = reference.includes("@") ? reference.split("@").at(-1) : undefined;
+  images.os && images.architecture
+    ? { [`${images.os}/${images.architecture}`]: images }
+    : images;
+const expectedDigest = reference.includes("@")
+  ? reference.split("@").at(-1)
+  : undefined;
 if (expectedDigest) assert.equal(manifest.digest, expectedDigest);
 
 for (const platform of platforms) {

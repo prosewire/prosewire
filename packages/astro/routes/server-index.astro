@@ -1,13 +1,13 @@
 ---
-/// <reference path="../virtual.d.ts" />
-import { createPublicClient } from "@prosewire/sdk";
-import PostList from "../components/PostList.astro";
 import {
   basePath,
   baseUrl,
   publication,
   revalidate,
 } from "virtual:prosewire/config";
+/// <reference path="../virtual.d.ts" />
+import { createPublicClient } from "@prosewire/sdk";
+import PostList from "../components/PostList.astro";
 
 const client = createPublicClient({ baseUrl, blog: publication });
 const requestedPage = Number(Astro.url.searchParams.get("page") ?? 1);

@@ -66,7 +66,7 @@ export default async function PublicBlogPage({
           __html: blog.customCss.replace(/<\/style/gi, "<\\/style"),
         }}
       />
-      <PublicHeader blog={blog} />
+      <PublicHeader blog={blog} authorSlug={featured?.author.slug} />
       <section className="border-b border-black/10 bg-[#efeee7]">
         <div className="mx-auto max-w-6xl px-5 py-16 sm:py-20">
           <p className="text-xs font-bold uppercase tracking-[.18em] text-[var(--blog-accent)]">

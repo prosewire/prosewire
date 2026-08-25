@@ -1,7 +1,10 @@
 import type { ButtonHTMLAttributes, HTMLAttributes } from "react";
 import { cn } from "@/lib/cn";
 
-export function Button({ className, ...props }: ButtonHTMLAttributes<HTMLButtonElement>) {
+export function Button({
+  className,
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
       className={cn(
@@ -21,13 +24,26 @@ export function StatusBadge({ status }: { status: string }) {
     archived: "border-stone-200 bg-stone-100 text-stone-600",
   };
   return (
-    <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold capitalize", styles[status] ?? styles["draft"])}>
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold capitalize",
+        styles[status] ?? styles["draft"],
+      )}
+    >
       <span className="size-1.5 rounded-full bg-current opacity-70" />
       {status}
     </span>
   );
 }
 
-export function SectionHeading({ className, ...props }: HTMLAttributes<HTMLHeadingElement>) {
-  return <h2 className={cn("text-lg font-semibold tracking-[-0.025em]", className)} {...props} />;
+export function SectionHeading({
+  className,
+  ...props
+}: HTMLAttributes<HTMLHeadingElement>) {
+  return (
+    <h2
+      className={cn("text-lg font-semibold tracking-[-0.025em]", className)}
+      {...props}
+    />
+  );
 }

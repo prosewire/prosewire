@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
-import { describe, expect, it } from "vitest";
 import { Effect, ManagedRuntime } from "effect";
+import { describe, expect, it } from "vitest";
 
 import {
   runUntilShutdown,
@@ -32,9 +32,7 @@ function testSignalSource() {
 describe("ShutdownSignal", () => {
   it("listens during runtime startup and removes listeners on completion", async () => {
     const { emitter, source, listening } = testSignalSource();
-    const runtime = ManagedRuntime.make(
-      ShutdownSignal.layerWith(source),
-    );
+    const runtime = ManagedRuntime.make(ShutdownSignal.layerWith(source));
     const waiting = runtime.runPromise(
       Effect.flatMap(ShutdownSignal, (shutdown) => shutdown.wait),
     );
@@ -60,25 +58,28 @@ describe("ShutdownSignal", () => {
     const acquisition = new Promise<void>((resolve) => {
       markAcquired = resolve;
     });
-    const runtime = ManagedRuntime.make(
-      ShutdownSignal.layerWith(source),
-    );
+    const runtime = ManagedRuntime.make(ShutdownSignal.layerWith(source));
     const startup = Effect.acquireRelease(
       Effect.sync(() => {
         acquired = true;
         markAcquired?.();
       }),
-      () => Effect.sync(() => {
-        released = true;
-      }),
+      () =>
+        Effect.sync(() => {
+          released = true;
+        }),
     ).pipe(
       Effect.flatMap(() => Effect.never),
-      Effect.tap(() => Effect.sync(() => {
-        reachedReady = true;
-      })),
+      Effect.tap(() =>
+        Effect.sync(() => {
+          reachedReady = true;
+        }),
+      ),
     );
 
-    const running = runtime.runPromise(runUntilShutdown(startup).pipe(Effect.scoped));
+    const running = runtime.runPromise(
+      runUntilShutdown(startup).pipe(Effect.scoped),
+    );
     await Promise.all([listening, acquisition]);
     emitter.emit("SIGTERM");
     await running;

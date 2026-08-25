@@ -10,7 +10,7 @@ import * as schema from "@prosewire/db/schema";
 import { openTestDatabase, type TestDatabase } from "@prosewire/db/testing";
 import { Effect, Layer } from "effect";
 import { BlogAccess } from "./authorization.ts";
-import { testDatabaseLayer } from "./database.test-support.ts";
+import { databaseLayer } from "./database-test-support.ts";
 import { BlogId, UserId } from "./domain.ts";
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -66,9 +66,7 @@ describe.skipIf(!databaseUrl)(
     };
 
     const layer = () =>
-      BlogAccess.layer.pipe(
-        Layer.provide(testDatabaseLayer(testDatabase.client)),
-      );
+      BlogAccess.layer.pipe(Layer.provide(databaseLayer(testDatabase.client)));
 
     it.effect("allows viewers to read but not create content", () =>
       Effect.gen(function* () {

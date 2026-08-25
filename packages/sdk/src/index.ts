@@ -32,6 +32,7 @@ export interface ProsewireClientOptions {
 }
 
 export interface PrivatePostListInput {
+  /** Assert that the API key belongs to this publication slug or UUID. */
   readonly blog?: string;
   readonly search?: string;
   readonly status?: PostStatus;

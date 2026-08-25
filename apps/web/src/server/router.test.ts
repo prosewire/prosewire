@@ -7,7 +7,7 @@ async function errorFor(path: string, init?: RequestInit) {
   );
   return {
     status: response.status,
-    body: await response.json() as { _tag: string; message: string },
+    body: (await response.json()) as { _tag: string; message: string },
   };
 }
 

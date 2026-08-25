@@ -5,7 +5,11 @@ import { MobileHeader } from "@/components/mobile-header";
 import { loadDashboardShell } from "@/server/page-entrypoints";
 import { dashboardData } from "./dashboard-result";
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <Suspense fallback={<DashboardShellSkeleton />}>
       <DashboardShell>{children}</DashboardShell>

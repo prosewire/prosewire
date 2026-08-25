@@ -1,6 +1,6 @@
+import { type CollectionEntry, getCollection } from "astro:content";
 import path from "node:path";
-import { getCollection, type CollectionEntry } from "astro:content";
-import { structure, type StructuredData } from "fumadocs-core/mdx-plugins";
+import { type StructuredData, structure } from "fumadocs-core/mdx-plugins";
 import { loader, type StaticSource } from "fumadocs-core/source";
 
 type DocsEntry = CollectionEntry<"docs">;
@@ -44,7 +44,8 @@ export const source = loader({
     {
       name: "trailing-slash-urls",
       config(config) {
-        config.url = (slugs) => `${["/docs", ...slugs].join("/").replaceAll("//", "/")}/`;
+        config.url = (slugs) =>
+          `${["/docs", ...slugs].join("/").replaceAll("//", "/")}/`;
       },
     },
   ],

@@ -4,8 +4,10 @@ import { ThemeToggle } from "./theme-toggle";
 
 export function PublicHeader({
   blog,
+  authorSlug,
 }: {
   blog: { name: string; slug: string };
+  authorSlug?: string | undefined;
 }) {
   return (
     <header className="border-b border-black/10 bg-[#f8f7f2]">
@@ -18,7 +20,9 @@ export function PublicHeader({
         </Link>
         <nav className="flex items-center gap-4 text-xs font-semibold text-[#687279]">
           <Link href={`/b/${blog.slug}`}>Stories</Link>
-          <Link href={`/b/${blog.slug}/authors/maya-chen`}>About</Link>
+          {authorSlug ? (
+            <Link href={`/b/${blog.slug}/authors/${authorSlug}`}>About</Link>
+          ) : null}
           <a href={`/b/${blog.slug}/rss.xml`} aria-label="RSS feed">
             <Rss className="size-3.5" />
           </a>

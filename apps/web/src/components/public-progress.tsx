@@ -6,8 +6,11 @@ export function ReadingProgress({ postId }: { postId: string }) {
   const [progress, setProgress] = useState(0);
   useEffect(() => {
     const update = () => {
-      const available = document.documentElement.scrollHeight - window.innerHeight;
-      setProgress(available > 0 ? Math.min(100, (window.scrollY / available) * 100) : 0);
+      const available =
+        document.documentElement.scrollHeight - window.innerHeight;
+      setProgress(
+        available > 0 ? Math.min(100, (window.scrollY / available) * 100) : 0,
+      );
     };
     update();
     window.addEventListener("scroll", update, { passive: true });
@@ -37,5 +40,12 @@ export function ReadingProgress({ postId }: { postId: string }) {
       controller.abort();
     };
   }, [postId]);
-  return <div className="fixed inset-x-0 top-0 z-50 h-0.5 bg-transparent"><div className="h-full bg-[var(--blog-accent)] transition-[width] duration-100" style={{ width: `${progress}%` }} /></div>;
+  return (
+    <div className="fixed inset-x-0 top-0 z-50 h-0.5 bg-transparent">
+      <div
+        className="h-full bg-[var(--blog-accent)] transition-[width] duration-100"
+        style={{ width: `${progress}%` }}
+      />
+    </div>
+  );
 }

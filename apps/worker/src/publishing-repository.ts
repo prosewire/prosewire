@@ -41,7 +41,9 @@ export function make(db: Db): Interface {
                 blogId: schema.post.blogId,
               });
             if (published.length > 0) {
-              const blogIds = [...new Set(published.map((post) => post.blogId))];
+              const blogIds = [
+                ...new Set(published.map((post) => post.blogId)),
+              ];
               const publications = await tx
                 .select({
                   id: schema.blog.id,

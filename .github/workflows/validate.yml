@@ -70,7 +70,7 @@ jobs:
           key: turbo-validation-${{ runner.os }}-${{ github.sha }}
           restore-keys: turbo-validation-${{ runner.os }}-
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec biome ci .
+      - run: pnpm lint
       - run: pnpm lint:workflows
       - run: pnpm typecheck
       - run: pnpm test:coverage

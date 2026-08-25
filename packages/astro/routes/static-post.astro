@@ -1,13 +1,13 @@
 ---
-/// <reference path="../virtual.d.ts" />
-import { createPublicClient, type PublicPostResolution } from "@prosewire/sdk";
-import PostArticle from "../components/PostArticle.astro";
 import {
   basePath,
   baseUrl,
   publication,
   siteUrl,
 } from "virtual:prosewire/config";
+/// <reference path="../virtual.d.ts" />
+import { createPublicClient, type PublicPostResolution } from "@prosewire/sdk";
+import PostArticle from "../components/PostArticle.astro";
 
 export async function getStaticPaths() {
   const client = createPublicClient({ baseUrl, blog: publication });

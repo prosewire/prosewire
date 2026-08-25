@@ -52,7 +52,7 @@ missing.
 | Rendered HTML API | Implemented with sanitized post content and stable `pw-*` classes |
 | Public JSON API | Implemented for published lists and individual posts |
 | Private management API | Implemented for health, publication listing, and post list/get/create/update/archive |
-| TypeScript SDK | Promise and Effect clients are published on the `0.2.x` line |
+| TypeScript SDK | Promise and Effect clients are published as pre-1.0 packages |
 | CLI | Public read commands and authenticated create/update/archive commands are published |
 | MCP server | Read, mutating, and destructive tools are published with operation metadata and approval requirements |
 | Portable export | Versioned JSON includes publication relationships and revisions; CSV covers posts and related identifiers |

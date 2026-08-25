@@ -31,12 +31,15 @@ const contentLayer = Layer.mock(ContentQueries.Service, {
 });
 
 const accessLayer = Layer.mock(BlogAccess.Service, {
-  requireRead: () => Effect.succeed(new BlogAuthorization({
-    workspace: testWorkspace,
-    blog: testBlog,
-    memberId: testMemberId,
-    role: "viewer",
-  })),
+  requireRead: () =>
+    Effect.succeed(
+      new BlogAuthorization({
+        workspace: testWorkspace,
+        blog: testBlog,
+        memberId: testMemberId,
+        role: "viewer",
+      }),
+    ),
 });
 
 const testLayer = PostExport.layer.pipe(

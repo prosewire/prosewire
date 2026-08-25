@@ -5,9 +5,7 @@ import { PlatformCrypto } from "./platform-crypto.ts";
 import { Seed } from "./seed.ts";
 import { SeedConfig } from "./seed-config.ts";
 
-const databaseLayer = Database.layer.pipe(
-  Layer.provideMerge(WebConfig.layer),
-);
+const databaseLayer = Database.layer.pipe(Layer.provideMerge(WebConfig.layer));
 
 const bootstrapLayer = Seed.layer.pipe(
   Layer.provideMerge(SeedConfig.layer),

@@ -27,12 +27,8 @@ import {
 
 const timestamp = new Date("2026-08-20T00:00:00.000Z");
 
-export const testBlogId = BlogId.make(
-  "11111111-1111-4111-8111-111111111111",
-);
-export const testPostId = PostId.make(
-  "22222222-2222-4222-8222-222222222222",
-);
+export const testBlogId = BlogId.make("11111111-1111-4111-8111-111111111111");
+export const testPostId = PostId.make("22222222-2222-4222-8222-222222222222");
 export const testAuthorId = AuthorId.make(
   "33333333-3333-4333-8333-333333333333",
 );

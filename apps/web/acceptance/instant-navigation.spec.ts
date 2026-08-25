@@ -1,5 +1,5 @@
-import { expect, test } from "@playwright/test";
 import { instant } from "@next/playwright";
+import { expect, test } from "@playwright/test";
 import { acceptance } from "./fixtures.ts";
 
 test("the public reader commits a prefetched shell before post data streams", async ({
@@ -19,9 +19,7 @@ test("the public reader commits a prefetched shell before post data streams", as
       .first()
       .click();
     await page.waitForURL(
-      new RegExp(
-        `/b/${acceptance.blog.slug}/acceptance-published$`,
-      ),
+      new RegExp(`/b/${acceptance.blog.slug}/acceptance-published$`),
     );
     await expect(page.getByLabel("Loading publication")).toBeVisible();
     await expect(

@@ -25,7 +25,8 @@ function toApiError(error: unknown) {
   }
   if (
     error instanceof ApiAccess.ScopeDenied ||
-    error instanceof ApiAccess.BlogDenied
+    error instanceof ApiAccess.BlogDenied ||
+    error instanceof ApiAccess.BlogReferenceDenied
   ) {
     return new ApiAccessDenied({ message: error.message });
   }
@@ -117,6 +118,19 @@ export function listPosts(
     Effect.gen(function* () {
       const actor = yield* principal(request, "content:read");
       const content = yield* ApiContent.Service;
+      if (input.blog !== undefined) {
+        const publication = (yield* content.listBlogs(actor.blogId))[0];
+        if (
+          !publication ||
+          (input.blog !== publication.id && input.blog !== publication.slug)
+        ) {
+          return yield* new ApiAccess.BlogReferenceDenied({
+            keyId: actor.keyId,
+            authorizedBlogId: actor.blogId,
+            requestedBlog: input.blog,
+          });
+        }
+      }
       return yield* content.listPosts(actor.blogId, input);
     }),
   );

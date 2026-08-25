@@ -5,10 +5,7 @@ export interface SignalSource {
     signal: "SIGINT" | "SIGTERM",
     listener: () => void,
   ) => unknown;
-  readonly off: (
-    signal: "SIGINT" | "SIGTERM",
-    listener: () => void,
-  ) => unknown;
+  readonly off: (signal: "SIGINT" | "SIGTERM", listener: () => void) => unknown;
 }
 
 const waitForShutdown = (source: SignalSource) =>

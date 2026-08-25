@@ -2,6 +2,7 @@ import { List } from "@phosphor-icons/react/ssr";
 import { hasPermission } from "@prosewire/core";
 import Link from "next/link";
 import { switchPublication, switchWorkspace } from "@/server/actions";
+import { DashboardNavLink } from "./dashboard-nav-link";
 import type { DashboardShellProps } from "./dashboard-shell-types";
 import { Logo } from "./logo";
 import { SignOutButton } from "./sign-out-button";
@@ -97,21 +98,14 @@ export function MobileHeader({
             </div>
             <nav className="grid grid-cols-2 gap-1 p-3">
               {links.map(([href, label]) => (
-                <Link
-                  key={href}
-                  href={href}
-                  className="rounded-lg px-3 py-2.5 text-xs font-semibold text-[#59666b] hover:bg-white hover:text-[#172329]"
-                >
+                <DashboardNavLink key={href} href={href} compact>
                   {label}
-                </Link>
+                </DashboardNavLink>
               ))}
               {hasPermission(role, "audit:read") ? (
-                <Link
-                  href="/audit"
-                  className="rounded-lg px-3 py-2.5 text-xs font-semibold text-[#59666b] hover:bg-white hover:text-[#172329]"
-                >
+                <DashboardNavLink href="/audit" compact>
                   Audit history
-                </Link>
+                </DashboardNavLink>
               ) : null}
             </nav>
             <div className="flex items-center justify-between border-t border-[#dedfd9] px-3 py-2">
