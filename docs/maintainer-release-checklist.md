@@ -1,52 +1,53 @@
 # Maintainer release checklist
 
-Use this checklist while reviewing and merging the version PR created by the
-package workflow. Items labeled **External** require GitHub, npm, GHCR, or
-Cloudflare access and are not changed by repository code.
+Use this checklist for manual package and stable image releases. Items labeled
+**External** require GitHub, npm, GHCR, or Cloudflare access and are not changed
+by repository code.
 
-## Before merge
+## Package release
 
-- [ ] Review the version PR; confirm SDK, CLI, and MCP versions, changelogs,
-      internal packed dependency ranges, and consumed Changesets.
-- [ ] Run `pnpm release:preflight` and every required CI, package, docs,
-      acceptance, secret-scan, workflow, and image smoke check.
-- [ ] Confirm the intended release commit is contained in `origin/main`.
-- [ ] Confirm `https://prosewire.com` and its documentation routes resolve over
-      HTTPS before publishing repository or package links to them.
-- [ ] **External — GitHub:** Actions may create pull requests, and required CI
-      checks and branch protection are enabled for `main`.
-- [ ] **External — npm:** trusted publishing is configured for
-      `@prosewire/sdk`, `@prosewire/cli`, and `@prosewire/mcp`, scoped to the
-      package release workflow and repository.
-- [ ] **External — GHCR:** the Prosewire container package is public (or the
-      intended audience has pull access).
-- [ ] **External — Cloudflare:** `SITE_URL`, deployment credentials, custom
-      domains, and production DNS are configured and verified before deploying.
+- [ ] Confirm every intended public package change has an accurate Changeset.
+- [ ] Confirm `main` contains all changes intended for this release.
+- [ ] Dispatch `Validate` for `main` when a full repository check is wanted
+      before publishing.
+- [ ] Dispatch `Release packages` from `main` and wait for its serialized job.
+- [ ] Confirm the workflow generated the expected package versions and
+      changelogs, ran the tarball preflight, and pushed one release commit.
+- [ ] Confirm every expected package reached npm with provenance and passed the
+      registry consumer smoke test.
+- [ ] **External, GitHub:** the release identity may bypass the pull-request rule
+      only for the generated version commit.
+- [ ] **External, npm:** trusted publishing is scoped to this repository and the
+      package release workflow.
 
-## Publish and verify
+## Stable image release
 
-- [ ] Merge the version PR; confirm the package workflow publishes from `main`
-      with npm provenance and verifies every expected package version.
-- [ ] Dispatch the stable image workflow with the same immutable commit; record
-      the digest and verify both `linux/amd64` and `linux/arm64`, OCI labels,
-      migrations, web, worker, required files, and `/api/health`.
-- [ ] Confirm the candidate digest is verified before the workflow creates the
-      immutable `v<version>` Git tag; confirm stable image aliases all resolve
-      to that digest before it creates the GitHub release.
-- [ ] **External — npm/GHCR:** verify public install and pull access while signed
-      out of maintainer accounts.
-- [ ] **External — Cloudflare:** deploy only by an explicit, separate request;
-      then verify canonical URLs, sitemap, `robots.txt`, docs links, and health.
-- [ ] Verify release notes, checksums/digests, changelogs, README commands, and a
-      clean install from the public registries.
+- [ ] Confirm the requested version matches `package.json` and the web health
+      version at an immutable commit contained in `main`.
+- [ ] Dispatch `Release image` with that version and full commit SHA.
+- [ ] Confirm the shared validation job passed before the image build started.
+- [ ] Confirm both `linux/amd64` and `linux/arm64` manifests, OCI labels,
+      migrations, web, worker, required files, and `/api/health` passed.
+- [ ] Confirm the workflow verified the candidate digest before creating the
+      immutable Git tag and promoting stable image aliases.
+- [ ] **External, GHCR:** verify public pull access while signed out of a
+      maintainer account.
+
+## Site deployment
+
+- [ ] **External, Cloudflare:** confirm Workers Build watch paths include the
+      site and its build inputs and exclude unrelated repository changes.
+- [ ] Verify canonical URLs, sitemap, `robots.txt`, documentation links, and the
+      custom domain after a production deployment.
 
 ## Abort and recovery rules
 
 - Do not reuse a package version after any registry has accepted it. Repair a
   partial release with a new patch version and document the affected artifacts.
+- Do not retry publication blindly after an uncertain registry response. Query
+  npm first and publish only missing versions.
 - Do not create a stable image tag or GitHub release for a digest that has not
   passed manifest, architecture, file-layout, migration, and runtime checks.
-- If a production migration cannot be rolled back safely, restore the tested
-  database backup together with the previous application digest.
-- Keep deployment separate from package and image publication. A successful
-  artifact release does not authorize a production rollout.
+- If the package workflow generated a version commit but publication failed,
+  keep that commit. Do not rewrite `main`; inspect npm and follow the partial
+  release recovery rule.
