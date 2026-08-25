@@ -46,6 +46,7 @@
     "@effect/tsgo": "^0.36.5",
     "@typescript/native": "npm:typescript@^7.0.2",
     "@vitest/coverage-v8": "^4.1.11",
+    "effect-solutions": "^0.5.3",
     "lefthook": "^2.1.6",
     "npm": "11.6.2",
     "turbo": "^2.10.11",
