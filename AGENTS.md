@@ -161,6 +161,26 @@ promise the same behavior.
   Query the registry state first and never attempt to overwrite an accepted
   version.
 
+<!-- effect-solutions:start -->
+## Effect best practices
+
+**IMPORTANT:** Consult the repository's pinned Effect Solutions CLI before
+writing or changing Effect code.
+
+1. Run `pnpm exec effect-solutions list` to see the available guides.
+2. Run `pnpm exec effect-solutions show <topic>...` for the relevant patterns;
+   multiple topics can be requested together.
+3. Search `~/.local/share/effect-solutions/effect` for real Effect v4
+   implementations and type definitions when the guides are insufficient.
+
+Topics include `quick-start`, `project-setup`, `tsconfig`, `basics`,
+`services-and-layers`, `data-modeling`, `error-handling`, `config`, `testing`,
+and `cli`.
+
+Do not guess at Effect APIs or apply remembered Effect 3 patterns. Check the
+guide and installed Effect version first.
+<!-- effect-solutions:end -->
+
 ## How the system fits together
 
 Next.js routes and server actions are transport boundaries. They parse framework
@@ -168,10 +188,9 @@ inputs and call Promise-returning entrypoints backed by one process-owned Effect
 runtime. Application services express publishing, access, workspace, and export
 capabilities; infrastructure implementations use Drizzle and PostgreSQL.
 
-This repository uses Effect 4 RC. Verify APIs against the installed version
-instead of applying remembered Effect 3 patterns. Authorization services expose
-business intent such as publication read, post write, or administration;
-callers do not pass role arrays or reimplement role policy.
+This repository uses Effect 4 RC. Authorization services expose business intent
+such as publication read, post write, or administration; callers do not pass
+role arrays or reimplement role policy.
 
 The shared Effect Schema and HttpApi contract drives the private API and typed
 SDK. The CLI and MCP server build on that SDK. The Next.js and Astro packages
