@@ -1,144 +1,229 @@
 name: Release image
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - apps/web/**
+      - apps/worker/**
+      - packages/config/**
+      - packages/contract/**
+      - packages/core/**
+      - packages/db/**
+      - packages/jobs/**
+      - Dockerfile
+      - .dockerignore
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - turbo.json
+      - tsconfig.json
+      - .npmrc
+      - .pnpmfile.cjs
+      - patches/**
+      - "!**/*.md"
+      - "!**/*.mdx"
+      - "!**/*.test.*"
+      - "!**/*.spec.*"
+      - "!apps/web/acceptance/**"
+      - "!apps/web/playwright.config.ts"
   workflow_dispatch:
     inputs:
       version:
         description: Plain semver version
         required: true
       ref:
-        description: Immutable commit contained in origin/main
+        description: Immutable commit contained in main
         required: true
 
 permissions: {}
 
 concurrency:
-  group: prosewire-stable-image
-  cancel-in-progress: false
+  group: release-image-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 
 jobs:
-  validate-stable:
-    name: Validate stable image release
+  source:
+    name: Resolve image source
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 10
     permissions:
       contents: read
     outputs:
       commit-sha: ${{ steps.release.outputs.commit_sha }}
-      short-sha: ${{ steps.release.outputs.short_sha }}
+      edge-required: ${{ steps.release.outputs.edge_required }}
       image: ${{ steps.release.outputs.image }}
-    services:
-      postgres:
-        image: postgres:17-alpine@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73
-        env:
-          POSTGRES_DB: prosewire_acceptance
-          POSTGRES_USER: prosewire
-          POSTGRES_PASSWORD: prosewire
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U prosewire -d prosewire_acceptance"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-      redis:
-        image: redis:7-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-    env:
-      DATABASE_URL: postgres://prosewire:prosewire@localhost:5432/prosewire_acceptance
-      REDIS_URL: redis://localhost:6379
-      BETTER_AUTH_SECRET: release-ci-only-secret-with-at-least-32-characters
-      PROSEWIRE_PUBLIC_URL: http://localhost:3000
-      NEXT_PUBLIC_PROSEWIRE_PUBLIC_URL: http://localhost:3000
-      PROSEWIRE_EXPOSE_TESTING_API: "1"
+      short-sha: ${{ steps.release.outputs.short_sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - name: Validate stable release source
+      - name: Resolve and validate the release source
         id: release
         env:
-          RELEASE_REF: ${{ inputs.ref }}
-          VERSION: ${{ inputs.version }}
+          BASE_SHA: ${{ github.event.before || '' }}
+          PUSH_SHA: ${{ github.sha }}
+          RELEASE_REF: ${{ inputs.ref || '' }}
+          VERSION: ${{ inputs.version || '' }}
         run: |
-          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "version must be plain semver (for example, 1.2.3)" >&2
-            exit 1
-          fi
-          if [[ ! "$RELEASE_REF" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "ref must be a full 40-character commit SHA" >&2
-            exit 1
-          fi
-          git fetch origin main:refs/remotes/origin/main --tags
           commit_sha="$(git rev-parse HEAD)"
-          test "$commit_sha" = "$RELEASE_REF"
-          if ! git merge-base --is-ancestor "$commit_sha" origin/main; then
-            echo "$commit_sha is not contained in origin/main" >&2
-            exit 1
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            test "$GITHUB_REF" = "refs/heads/main"
+            if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "version must be plain semver, for example 1.2.3" >&2
+              exit 1
+            fi
+            if [[ ! "$RELEASE_REF" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "ref must be a full 40-character commit SHA" >&2
+              exit 1
+            fi
+            test "$commit_sha" = "$RELEASE_REF"
+            git fetch origin main:refs/remotes/origin/main --tags
+            if ! git merge-base --is-ancestor "$commit_sha" origin/main; then
+              echo "$commit_sha is not contained in main" >&2
+              exit 1
+            fi
+            node -e '
+              const fs = require("node:fs");
+              const expected = process.env.VERSION;
+              const root = JSON.parse(fs.readFileSync("package.json")).version;
+              const source = fs.readFileSync("apps/web/src/server/version.ts", "utf8");
+              if (root !== expected) throw new Error("root version is " + root + ", expected " + expected);
+              if (!source.includes("export const version = \"" + expected + "\";")) {
+                throw new Error("web health version does not match the image version");
+              }
+            '
+            echo "edge_required=false" >> "$GITHUB_OUTPUT"
+          else
+            test "$commit_sha" = "$PUSH_SHA"
+            node scripts/edge-image-change.mjs "$BASE_SHA" "$commit_sha" "$GITHUB_OUTPUT"
           fi
-          node -e '
-            const fs = require("node:fs");
-            const expected = process.env.VERSION;
-            const root = JSON.parse(fs.readFileSync("package.json")).version;
-            const source = fs.readFileSync("apps/web/src/server/version.ts", "utf8");
-            if (root !== expected) throw new Error("root version is " + root + ", expected " + expected);
-            if (!source.includes("export const version = \"" + expected + "\";")) {
-              throw new Error("web health version does not match the image version");
-            }
-          '
           {
             echo "commit_sha=$commit_sha"
             echo "short_sha=$(git rev-parse --short=12 HEAD)"
             echo "image=ghcr.io/${GITHUB_REPOSITORY,,}"
           } >> "$GITHUB_OUTPUT"
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+
+  tests:
+    name: Test image source
+    needs: source
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      needs.source.outputs.edge-required == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/validate.yml
+    with:
+      ref: ${{ needs.source.outputs.commit-sha }}
+
+  edge:
+    name: Publish edge image
+    needs: [source, tests]
+    if: >-
+      github.event_name == 'push' &&
+      needs.source.outputs.edge-required == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm audit:prod
-      - run: pnpm db:migrate
-      - run: pnpm lint
-      - run: pnpm lint:workflows
-      - run: pnpm scan:secrets
-      - run: pnpm typecheck
-      - run: pnpm test:coverage
-      - run: pnpm build
-      - run: pnpm --filter @prosewire/web exec playwright install --with-deps chromium
-      - run: pnpm test:acceptance
-      - name: Upload Playwright failure artifacts
-        if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+          ref: ${{ needs.source.outputs.commit-sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
-          name: stable-playwright-failure-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            apps/web/playwright-report
-            apps/web/test-results
-          if-no-files-found: ignore
-          retention-days: 7
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Resolve edge candidate
+        id: registry
+        env:
+          IMAGE: ${{ needs.source.outputs.image }}
+          SHORT_SHA: ${{ needs.source.outputs.short-sha }}
+        run: |
+          candidate="$IMAGE:edge-sha-$SHORT_SHA"
+          echo "candidate=$candidate" >> "$GITHUB_OUTPUT"
+          if output="$(docker buildx imagetools inspect "$candidate" 2>/dev/null)"; then
+            digest="$(awk '/^Digest:/ { print $2; exit }' <<<"$output")"
+            test -n "$digest"
+            echo "candidate_exists=true" >> "$GITHUB_OUTPUT"
+            echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          else
+            echo "candidate_exists=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        if: steps.registry.outputs.candidate_exists != 'true'
+        id: image
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64
+          cache-from: type=gha,scope=prosewire-image
+          cache-to: type=gha,mode=max,scope=prosewire-image
+          sbom: true
+          provenance: mode=max
+          tags: ${{ steps.registry.outputs.candidate }}
+          labels: |
+            org.opencontainers.image.revision=${{ needs.source.outputs.commit-sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+      - name: Capture edge digest
+        id: digest
+        env:
+          EXISTING_DIGEST: ${{ steps.registry.outputs.digest }}
+          PUSHED_DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          digest="${EXISTING_DIGEST:-$PUSHED_DIGEST}"
+          if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "Build did not produce a valid digest" >&2
+            exit 1
+          fi
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+      - name: Verify edge candidate
+        env:
+          IMAGE: ${{ needs.source.outputs.image }}
+          DIGEST: ${{ steps.digest.outputs.digest }}
+          REVISION: ${{ needs.source.outputs.commit-sha }}
+          SOURCE: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          reference="$IMAGE@$DIGEST"
+          node scripts/verify-image-manifest.mjs "$reference" "$REVISION" "$SOURCE" linux/amd64
+          scripts/verify-image-runtime-files.sh "$reference" linux/amd64
+          scripts/container-runtime-smoke.sh "$reference"
+      - name: Verify anonymous edge pull
+        env:
+          IMAGE: ${{ needs.source.outputs.image }}
+          DIGEST: ${{ steps.digest.outputs.digest }}
+        run: scripts/verify-anonymous-image-pull.sh "$IMAGE@$DIGEST" linux/amd64
+      - name: Promote verified edge tag
+        env:
+          IMAGE: ${{ needs.source.outputs.image }}
+          DIGEST: ${{ steps.digest.outputs.digest }}
+        run: |
+          docker buildx imagetools create --tag "$IMAGE:edge" "$IMAGE@$DIGEST"
+          actual="$(docker buildx imagetools inspect "$IMAGE:edge" | awk '/^Digest:/ { print $2; exit }')"
+          test "$actual" = "$DIGEST"
+          echo "Promoted verified digest $DIGEST to edge."
 
   stable:
     name: Publish stable image
-    needs: validate-stable
+    needs: [source, tests]
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     environment: stable-release
     permissions:
-      contents: write # Create the immutable Git tag and GitHub release.
-      packages: write # Push and promote the verified stable image in GHCR.
+      contents: write
+      packages: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.validate-stable.outputs.commit-sha }}
+          ref: ${{ needs.source.outputs.commit-sha }}
           fetch-depth: 0
           persist-credentials: false
       - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
@@ -150,14 +235,14 @@ jobs:
       - name: Resolve stable release
         id: registry
         env:
-          COMMIT_SHA: ${{ needs.validate-stable.outputs.commit-sha }}
-          IMAGE: ${{ needs.validate-stable.outputs.image }}
+          COMMIT_SHA: ${{ needs.source.outputs.commit-sha }}
+          IMAGE: ${{ needs.source.outputs.image }}
           VERSION: ${{ inputs.version }}
-          SHORT_SHA: ${{ needs.validate-stable.outputs.short-sha }}
+          SHORT_SHA: ${{ needs.source.outputs.short-sha }}
         run: |
           git fetch origin main:refs/remotes/origin/main --tags
           if ! git merge-base --is-ancestor "$COMMIT_SHA" origin/main; then
-            echo "$COMMIT_SHA is no longer contained in origin/main" >&2
+            echo "$COMMIT_SHA is no longer contained in main" >&2
             exit 1
           fi
           if git show-ref --verify --quiet "refs/tags/v$VERSION"; then
@@ -198,13 +283,13 @@ jobs:
           context: .
           push: true
           platforms: linux/amd64,linux/arm64
-          cache-from: type=gha,scope=prosewire-ci-image
-          cache-to: type=gha,mode=max,scope=prosewire-ci-image
+          cache-from: type=gha,scope=prosewire-image
+          cache-to: type=gha,mode=max,scope=prosewire-image
           sbom: true
           provenance: mode=max
           tags: ${{ steps.registry.outputs.candidate }}
           labels: |
-            org.opencontainers.image.revision=${{ needs.validate-stable.outputs.commit-sha }}
+            org.opencontainers.image.revision=${{ needs.source.outputs.commit-sha }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
       - name: Capture stable digest
         id: digest
@@ -218,11 +303,11 @@ jobs:
             exit 1
           fi
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
-      - name: Verify multi-platform artifact
+      - name: Verify stable candidate
         env:
-          IMAGE: ${{ needs.validate-stable.outputs.image }}
+          IMAGE: ${{ needs.source.outputs.image }}
           DIGEST: ${{ steps.digest.outputs.digest }}
-          REVISION: ${{ needs.validate-stable.outputs.commit-sha }}
+          REVISION: ${{ needs.source.outputs.commit-sha }}
           SOURCE: ${{ github.server_url }}/${{ github.repository }}
         run: |
           reference="$IMAGE@$DIGEST"
@@ -231,14 +316,14 @@ jobs:
           scripts/container-runtime-smoke.sh "$reference"
       - name: Verify anonymous stable pull
         env:
-          IMAGE: ${{ needs.validate-stable.outputs.image }}
+          IMAGE: ${{ needs.source.outputs.image }}
           DIGEST: ${{ steps.digest.outputs.digest }}
         run: scripts/verify-anonymous-image-pull.sh "$IMAGE@$DIGEST" linux/amd64
       - name: Create immutable Git tag
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ inputs.version }}
-          COMMIT_SHA: ${{ needs.validate-stable.outputs.commit-sha }}
+          COMMIT_SHA: ${{ needs.source.outputs.commit-sha }}
         run: |
           if ! git show-ref --verify --quiet "refs/tags/v$VERSION"; then
             gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
@@ -247,7 +332,7 @@ jobs:
           fi
       - name: Promote verified stable image tags
         env:
-          IMAGE: ${{ needs.validate-stable.outputs.image }}
+          IMAGE: ${{ needs.source.outputs.image }}
           DIGEST: ${{ steps.digest.outputs.digest }}
           VERSION: ${{ inputs.version }}
         run: |
@@ -269,7 +354,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ inputs.version }}
-          COMMIT_SHA: ${{ needs.validate-stable.outputs.commit-sha }}
+          COMMIT_SHA: ${{ needs.source.outputs.commit-sha }}
         run: |
           if ! gh release view "v$VERSION" >/dev/null 2>&1; then
             gh release create "v$VERSION" \

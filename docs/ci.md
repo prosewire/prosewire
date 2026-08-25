@@ -1,42 +1,55 @@
-# Continuous integration
+# Repository automation
 
-The CI workflow classifies changes before it starts package, database, browser,
-or image work. Pull requests compare the pull request base and head SHAs. Pushes
-compare the event's `before` SHA with its head SHA, covering every commit in the
-push and deleted paths. A missing range and an ordinary manual dispatch take the
-conservative full-validation path.
+Pull requests do not start GitHub Actions workflows and no Actions check is
+required to merge. Cloudflare Workers Builds owns previews and production
+deployments for `apps/site`; its build watch paths must exclude unrelated
+repository files.
 
-The release workflow can dispatch CI for a Changesets version pull request when
-GitHub's own token suppresses `pull_request` workflows. That dispatch supplies a
-pull request number; CI verifies the open pull request, repository, base branch,
-and exact head SHA through GitHub before using its base and head. Other manual
-runs remain conservative.
+The repository has three workflows.
 
-## Classification rules
+## Manual validation
 
-| Change | Quality and package checks | Dependency audit | Runtime integration | Edge image |
-| --- | --- | --- | --- | --- |
-| Public package source or test | Affected Turbo tasks and the affected tarball contract; SDK changes also test its public consumers | No | SDK changes only, because acceptance tests consume it | No |
-| Web, worker, database, migration, core, contract, or runtime config | Affected Turbo tasks; shared contract/config changes smoke-test all public packages | For manifests only | Yes | Yes |
-| Any lockfile, package manifest, workspace file, pnpm config, or patch | Full package validation for shared root inputs | Yes | Yes when it can affect the runtime build; version-only public package manifests are excluded | Same rule as runtime integration |
-| Dockerfile, Compose, or container validation input | Relevant quality | No | Yes | Yes for Dockerfile and build-context inputs |
-| Changeset, public package changelog, or publishable package source | Relevant quality and package smoke tests | For manifests only | Only if runtime-affecting | Only if image-affecting |
-| Workflow or classifier | Full validation | Yes | Yes | Yes |
-| Documentation or unrelated repository metadata | Changed-file formatting and any affected Turbo tasks | No | No | No |
+`Validate` runs only through `workflow_dispatch` or as the reusable test job for
+an image release. It accepts a branch, tag, or immutable commit and runs:
 
-Package tarball selection follows public contracts. CLI, MCP, Next.js, and Astro
-always include the SDK they consume. An SDK change includes all four consumers.
-Changes to shared package infrastructure, configuration, contract types, or the
-tarball smoke test cover every public package.
+- formatting and lint checks;
+- workflow linting;
+- workspace typechecks and coverage tests;
+- PostgreSQL migrations and database tests;
+- the Redis email-queue test;
+- the web build and Playwright acceptance tests.
 
-`CI integration` and `Lockfile dependency audit` are lightweight required
-reporting jobs. They remain present for branch protection even when their heavy
-work is legitimately skipped. Runtime integration still depends on `CI quality`,
-so a basic failure prevents PostgreSQL, Redis, Playwright, and Docker from
-starting. Secret history scanning is never path-filtered.
+Validation never runs automatically for a pull request or an ordinary push.
 
-Package publishing is dispatched only for publishable package or Changesets
-changes after all protected CI jobs pass on `main`. The release workflow checks
-out the immutable tested SHA and validates its originating CI run before it can
-request npm trusted-publishing credentials. Edge images are built only for image
-inputs. Stable image releases remain manual, gated, and serialized.
+## Package releases
+
+`Release packages` runs only through `workflow_dispatch` on `main`. One serialized
+job consumes all pending Changesets, generates versions and changelogs, runs the
+package release preflight, and commits the generated files directly to `main`.
+It refuses to push if `main` moved after checkout.
+
+After pushing the version commit, the same job publishes through npm trusted
+publishing and verifies every published package and its provenance. The release
+identity must be allowed to bypass the pull-request rule for this one direct
+push. Use the `RELEASE_GITHUB_TOKEN` secret for that identity when the default
+Actions token has no bypass permission.
+
+Do not retry after an uncertain npm result without querying the registry first.
+
+## Image releases
+
+`Release image` has two entry points. A relevant push to `main` tests the exact
+commit, builds a single-platform candidate, verifies its metadata and runtime,
+and promotes the digest to `edge`. A manual dispatch tests the requested commit,
+builds and verifies the multi-platform candidate, then publishes stable tags,
+the immutable Git tag, and the GitHub release.
+
+Both paths call `Validate` before building an image. They also smoke-test the
+built container before changing a public image tag.
+
+Edge changes are limited to the web app, worker, internal runtime packages,
+database migrations, Docker inputs, and shared build or dependency inputs. Site
+files, documentation, tests, and the SDK, CLI, MCP, Next.js, Astro, and
+`create-prosewire` packages do not build an edge image. A shared lockfile change
+accompanied only by those non-runtime packages is also skipped. A lockfile-only
+change builds conservatively.
