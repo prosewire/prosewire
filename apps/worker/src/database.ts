@@ -1,5 +1,5 @@
+import { type Db, type DbResource, openDb } from "@prosewire/db/client";
 import { Context, Effect, Layer, Redacted, Schema } from "effect";
-import { openDb, type Db, type DbResource } from "@prosewire/db/client";
 import { WorkerConfig } from "./worker-config.ts";
 
 export class WorkerDatabaseError extends Schema.TaggedError<WorkerDatabaseError>()(

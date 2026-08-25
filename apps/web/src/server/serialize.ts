@@ -1,8 +1,4 @@
-import type {
-  PostStatus,
-  PublicBlog,
-  PublicPost,
-} from "@prosewire/contract";
+import type { PostStatus, PublicBlog, PublicPost } from "@prosewire/contract";
 import { readingMinutes } from "@prosewire/core";
 
 interface PublicBlogRow {
@@ -58,7 +54,12 @@ interface PostRow {
     credentials: string | null;
   };
   categories: ReadonlyArray<{
-    category: { id: string; name: string; slug: string; description: string | null };
+    category: {
+      id: string;
+      name: string;
+      slug: string;
+      description: string | null;
+    };
   }>;
 }
 

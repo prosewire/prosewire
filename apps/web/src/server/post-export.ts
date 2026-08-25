@@ -158,6 +158,9 @@ export class Service extends Context.Service<Service, Interface>()(
   "@prosewire/web/PostExport",
 ) {}
 
-export const layer = Layer.effect(Service, create().pipe(Effect.map(Service.of)));
+export const layer = Layer.effect(
+  Service,
+  create().pipe(Effect.map(Service.of)),
+);
 
 export * as PostExport from "./post-export";

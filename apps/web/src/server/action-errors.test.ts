@@ -38,7 +38,10 @@ describe("actionErrorRedirect", () => {
   it("does not disguise operational failures as form errors", () => {
     expect(
       actionErrorRedirect(
-        new DatabaseError({ operation: "post.save", cause: new Error("offline") }),
+        new DatabaseError({
+          operation: "post.save",
+          cause: new Error("offline"),
+        }),
         "/posts/new",
       ),
     ).toBeUndefined();

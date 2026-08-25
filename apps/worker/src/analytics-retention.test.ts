@@ -4,10 +4,9 @@ import { make } from "./analytics-retention.ts";
 
 describe("AnalyticsRetention", () => {
   it.effect("deletes and reports expired raw events", () => {
-    const deleteBefore = vi.fn().mockResolvedValue([
-      { id: "one" },
-      { id: "two" },
-    ]);
+    const deleteBefore = vi
+      .fn()
+      .mockResolvedValue([{ id: "one" }, { id: "two" }]);
     const service = make({ deleteBefore }, 365);
 
     return Effect.gen(function* () {

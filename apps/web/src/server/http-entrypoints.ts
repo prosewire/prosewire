@@ -1,9 +1,9 @@
 import { toNextJsHandler } from "better-auth/next-js";
 import { Effect, Option, Result, Schema } from "effect";
 import { requireSessionWithHeadersEffect } from "@/lib/session";
-import { BlogAccess } from "./authorization.ts";
-import { getAuth } from "./auth-service.ts";
 import { runAppEffect } from "./app-runtime.ts";
+import { getAuth } from "./auth-service.ts";
+import { BlogAccess } from "./authorization.ts";
 import { BlogSlug, PostId, UserId } from "./domain.ts";
 import { promiseEffect } from "./external-effect.ts";
 import { PostExport } from "./post-export.ts";
@@ -28,14 +28,18 @@ export class AuthRequestFailed extends Schema.TaggedError<AuthRequestFailed>()(
 const parseBlogSlug = (value: string) =>
   Schema.decodeUnknownOption(BlogSlug)(value);
 
-const json = (value: unknown, init?: ResponseInit) => Response.json(value, init);
+const json = (value: unknown, init?: ResponseInit) =>
+  Response.json(value, init);
 
 type BoundedJson =
   | { readonly type: "value"; readonly value: unknown }
   | { readonly type: "invalid" }
   | { readonly type: "too-large" };
 
-async function readBoundedJson(request: Request, maxBytes: number): Promise<BoundedJson> {
+async function readBoundedJson(
+  request: Request,
+  maxBytes: number,
+): Promise<BoundedJson> {
   const declaredLength = Number(request.headers.get("content-length"));
   if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
     return { type: "too-large" };
@@ -106,6 +110,13 @@ function publicHeaders(): HeadersInit {
     "Access-Control-Allow-Origin": "*",
     "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
   };
+}
+
+function publicRedirect(location: string): Response {
+  return new Response(null, {
+    status: 301,
+    headers: { ...publicHeaders(), Location: location },
+  });
 }
 
 function feedHeaders(contentType: string): HeadersInit {
@@ -184,7 +195,8 @@ export async function exportPosts(
 ): Promise<Response> {
   const { blog } = await context.params;
   const slug = parseBlogSlug(blog);
-  if (Option.isNone(slug)) return new Response("Blog not found", { status: 404 });
+  if (Option.isNone(slug))
+    return new Response("Blog not found", { status: 404 });
 
   const result = await runAppEffect(
     Effect.result(
@@ -195,9 +207,9 @@ export async function exportPosts(
           blogSlug: slug.value,
           actorId: UserId.make(session.user.id),
         });
-        return yield* (new URL(request.url).searchParams.get("format") === "json"
+        return yield* new URL(request.url).searchParams.get("format") === "json"
           ? service.portable(input)
-          : service.csv(input));
+          : service.csv(input);
       }),
     ),
     request.signal,
@@ -303,12 +315,8 @@ export async function getPublicPost(
       request.signal,
     );
     if (target) {
-      return Response.redirect(
-        new URL(
-          `/api/public/${encodeURIComponent(rawBlog)}/posts/${encodeURIComponent(target)}`,
-          request.url,
-        ),
-        301,
+      return publicRedirect(
+        `/api/public/${encodeURIComponent(rawBlog)}/posts/${encodeURIComponent(target)}`,
       );
     }
     return json({ error: "Post not found" }, { status: 404 });
@@ -371,7 +379,8 @@ export async function getRenderedContent(
 ): Promise<Response> {
   const { blog: rawBlog, path } = await context.params;
   const blogSlug = parseBlogSlug(rawBlog);
-  if (Option.isNone(blogSlug)) return new Response("Blog not found", { status: 404 });
+  if (Option.isNone(blogSlug))
+    return new Response("Blog not found", { status: 404 });
   const postSlug = path?.[0];
   if (postSlug) {
     const result = await runAppEffect(
@@ -380,7 +389,18 @@ export async function getRenderedContent(
       ),
       request.signal,
     );
-    if (!result) return new Response("Post not found", { status: 404 });
+    if (!result) {
+      const target = await runAppEffect(
+        Effect.flatMap(PublicContent.Service, (content) =>
+          content.redirect(blogSlug.value, postSlug),
+        ),
+        request.signal,
+      );
+      if (!target) return new Response("Post not found", { status: 404 });
+      return publicRedirect(
+        `/api/rendered/${encodeURIComponent(rawBlog)}/${encodeURIComponent(target)}`,
+      );
+    }
     const styles = renderedStyles(result.blog);
     const { post } = result;
     const minutes = Math.max(

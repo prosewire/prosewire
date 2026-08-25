@@ -42,6 +42,19 @@ export class BlogDenied extends Schema.TaggedError<BlogDenied>()(
   }
 }
 
+export class BlogReferenceDenied extends Schema.TaggedError<BlogReferenceDenied>()(
+  "ApiBlogReferenceDenied",
+  {
+    keyId: ApiKeyId,
+    authorizedBlogId: BlogId,
+    requestedBlog: Schema.String,
+  },
+) {
+  override get message(): string {
+    return `API key ${this.keyId} cannot access publication ${this.requestedBlog}`;
+  }
+}
+
 export class PersistenceError extends Schema.TaggedError<PersistenceError>()(
   "ApiAccessPersistenceError",
   {
@@ -54,7 +67,8 @@ export type Error =
   | PersistenceError
   | AuthenticationFailed
   | ScopeDenied
-  | BlogDenied;
+  | BlogDenied
+  | BlogReferenceDenied;
 
 export function hasScope(
   scopes: ReadonlyArray<string>,

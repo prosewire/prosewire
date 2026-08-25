@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
 import type { PublicContentClient } from "@prosewire/sdk";
+import { describe, expect, it, vi } from "vitest";
 import { type CliPrivateClient, runProgram } from "./program.ts";
 
 function privateClient(
@@ -15,7 +15,9 @@ function privateClient(
   };
 }
 
-function publicClient(overrides: Partial<PublicContentClient> = {}): PublicContentClient {
+function publicClient(
+  overrides: Partial<PublicContentClient> = {},
+): PublicContentClient {
   return {
     listPosts: vi.fn().mockResolvedValue({ posts: [{ title: "Published" }] }),
     listAllPosts: vi.fn().mockResolvedValue([]),
@@ -43,7 +45,10 @@ describe("Prosewire CLI", () => {
       },
     };
 
-    await runProgram(["node", "prosewire", "posts", "--search", "portable"], dependencies);
+    await runProgram(
+      ["node", "prosewire", "posts", "--search", "portable"],
+      dependencies,
+    );
     expect(createPublicClient).toHaveBeenCalledWith({
       baseUrl: "https://content.example",
       blog: "fieldnotes",
@@ -56,15 +61,19 @@ describe("Prosewire CLI", () => {
   });
 
   it("creates a post from JSON with a private API key", async () => {
-    const create = vi.fn().mockResolvedValue({ id: "post-id", status: "draft" });
+    const create = vi
+      .fn()
+      .mockResolvedValue({ id: "post-id", status: "draft" });
     const createClient = vi.fn(() => privateClient({ create }));
     const output = vi.fn();
-    const readFile = vi.fn().mockResolvedValue(JSON.stringify({
-      blogId: "11111111-1111-4111-8111-111111111111",
-      authorId: "22222222-2222-4222-8222-222222222222",
-      title: "CLI draft",
-      slug: "cli-draft",
-    }));
+    const readFile = vi.fn().mockResolvedValue(
+      JSON.stringify({
+        blogId: "11111111-1111-4111-8111-111111111111",
+        authorId: "22222222-2222-4222-8222-222222222222",
+        title: "CLI draft",
+        slug: "cli-draft",
+      }),
+    );
     const dependencies = {
       createClient,
       readFile,
@@ -72,17 +81,20 @@ describe("Prosewire CLI", () => {
       env: {},
     };
 
-    await runProgram([
-      "node",
-      "prosewire",
-      "--url",
-      "https://content.example",
-      "--key",
-      "pw_test",
-      "create",
-      "--data",
-      "post.json",
-    ], dependencies);
+    await runProgram(
+      [
+        "node",
+        "prosewire",
+        "--url",
+        "https://content.example",
+        "--key",
+        "pw_test",
+        "create",
+        "--data",
+        "post.json",
+      ],
+      dependencies,
+    );
 
     expect(readFile).toHaveBeenCalledWith("post.json", "utf8");
     expect(createClient).toHaveBeenCalledWith({
@@ -106,53 +118,61 @@ describe("Prosewire CLI", () => {
   it("rejects JSON that does not match the command schema", async () => {
     const create = vi.fn();
 
-    await expect(runProgram([
-      "node",
-      "prosewire",
-      "--key",
-      "pw_test",
-      "create",
-      "--data",
-      "post.json",
-    ], {
-      createClient: vi.fn(() => privateClient({ create })),
-      readFile: vi.fn().mockResolvedValue('{"title":"Missing IDs"}'),
-      env: {},
-    })).rejects.toThrow();
+    await expect(
+      runProgram(
+        [
+          "node",
+          "prosewire",
+          "--key",
+          "pw_test",
+          "create",
+          "--data",
+          "post.json",
+        ],
+        {
+          createClient: vi.fn(() => privateClient({ create })),
+          readFile: vi.fn().mockResolvedValue('{"title":"Missing IDs"}'),
+          env: {},
+        },
+      ),
+    ).rejects.toThrow();
 
     expect(create).not.toHaveBeenCalled();
   });
 
   it("refuses private mutations without a key", async () => {
     await expect(
-      runProgram([
-        "node",
-        "prosewire",
-        "create",
-        "--data",
-        "post.json",
-      ], { env: {}, readFile: vi.fn() }),
+      runProgram(["node", "prosewire", "create", "--data", "post.json"], {
+        env: {},
+        readFile: vi.fn(),
+      }),
     ).rejects.toThrow("--key or PROSEWIRE_API_KEY is required");
 
     await expect(
-      runProgram([
-        "node",
-        "prosewire",
-        "update",
-        "11111111-1111-4111-8111-111111111111",
-        "--data",
-        "post.json",
-      ], { env: {}, readFile: vi.fn() }),
+      runProgram(
+        [
+          "node",
+          "prosewire",
+          "update",
+          "11111111-1111-4111-8111-111111111111",
+          "--data",
+          "post.json",
+        ],
+        { env: {}, readFile: vi.fn() },
+      ),
     ).rejects.toThrow("--key or PROSEWIRE_API_KEY is required");
 
     await expect(
-      runProgram([
-        "node",
-        "prosewire",
-        "archive",
-        "11111111-1111-4111-8111-111111111111",
-        "--yes",
-      ], { env: {}, readFile: vi.fn() }),
+      runProgram(
+        [
+          "node",
+          "prosewire",
+          "archive",
+          "11111111-1111-4111-8111-111111111111",
+          "--yes",
+        ],
+        { env: {}, readFile: vi.fn() },
+      ),
     ).rejects.toThrow("--key or PROSEWIRE_API_KEY is required");
   });
 
@@ -161,42 +181,45 @@ describe("Prosewire CLI", () => {
       runProgram(["node", "prosewire", "posts"], { env: {} }),
     ).rejects.toThrow("--blog or PROSEWIRE_BLOG is required");
     await expect(
-      runProgram([
-        "node",
-        "prosewire",
-        "get",
-        "post",
-      ], { env: {} }),
+      runProgram(["node", "prosewire", "get", "post"], { env: {} }),
     ).rejects.toThrow("--blog or PROSEWIRE_BLOG is required");
   });
 
   it("updates and explicitly archives posts through the private API", async () => {
-    const update = vi.fn().mockResolvedValue({ id: "post-id", title: "Updated" });
+    const update = vi
+      .fn()
+      .mockResolvedValue({ id: "post-id", title: "Updated" });
     const archive = vi.fn().mockResolvedValue({ ok: true });
     const createClient = vi.fn(() => privateClient({ update, archive }));
     const output = vi.fn();
     const readFile = vi.fn().mockResolvedValue('{"title":"Updated"}');
     const dependencies = { createClient, readFile, output, env: {} };
 
-    await runProgram([
-      "node",
-      "prosewire",
-      "--key",
-      "pw_test",
-      "update",
-      "11111111-1111-4111-8111-111111111111",
-      "--data",
-      "changes.json",
-    ], dependencies);
-    await runProgram([
-      "node",
-      "prosewire",
-      "--key",
-      "pw_test",
-      "archive",
-      "11111111-1111-4111-8111-111111111111",
-      "--yes",
-    ], dependencies);
+    await runProgram(
+      [
+        "node",
+        "prosewire",
+        "--key",
+        "pw_test",
+        "update",
+        "11111111-1111-4111-8111-111111111111",
+        "--data",
+        "changes.json",
+      ],
+      dependencies,
+    );
+    await runProgram(
+      [
+        "node",
+        "prosewire",
+        "--key",
+        "pw_test",
+        "archive",
+        "11111111-1111-4111-8111-111111111111",
+        "--yes",
+      ],
+      dependencies,
+    );
 
     expect(update).toHaveBeenCalledWith({
       params: { id: "11111111-1111-4111-8111-111111111111" },
@@ -220,13 +243,10 @@ describe("Prosewire CLI", () => {
       env: {},
     };
     try {
-      await runProgram([
-        "node",
-        "prosewire",
-        "posts",
-        "--blog",
-        "fieldnotes",
-      ], dependencies);
+      await runProgram(
+        ["node", "prosewire", "posts", "--blog", "fieldnotes"],
+        dependencies,
+      );
       expect(listPosts).toHaveBeenCalledWith({});
       expect(write).toHaveBeenCalledWith(
         expect.stringContaining('"Published"'),

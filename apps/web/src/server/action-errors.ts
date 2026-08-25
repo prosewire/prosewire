@@ -19,14 +19,10 @@ export function actionErrorRedirect(
       return "/sign-in";
     case "InvalidPost":
     case "InvalidBlogSettings":
-      return `${fallbackPath}?error=${encodeURIComponent(
-        error.message,
-      )}`;
+      return `${fallbackPath}?error=${encodeURIComponent(error.message)}`;
     case "PostNotFound":
     case "BlogNotFound":
-      return `${fallbackPath}?error=${encodeURIComponent(
-        error.message,
-      )}`;
+      return `${fallbackPath}?error=${encodeURIComponent(error.message)}`;
     default:
       return undefined;
   }

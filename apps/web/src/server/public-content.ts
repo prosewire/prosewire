@@ -65,8 +65,9 @@ export const create = Effect.fn("PublicContent.create")(function* () {
       });
       return { blog, author, posts };
     }),
-    recordView: Effect.fn("PublicContent.recordView")((postId: PostId, eventId: string, referrer: string | null) =>
-      content.recordPostView(postId, eventId, referrer),
+    recordView: Effect.fn("PublicContent.recordView")(
+      (postId: PostId, eventId: string, referrer: string | null) =>
+        content.recordPostView(postId, eventId, referrer),
     ),
   };
 });
@@ -77,6 +78,9 @@ export class Service extends Context.Service<Service, Interface>()(
   "@prosewire/web/PublicContent",
 ) {}
 
-export const layer = Layer.effect(Service, create().pipe(Effect.map(Service.of)));
+export const layer = Layer.effect(
+  Service,
+  create().pipe(Effect.map(Service.of)),
+);
 
 export * as PublicContent from "./public-content";

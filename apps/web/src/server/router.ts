@@ -4,6 +4,7 @@ import {
   ApiInputRejected,
   ApiPostNotFound,
   ApiUnavailable,
+  apiErrorStatusByTag,
   decodePrivateApiRequest,
 } from "@prosewire/contract";
 import {
@@ -23,27 +24,23 @@ type ApiError =
   | ApiPostNotFound
   | ApiUnavailable;
 
-const statusByTag: Readonly<Record<ApiError["_tag"], number>> = {
-  ApiInputRejected: 400,
-  ApiAuthenticationFailed: 401,
-  ApiAccessDenied: 403,
-  ApiPostNotFound: 404,
-  ApiUnavailable: 500,
-};
-
 function isApiError(error: unknown): error is ApiError {
-  return error instanceof ApiInputRejected ||
+  return (
+    error instanceof ApiInputRejected ||
     error instanceof ApiAuthenticationFailed ||
     error instanceof ApiAccessDenied ||
     error instanceof ApiPostNotFound ||
-    error instanceof ApiUnavailable;
+    error instanceof ApiUnavailable
+  );
 }
 
 function apiErrorResponse(error: unknown): Response {
   const failure = isApiError(error)
     ? error
     : new ApiUnavailable({ message: "Internal server error" });
-  return Response.json(failure, { status: statusByTag[failure._tag] });
+  return Response.json(failure, {
+    status: apiErrorStatusByTag[failure._tag],
+  });
 }
 
 async function dispatch(request: Request): Promise<unknown> {

@@ -129,7 +129,7 @@ Start with the [integration documentation](https://prosewire.com/docs/integrate/
 
 ## Project Status
 
-The public SDK, CLI, and MCP packages are on the `0.2.x` release line. Prosewire is usable, but its public contracts may still change before `1.0`. Pin package and container versions, review changelogs before upgrading, and back up Postgres before applying migrations.
+The public SDK, CLI, and MCP packages are pre-1.0. Prosewire is usable, but its public contracts may still change before `1.0`. Pin package and container versions, review changelogs before upgrading, and back up Postgres before applying migrations.
 
 The repository does not currently provide a dashboard workflow for revision restore, content import, owner transfer, or workspace deletion. Those gaps are called out in the [product coverage map](docs/feature-coverage.md) instead of being presented as finished behavior.
 
@@ -150,7 +150,7 @@ packages/astro     Static and server-rendered Astro integration
 packages/create-prosewire  Framework detection and safe route scaffolding
 packages/cli       Command-line publishing client
 packages/mcp       Agent-facing MCP server
-packages/config    Shared TypeScript and ESLint configuration
+packages/config    Shared TypeScript configuration
 ```
 
 Useful development commands:

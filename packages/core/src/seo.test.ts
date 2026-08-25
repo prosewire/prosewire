@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { analyzeSeo } from "./seo.ts";
 import {
   contentHeadings,
   createExcerpt,
@@ -8,10 +7,13 @@ import {
   sanitizeRenderedHtml,
   slugify,
 } from "./content.ts";
+import { analyzeSeo } from "./seo.ts";
 
 describe("content helpers", () => {
   it("creates stable clean slugs", () => {
-    expect(slugify("  A Better Blog, Déjà Vu!  ")).toBe("a-better-blog-deja-vu");
+    expect(slugify("  A Better Blog, Déjà Vu!  ")).toBe(
+      "a-better-blog-deja-vu",
+    );
   });
 
   it("keeps excerpts on word boundaries", () => {
@@ -23,7 +25,8 @@ describe("content helpers", () => {
   });
 
   it("gives duplicate headings stable unique anchors", async () => {
-    const markdown = "## Repeat\n\n## Repeat\n\n### Repeat\n\n## Fish & Chips\n\n## Hello *world*";
+    const markdown =
+      "## Repeat\n\n## Repeat\n\n### Repeat\n\n## Fish & Chips\n\n## Hello *world*";
     expect(contentHeadings(markdown)).toEqual([
       { level: 2, label: "Repeat", id: "repeat" },
       { level: 2, label: "Repeat", id: "repeat-2" },
@@ -47,7 +50,8 @@ describe("analyzeSeo", () => {
     const markdown = `## What is portable publishing?\n\nPortable publishing is a way to keep content independent.\n\n## Why it matters\n\n- You own the data\n- You own the URLs\n\n## Next steps\n\nRead [another guide](/blog/another-guide). ${"useful detail ".repeat(80)}`;
     const result = analyzeSeo({
       title: "Portable publishing for modern product teams",
-      description: "A practical guide to portable publishing, clean content ownership, and integrating a fast blog without rebuilding your existing website.",
+      description:
+        "A practical guide to portable publishing, clean content ownership, and integrating a fast blog without rebuilding your existing website.",
       markdown,
       focusKeyword: "portable publishing",
       slug: "portable-publishing-guide",

@@ -5,13 +5,14 @@ import { decodePrivateApiRequest } from "./transport.ts";
 describe("private API request contract", () => {
   it("applies pagination defaults and decodes filters", async () => {
     const request = new Request(
-      "http://localhost/api/v1/posts?status=published&page=2&pageSize=25&search=effect",
+      "http://localhost/api/v1/posts?blog=fieldnotes&status=published&page=2&pageSize=25&search=effect",
     );
 
     await expect(decodePrivateApiRequest(request)).resolves.toEqual({
       _tag: "ListPosts",
       input: {
         status: "published",
+        blog: "fieldnotes",
         page: 2,
         pageSize: 25,
         search: "effect",

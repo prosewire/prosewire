@@ -1,12 +1,14 @@
 ---
-import { render, type CollectionEntry } from "astro:content";
+import { type CollectionEntry, render } from "astro:content";
 import type { TOCItemType } from "fumadocs-core/toc";
 import defaultMdxComponents from "fumadocs-ui/mdx";
 import { Docs } from "../../components/Docs";
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import { source } from "../../lib/source";
 
-interface Props { page: CollectionEntry<"docs"> }
+interface Props {
+  page: CollectionEntry<"docs">;
+}
 
 export async function getStaticPaths() {
   return source.getPages().map((page) => ({

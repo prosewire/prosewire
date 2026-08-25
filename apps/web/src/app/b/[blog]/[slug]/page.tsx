@@ -93,7 +93,7 @@ export default async function PublicPostPage({
         }}
       />
       <ReadingProgress postId={post.id} />
-      <PublicHeader blog={blog} />
+      <PublicHeader blog={blog} authorSlug={post.author.slug} />
       <article>
         <header className="border-b border-black/10 bg-[#efeee7]">
           <div className="mx-auto max-w-4xl px-5 py-14 sm:py-20">

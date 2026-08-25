@@ -30,7 +30,7 @@ export const PublicationGet = Tool.make("publication_get", {
 
 export const PostsList = Tool.make("posts_list", {
   description:
-    "List and search posts in the API key's publication (safe, read-only).",
+    "List and search posts in the API key's publication. The optional blog value must match that publication's slug or UUID (safe, read-only).",
   parameters: Schema.Struct({
     blog: Schema.optionalKey(Schema.String),
     search: Schema.optionalKey(Schema.String),

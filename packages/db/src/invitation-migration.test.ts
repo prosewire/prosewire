@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
 import { Client } from "pg";
+import { describe, expect, it } from "vitest";
 
 const databaseUrl = process.env["DATABASE_URL"];
 

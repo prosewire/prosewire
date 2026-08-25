@@ -37,14 +37,19 @@ const decodeBulkArchive = (input: unknown) =>
 const decodeBlogSettings = (input: unknown) =>
   Schema.decodeUnknownEffect(UpdateBlogSettingsInput)(input).pipe(
     Effect.mapError(
-      () => new BlogErrors.InvalidBlogSettings({ message: "Invalid blog settings" }),
+      () =>
+        new BlogErrors.InvalidBlogSettings({
+          message: "Invalid blog settings",
+        }),
     ),
   );
 
-const currentActorId = Effect.fn("MutationEntrypoints.currentActorId")(function* () {
-  const session = yield* requireDashboardSessionEffect();
-  return UserId.make(session.user.id);
-});
+const currentActorId = Effect.fn("MutationEntrypoints.currentActorId")(
+  function* () {
+    const session = yield* requireDashboardSessionEffect();
+    return UserId.make(session.user.id);
+  },
+);
 
 export function savePost(input: SavePostBoundaryInput) {
   return runAppEffect(

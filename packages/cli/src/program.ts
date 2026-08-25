@@ -1,18 +1,13 @@
 import { readFile } from "node:fs/promises";
 import { postCreateInput, postUpdateInput } from "@prosewire/contract";
 import {
+  type Client,
   createClient,
   createPublicClient,
-  type Client,
   type ProsewireClientOptions,
 } from "@prosewire/sdk";
 import { Effect, Option, Schema } from "effect";
-import {
-  Argument,
-  CliError,
-  Command,
-  Flag,
-} from "effect/unstable/cli";
+import { Argument, CliError, Command, Flag } from "effect/unstable/cli";
 import { nodeServicesLayer } from "./node-services.ts";
 import { version } from "./version.ts";
 
@@ -22,9 +17,7 @@ export interface CliPrivateClient {
 
 interface CliDependencies {
   readonly readFile: typeof readFile;
-  readonly createClient: (
-    options: ProsewireClientOptions,
-  ) => CliPrivateClient;
+  readonly createClient: (options: ProsewireClientOptions) => CliPrivateClient;
   readonly createPublicClient: typeof createPublicClient;
   readonly output: (value: unknown) => void;
   readonly env: NodeJS.ProcessEnv;
@@ -34,7 +27,8 @@ const defaults: CliDependencies = {
   readFile,
   createClient,
   createPublicClient,
-  output: (value) => process.stdout.write(`${JSON.stringify(value, null, 2)}\n`),
+  output: (value) =>
+    process.stdout.write(`${JSON.stringify(value, null, 2)}\n`),
   env: process.env,
 };
 
@@ -69,7 +63,9 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
         Flag.optional,
       ),
     }),
-    Command.withDescription("Publish and retrieve portable content from Prosewire"),
+    Command.withDescription(
+      "Publish and retrieve portable content from Prosewire",
+    ),
   );
 
   const publication = Flag.string("blog").pipe(
@@ -88,8 +84,8 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
     },
     Effect.fn("Cli.posts")(function* ({ blog, search }) {
       const parent = yield* root;
-      const selectedBlog = Option.getOrUndefined(blog) ??
-        dependencies.env["PROSEWIRE_BLOG"];
+      const selectedBlog =
+        Option.getOrUndefined(blog) ?? dependencies.env["PROSEWIRE_BLOG"];
       if (!selectedBlog) {
         return yield* userError("--blog or PROSEWIRE_BLOG is required");
       }
@@ -114,8 +110,8 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
     },
     Effect.fn("Cli.get")(function* ({ blog, slug }) {
       const parent = yield* root;
-      const selectedBlog = Option.getOrUndefined(blog) ??
-        dependencies.env["PROSEWIRE_BLOG"];
+      const selectedBlog =
+        Option.getOrUndefined(blog) ?? dependencies.env["PROSEWIRE_BLOG"];
       if (!selectedBlog) {
         return yield* userError("--blog or PROSEWIRE_BLOG is required");
       }
@@ -137,17 +133,21 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
     { data: dataFile },
     Effect.fn("Cli.create")(function* ({ data }) {
       const parent = yield* root;
-      const key = Option.getOrUndefined(parent.key) ??
+      const key =
+        Option.getOrUndefined(parent.key) ??
         dependencies.env["PROSEWIRE_API_KEY"];
       if (!key) {
         return yield* userError("--key or PROSEWIRE_API_KEY is required");
       }
-      const source = yield* fromPromise(() => dependencies.readFile(data, "utf8"));
-      const body = yield* parseJson(postCreateInput, source);
-      const client = dependencies.createClient({ baseUrl: parent.url, apiKey: key });
-      const result = yield* fromPromise(() =>
-        client.posts.create(body),
+      const source = yield* fromPromise(() =>
+        dependencies.readFile(data, "utf8"),
       );
+      const body = yield* parseJson(postCreateInput, source);
+      const client = dependencies.createClient({
+        baseUrl: parent.url,
+        apiKey: key,
+      });
+      const result = yield* fromPromise(() => client.posts.create(body));
       yield* Effect.sync(() => dependencies.output(result));
     }),
   ).pipe(Command.withDescription("Create a post from a JSON file"));
@@ -157,14 +157,20 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
     { id: Argument.string("id"), data: dataFile },
     Effect.fn("Cli.update")(function* ({ data, id }) {
       const parent = yield* root;
-      const key = Option.getOrUndefined(parent.key) ??
+      const key =
+        Option.getOrUndefined(parent.key) ??
         dependencies.env["PROSEWIRE_API_KEY"];
       if (!key) {
         return yield* userError("--key or PROSEWIRE_API_KEY is required");
       }
-      const source = yield* fromPromise(() => dependencies.readFile(data, "utf8"));
+      const source = yield* fromPromise(() =>
+        dependencies.readFile(data, "utf8"),
+      );
       const body = yield* parseJson(postUpdateInput, source);
-      const client = dependencies.createClient({ baseUrl: parent.url, apiKey: key });
+      const client = dependencies.createClient({
+        baseUrl: parent.url,
+        apiKey: key,
+      });
       const result = yield* fromPromise(() =>
         client.posts.update({
           params: { id },
@@ -188,7 +194,8 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
         return yield* userError("--yes is required to archive a post");
       }
       const parent = yield* root;
-      const key = Option.getOrUndefined(parent.key) ??
+      const key =
+        Option.getOrUndefined(parent.key) ??
         dependencies.env["PROSEWIRE_API_KEY"];
       if (!key) {
         return yield* userError("--key or PROSEWIRE_API_KEY is required");
@@ -202,16 +209,17 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
     }),
   ).pipe(Command.withDescription("Archive a post"));
 
-  return root.pipe(Command.withSubcommands([posts, get, create, update, archive]));
+  return root.pipe(
+    Command.withSubcommands([posts, get, create, update, archive]),
+  );
 }
 
 export function programEffect(
   args: ReadonlyArray<string>,
   overrides: Partial<CliDependencies> = {},
 ) {
-  const normalized = args[0] === "node" || args[0]?.endsWith("/node")
-    ? args.slice(2)
-    : args;
+  const normalized =
+    args[0] === "node" || args[0]?.endsWith("/node") ? args.slice(2) : args;
   return Command.runWith(createProgram(overrides), {
     version,
     renderErrors: false,

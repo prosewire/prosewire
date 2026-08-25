@@ -10,9 +10,12 @@ export const create = Effect.fn("Publishing.create")(function* () {
       const published = yield* repository.publishDue(now);
 
       if (published.length > 0) {
-        yield* Effect.logInfo(`Published ${published.length} scheduled post(s)`, {
-          posts: published,
-        });
+        yield* Effect.logInfo(
+          `Published ${published.length} scheduled post(s)`,
+          {
+            posts: published,
+          },
+        );
       }
 
       return published;
@@ -26,6 +29,9 @@ export class Service extends Context.Service<Service, Interface>()(
   "@prosewire/worker/Publishing",
 ) {}
 
-export const layer = Layer.effect(Service, create().pipe(Effect.map(Service.of)));
+export const layer = Layer.effect(
+  Service,
+  create().pipe(Effect.map(Service.of)),
+);
 
 export * as Publishing from "./publishing.js";

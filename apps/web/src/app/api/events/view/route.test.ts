@@ -26,6 +26,8 @@ describe("POST /api/events/view", () => {
     );
 
     expect(response.status).toBe(413);
-    await expect(response.json()).resolves.toEqual({ error: "Event too large" });
+    await expect(response.json()).resolves.toEqual({
+      error: "Event too large",
+    });
   });
 });
