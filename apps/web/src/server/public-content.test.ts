@@ -33,7 +33,6 @@ function layer(seen: PublicPostOptions[]) {
       defaultBlog: "fieldnotes",
       publicUrl: "https://content.example",
       databaseUrl: Redacted.make("postgres://test"),
-      redisUrl: Redacted.make("redis://test"),
       authSecret: Redacted.make("test-secret-at-least-32-characters"),
       allowSignUp: false,
       environment: "test",

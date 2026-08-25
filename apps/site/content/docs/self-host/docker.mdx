@@ -47,7 +47,7 @@ The default Compose file contains five services:
 | `web` | Dashboard, APIs, embed, and public reader | Port 3000 |
 | `worker` | Scheduled publishing, analytics retention, and queued email delivery | No |
 
-The web and worker wait for the migration service and Redis before starting. The web enqueues invitation email jobs; workers consume them. Production startup does not create the development administrator, API key, publication, or sample posts.
+The web and worker wait for the migration service; the worker also waits for Redis. The web commits invitation email intents to Postgres. Workers lease those intents, dispatch them to Redis, and consume the queue. Production startup does not create the development administrator, API key, publication, or sample posts.
 
 ## Start and bootstrap
 
@@ -84,13 +84,15 @@ Keep web, worker, and migrations on the same source version. Do not run differen
 
 ## Back up and restore
 
-Back up Postgres with managed snapshots or `pg_dump`. Back up the Redis volume separately because queued and failed email jobs exist only in Redis. A Compose-hosted Postgres example is:
+Back up Postgres with managed snapshots or `pg_dump`. Back up the Redis volume separately because delivery processing, retries, and failed email jobs live there after outbox dispatch. A Compose-hosted Postgres example is:
 
 ```shell
 docker compose exec -T postgres pg_dump -U prosewire -d prosewire --format=custom > prosewire.dump
 ```
 
 Store backups outside the application host, encrypt them when appropriate, and define a retention policy. Test restoration into a separate database and verify posts, authors, redirects, memberships, audit entries, exports, and public visibility before calling the backup usable.
+
+The `email_delivery_outbox` table is safe to leave in place when rolling the application back, but an older web release does not create outbox intents. If Redis is lost and restored empty, stop workers, restore Postgres to the matching recovery point, reset affected outbox rows to pending only after confirming their queue jobs are absent, then restart one worker and verify delivery before scaling out.
 
 Portable JSON and CSV exports improve content portability but are not substitutes for a database backup because Prosewire does not currently provide a full import workflow.
 
@@ -103,6 +105,6 @@ Portable JSON and CSV exports improve content portability but are not substitute
 - Configure SMTP and test an invitation before onboarding the team
 - Keep `PROSEWIRE_ALLOW_SIGN_UP=false` after bootstrap unless open registration is intentional
 - Pin an immutable source commit or image digest instead of `latest`
-- Run at least one worker replica; all web producers and worker consumers must use the same Redis queue
+- Run at least one worker replica; every worker dispatcher and consumer must use the same Redis queue
 - Monitor migration exit status, web health, worker failures, Redis queue age, disk usage, and database capacity
 - Verify a database restore and content export before launch

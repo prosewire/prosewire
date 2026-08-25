@@ -52,7 +52,7 @@ Set `PROSEWIRE_ALLOW_SIGN_UP=true` only while creating the first account and wor
 - Route traffic only after `/api/health` returns 200
 - Allow graceful termination so in-flight requests can finish
 - Run web, worker, and migration from the same immutable image digest
-- Back up Postgres and Redis independently of the application lifecycle and test restoration
+- Back up Postgres and Redis independently of the application lifecycle, preserve matching recovery points for the email outbox and queue, and test restoration
 - Encrypt and network-restrict Postgres connections
 - Configure Redis persistence, backups, and replication; disable key eviction; and restrict it to the private application network
 - Keep at least one worker replica running for scheduled publishing, retention, and email delivery

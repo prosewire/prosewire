@@ -27,7 +27,6 @@ export interface WebConfigShape {
   readonly defaultBlog: string;
   readonly publicUrl: string;
   readonly databaseUrl: Redacted.Redacted<string>;
-  readonly redisUrl: Redacted.Redacted<string>;
   readonly authSecret: Redacted.Redacted<string>;
   readonly allowSignUp: boolean;
   readonly environment: string;
@@ -55,7 +54,6 @@ export class WebConfig extends Context.Service<WebConfig, WebConfigShape>()(
         Config.withDefault("http://localhost:3000"),
       );
       const databaseUrl = yield* Config.redacted("DATABASE_URL");
-      const redisUrl = yield* Config.redacted("REDIS_URL");
       const authSecret = yield* Config.redacted("BETTER_AUTH_SECRET");
       const allowSignUp = yield* Config.boolean("PROSEWIRE_ALLOW_SIGN_UP").pipe(
         Config.withDefault(false),
@@ -82,12 +80,6 @@ export class WebConfig extends Context.Service<WebConfig, WebConfigShape>()(
       if (Redacted.value(databaseUrl).trim() === "") {
         return yield* new ConfigurationError({
           message: "DATABASE_URL cannot be empty",
-        });
-      }
-
-      if (Redacted.value(redisUrl).trim() === "") {
-        return yield* new ConfigurationError({
-          message: "REDIS_URL cannot be empty",
         });
       }
 
@@ -158,7 +150,6 @@ export class WebConfig extends Context.Service<WebConfig, WebConfigShape>()(
         defaultBlog,
         publicUrl,
         databaseUrl,
-        redisUrl,
         authSecret,
         allowSignUp,
         environment,

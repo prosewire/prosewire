@@ -42,9 +42,24 @@ describe.skipIf(!redisUrl)("EmailQueue Redis integration", () => {
       await producer.runPromise(
         Effect.gen(function* () {
           const queue = yield* EmailQueue.Service;
-          yield* queue.offer(job);
+          yield* queue.offer(job, { id: "outbox-1" });
+          yield* queue.offer(
+            new EmailDeliveryJob({ ...job, subject: "Duplicate invitation" }),
+            { id: "outbox-1" },
+          );
         }),
       );
+      expect(
+        await producer.runPromise(
+          Effect.gen(function* () {
+            const redis = yield* JobRedis.Service;
+            return yield* redis.send<number>(
+              "LLEN",
+              `${prefix}prosewire-email-v1`,
+            );
+          }),
+        ),
+      ).toBe(1);
       let taken: EmailDeliveryJob | undefined;
       await consumer.runPromise(
         Effect.gen(function* () {

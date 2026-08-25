@@ -1,8 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { type Db, openDb } from "@prosewire/db/client";
 import * as schema from "@prosewire/db/schema";
-import type { EmailDeliveryJob } from "@prosewire/jobs/email-queue";
-import * as EmailQueue from "@prosewire/jobs/email-queue";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { Effect, Layer, Redacted } from "effect";
 import { describe, expect, it } from "vitest";
@@ -49,29 +47,17 @@ function configLayer(url: string) {
     defaultBlog: "fieldnotes",
     publicUrl: "http://localhost:3000",
     databaseUrl: Redacted.make(url),
-    redisUrl: Redacted.make("redis://test"),
     authSecret: Redacted.make("test-secret-at-least-32-characters"),
     allowSignUp: false,
     environment: "test",
   });
 }
 
-async function workspaceManagement(
-  client: Db,
-  url: string,
-  queued: Array<EmailDeliveryJob> = [],
-) {
+async function workspaceManagement(client: Db, url: string) {
   const dependencies = Layer.mergeAll(
     databaseLayer(client),
     configLayer(url),
     PlatformCrypto.layer,
-    Layer.mock(EmailQueue.Service, {
-      offer: (job) =>
-        Effect.sync(() => {
-          queued.push(job);
-        }),
-      take: () => Effect.die("Email consumption is unavailable in web tests"),
-    }),
   );
   return Effect.runPromise(
     WorkspaceManagement.Service.pipe(
@@ -161,7 +147,6 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
     const release = deferred();
     let blockingTransaction: Promise<void> | undefined;
     let attempts: ReadonlyArray<Promise<unknown>> = [];
-    const queuedEmails: Array<EmailDeliveryJob> = [];
 
     try {
       await resource.client.insert(schema.user).values({
@@ -181,11 +166,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
         role: "owner",
       });
 
-      const management = await workspaceManagement(
-        resource.client,
-        serviceUrl,
-        queuedEmails,
-      );
+      const management = await workspaceManagement(resource.client, serviceUrl);
       const actor = {
         id: actorId,
         name: "A <script>alert(1)</script>",
@@ -235,13 +216,17 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
             eq(schema.auditLog.action, "invitation.created"),
           ),
         );
+      const outbox = await resource.client
+        .select()
+        .from(schema.emailDeliveryOutbox)
+        .where(eq(schema.emailDeliveryOutbox.recipient, recipient));
       expect(invitations.map(({ status }) => status).sort()).toEqual([
         "canceled",
         "pending",
       ]);
       expect(auditEntries).toHaveLength(2);
-      expect(queuedEmails).toHaveLength(2);
-      for (const email of queuedEmails) {
+      expect(outbox).toHaveLength(2);
+      for (const email of outbox) {
         expect(email.recipient).toBe(recipient);
         expect(email.html).toContain("A &lt;script&gt;alert(1)&lt;/script&gt;");
         expect(email.html).toContain("Studio &amp; Partners");
@@ -251,6 +236,9 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
       release.resolve();
       await blockingTransaction?.catch(() => undefined);
       await Promise.allSettled(attempts);
+      await resource.client
+        .delete(schema.emailDeliveryOutbox)
+        .where(eq(schema.emailDeliveryOutbox.recipient, recipient));
       await resource.client
         .delete(schema.auditLog)
         .where(eq(schema.auditLog.actorId, actorId));

@@ -1,7 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { openDb } from "@prosewire/db/client";
 import * as schema from "@prosewire/db/schema";
-import * as EmailQueue from "@prosewire/jobs/email-queue";
 import { and, eq, inArray } from "drizzle-orm";
 import { Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
@@ -46,10 +45,6 @@ async function management(
     databaseLayer(client),
     configLayer(url),
     PlatformCrypto.layer,
-    Layer.mock(EmailQueue.Service, {
-      offer: () => Effect.void,
-      take: () => Effect.die("Email consumption is unavailable in web tests"),
-    }),
   );
   return Effect.runPromise(
     WorkspaceManagement.Service.pipe(

@@ -263,6 +263,36 @@ export const auditLog = pgTable(
   ],
 );
 
+export const emailDeliveryOutbox = pgTable(
+  "email_delivery_outbox",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    recipient: text("recipient").notNull(),
+    subject: text("subject").notNull(),
+    text: text("text").notNull(),
+    html: text("html"),
+    attempts: integer("attempts").notNull().default(0),
+    availableAt: timestamp("available_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    lockedAt: timestamp("locked_at", { withTimezone: true }),
+    lockedBy: text("locked_by"),
+    lastError: text("last_error"),
+    dispatchedAt: timestamp("dispatched_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("email_delivery_outbox_pending_idx").on(
+      table.dispatchedAt,
+      table.availableAt,
+      table.lockedAt,
+      table.createdAt,
+    ),
+  ],
+);
+
 export const postView = pgTable(
   "post_view",
   {

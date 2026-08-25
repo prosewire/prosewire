@@ -65,6 +65,6 @@ missing.
 | Source-based self-hosting | Docker Compose runs Postgres, Redis with AOF persistence, a one-shot migration, web, and worker services |
 | Managed infrastructure | A Compose topology is provided for an externally built image, Postgres, Redis, SMTP, and a load balancer |
 | Scheduled publishing | Worker polling and atomic database updates support multiple replicas |
-| Invitation delivery | Web replicas enqueue complete typed jobs directly to an Effect `PersistedQueue`; Redis owns pending, processing, retry, and failed state for competing worker consumers |
+| Invitation delivery | Invitation state and a typed email intent commit together in Postgres; `LISTEN`/`NOTIFY` wakes workers immediately, a 30-second scan covers missed notifications, and workers lease the outbox with `SKIP LOCKED`, enqueue stable IDs to an Effect `PersistedQueue`, and recover stale leases without duplicate queue jobs |
 | Backups and restore | Postgres ownership and verification steps are documented; automated offsite backups are deployment-owned |
 | Stable public container | Release automation exists, but documentation does not assume registry access until a public image is independently verified |

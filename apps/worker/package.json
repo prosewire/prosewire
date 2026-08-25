@@ -18,11 +18,11 @@
     "@prosewire/db": "workspace:*",
     "@prosewire/jobs": "workspace:*",
     "drizzle-orm": "^0.45.2",
-    "effect": "4.0.0-rc.110",
+    "effect": "4.0.0-rc.112",
     "nodemailer": "^9.0.5"
   },
   "devDependencies": {
-    "@effect/vitest": "4.0.0-rc.110",
+    "@effect/vitest": "4.0.0-rc.112",
     "@prosewire/config": "workspace:*",
     "@types/node": "^26.2.0",
     "@types/nodemailer": "^8.0.1",

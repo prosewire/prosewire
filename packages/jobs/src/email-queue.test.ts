@@ -45,4 +45,24 @@ describe("EmailQueue", () => {
       expect(error).toBe(failure);
     }).pipe(Effect.provide(queueLayer)),
   );
+
+  it.effect("deduplicates offers with the same durable id", () =>
+    Effect.gen(function* () {
+      const queue = yield* EmailQueue.Service;
+      const duplicate = new EmailDeliveryJob({
+        ...job,
+        subject: "Duplicate invitation",
+      });
+      const next = new EmailDeliveryJob({ ...job, subject: "Next invitation" });
+      const taken: Array<EmailDeliveryJob> = [];
+
+      yield* queue.offer(job, { id: "outbox-1" });
+      yield* queue.offer(duplicate, { id: "outbox-1" });
+      yield* queue.offer(next, { id: "outbox-2" });
+      yield* queue.take((message) => Effect.sync(() => taken.push(message)));
+      yield* queue.take((message) => Effect.sync(() => taken.push(message)));
+
+      expect(taken).toEqual([job, next]);
+    }).pipe(Effect.provide(queueLayer)),
+  );
 });

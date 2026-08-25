@@ -18,7 +18,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "effect": "4.0.0-rc.110"
+    "effect": "4.0.0-rc.112"
   },
   "devDependencies": {
     "@prosewire/config": "workspace:*",

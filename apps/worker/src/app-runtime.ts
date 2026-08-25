@@ -6,6 +6,8 @@ import { Effect, Layer, ManagedRuntime } from "effect";
 import { AnalyticsRetention } from "./analytics-retention.ts";
 import { WorkerDatabase } from "./database.ts";
 import { EmailDelivery } from "./email-delivery.ts";
+import { EmailOutbox } from "./email-outbox.ts";
+import { EmailOutboxNotifications } from "./email-outbox-notifications.ts";
 import { Publishing } from "./publishing.ts";
 import { PublishingRepository } from "./publishing-repository.ts";
 import { ShutdownSignal } from "./shutdown.ts";
@@ -40,6 +42,15 @@ const emailDeliveryLayer = EmailDelivery.layer.pipe(
   Layer.provideMerge(jobQueueLayer),
 );
 
+const emailOutboxLayer = EmailOutbox.layer.pipe(
+  Layer.provideMerge(databaseLayer),
+  Layer.provideMerge(jobQueueLayer),
+);
+
+const emailOutboxNotificationsLayer = EmailOutboxNotifications.layer.pipe(
+  Layer.provideMerge(databaseLayer),
+);
+
 const publishingLayer = Publishing.layer.pipe(Layer.provide(repositoryLayer));
 
 const runtimeLayer = Layer.mergeAll(
@@ -49,6 +60,8 @@ const runtimeLayer = Layer.mergeAll(
   repositoryLayer,
   retentionLayer,
   emailDeliveryLayer,
+  emailOutboxLayer,
+  emailOutboxNotificationsLayer,
   publishingLayer,
   ShutdownSignal.layer,
 );
@@ -64,6 +77,8 @@ export type WorkerServices =
   | Publishing.Service
   | AnalyticsRetention.Service
   | EmailDelivery.Service
+  | EmailOutbox.Service
+  | EmailOutboxNotifications.Service
   | ShutdownSignal;
 
 export function runWorkerEffect<A, E>(

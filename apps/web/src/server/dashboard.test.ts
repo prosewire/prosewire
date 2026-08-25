@@ -62,7 +62,6 @@ function dashboardLayer(
       defaultBlog: "fieldnotes",
       publicUrl: "http://localhost:3000",
       databaseUrl: Redacted.make("postgres://test"),
-      redisUrl: Redacted.make("redis://test"),
       authSecret: Redacted.make("test-secret-at-least-32-characters"),
       allowSignUp: false,
       environment: "test",

@@ -1,6 +1,8 @@
 import { Context, Effect, Layer, Schema } from "effect";
 import * as PersistedQueue from "effect/unstable/persistence/PersistedQueue";
 
+export const emailOutboxNotificationChannel = "prosewire_email_outbox";
+
 export class EmailDeliveryJob extends Schema.Class<EmailDeliveryJob>(
   "EmailQueue.EmailDeliveryJob",
 )({
@@ -21,6 +23,7 @@ export class EmailQueueError extends Schema.TaggedError<EmailQueueError>()(
 export interface Interface {
   readonly offer: (
     job: EmailDeliveryJob,
+    options?: { readonly id: string },
   ) => Effect.Effect<void, EmailQueueError>;
   readonly take: <E>(
     handle: (job: EmailDeliveryJob) => Effect.Effect<void, E>,
@@ -64,10 +67,11 @@ export const layer = Layer.effect(
       );
 
     return Service.of({
-      offer: Effect.fn("EmailQueue.offer")((job: EmailDeliveryJob) =>
-        queue
-          .offer(job)
-          .pipe(Effect.asVoid, mapQueueError("offer email delivery")),
+      offer: Effect.fn("EmailQueue.offer")(
+        (job: EmailDeliveryJob, options?: { readonly id: string }) =>
+          queue
+            .offer(job, options)
+            .pipe(Effect.asVoid, mapQueueError("offer email delivery")),
       ),
       take: Effect.fn("EmailQueue.take")(take),
     });
