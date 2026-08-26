@@ -29,10 +29,11 @@ package release preflight, and commits the generated files directly to `main`.
 It refuses to push if `main` moved after checkout.
 
 After pushing the version commit, the same job publishes through npm trusted
-publishing and verifies every published package and its provenance. The release
-identity must be allowed to bypass the pull-request rule for this one direct
-push. Use the `RELEASE_GITHUB_TOKEN` secret for that identity when the default
-Actions token has no bypass permission.
+publishing, creates a Changesets Git tag and GitHub release for every published
+package version, and verifies every package, tag, release, and provenance. The
+release identity must be allowed to bypass the pull-request rule for this one
+direct push. Use the `RELEASE_GITHUB_TOKEN` secret for that identity when the
+default Actions token has no bypass permission.
 
 Do not retry after an uncertain npm result without querying the registry first.
 
@@ -42,7 +43,8 @@ Do not retry after an uncertain npm result without querying the registry first.
 commit, builds a single-platform candidate, verifies its metadata and runtime,
 and promotes the digest to `edge`. A manual dispatch tests the requested commit,
 builds and verifies the multi-platform candidate, then publishes stable tags,
-the immutable Git tag, and the GitHub release.
+the immutable Git tag, and the GitHub release. GitHub generates the image
+changelog from the previous stable `vX.Y.Z` image tag to the new tag.
 
 Both paths call `Validate` before building an image. They also smoke-test the
 built container before changing a public image tag.

@@ -8,5 +8,6 @@ When a maintainer manually dispatches `Release packages` on `main`, the workflow
 runs `pnpm version-packages`, consumes every pending Changeset, updates package
 manifests and changelogs, and synchronizes runtime-reported versions. It runs the
 release preflight, commits the generated files directly to `main`, publishes the
-packages, and verifies the published versions on npm. The workflow refuses to
-push if `main` moved after checkout.
+packages, creates each Changesets package tag and GitHub release, and verifies
+the published versions on npm plus their tags and releases. The workflow refuses
+to push if `main` moved after checkout.
