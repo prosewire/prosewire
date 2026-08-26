@@ -4,6 +4,8 @@ x-app: &app
   build:
     context: .
     dockerfile: Dockerfile
+    args:
+      NEXT_DEPLOYMENT_ID: ${NEXT_DEPLOYMENT_ID:-}
   env_file: .env
   environment:
     DATABASE_URL: postgres://prosewire:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/prosewire

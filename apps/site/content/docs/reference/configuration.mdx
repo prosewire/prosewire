@@ -56,11 +56,11 @@ Remove the variables after the password change. Later migration runs do not rese
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` | Multi-instance production | Stable base64-encoded 32-byte key shared by web replicas and releases |
-| `NEXT_DEPLOYMENT_ID` | Production | Release identifier shared by every web replica serving the same build |
+| `NEXT_DEPLOYMENT_ID` | Web build | Release identifier baked into the web assets and shared by replicas running that image |
 
 Generate the server-action key with `openssl rand -base64 32` and store it as a secret. Rotating it during a rollout can break requests created by a different replica or release.
 
-Use an immutable version, commit, or digest as `NEXT_DEPLOYMENT_ID`. Change it when the deployed web assets change, not per replica or restart.
+Pass `NEXT_DEPLOYMENT_ID` to `next build` or as the bundled Docker build argument. Use an immutable version or commit, and run the same built image on every web replica for that release. Changing the variable on a running container does not rewrite its assets.
 
 ## Worker configuration
 

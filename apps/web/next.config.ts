@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 
+const deploymentId = process.env["NEXT_DEPLOYMENT_ID"];
 const allowedDevOrigins = process.env["PROSEWIRE_ALLOWED_DEV_ORIGINS"]
   ?.split(",")
   .map((origin) => origin.trim())
@@ -36,6 +37,7 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
   output: "standalone",
+  ...(deploymentId ? { deploymentId } : {}),
   outputFileTracingIncludes: {
     "/*": [
       "../../node_modules/.pnpm/@swc+helpers@*/node_modules/@swc/helpers/esm/**/*",
@@ -59,7 +61,7 @@ const nextConfig: NextConfig = {
     exposeTestingApiInProductionBuild:
       process.env["PROSEWIRE_EXPOSE_TESTING_API"] === "1",
     optimizePackageImports: ["@phosphor-icons/react"],
-    runtimeServerDeploymentId: true,
+    runtimeServerDeploymentId: false,
     useTypeScriptCli: true,
   },
 };

@@ -2,14 +2,14 @@ import { describe, expect, it } from "vitest";
 import nextConfig from "../next.config.ts";
 
 describe("self-hosted Next.js configuration", () => {
-  it("reads the deployment ID at server runtime for prebuilt images", () => {
+  it("keeps deployment IDs tied to the built web assets", () => {
     expect(nextConfig.cacheComponents).toBe(true);
     expect(nextConfig.partialPrefetching).toBe(true);
     expect(nextConfig.output).toBe("standalone");
     expect(nextConfig.outputFileTracingIncludes?.["/*"]).toEqual([
       "../../node_modules/.pnpm/@swc+helpers@*/node_modules/@swc/helpers/esm/**/*",
     ]);
-    expect(nextConfig.experimental?.runtimeServerDeploymentId).toBe(true);
+    expect(nextConfig.experimental?.runtimeServerDeploymentId).toBe(false);
   });
 
   it("applies baseline browser security headers", async () => {
