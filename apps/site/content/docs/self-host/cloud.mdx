@@ -24,7 +24,9 @@ Provide Postgres through `DATABASE_URL` and Redis through `REDIS_URL`. Run the m
 Build from an immutable release tag or commit, then push a versioned tag to your registry:
 
 ```shell
-docker build --tag registry.example.com/team/prosewire:0.2.0 .
+docker build \
+  --build-arg NEXT_DEPLOYMENT_ID=release-0-2-0 \
+  --tag registry.example.com/team/prosewire:0.2.0 .
 docker push registry.example.com/team/prosewire:0.2.0
 ```
 
@@ -39,7 +41,7 @@ PROSEWIRE_IMAGE=registry.example.com/team/prosewire:0.2.0 \
   docker compose -f docker-compose.cloud.yml up -d
 ```
 
-Your `.env` must contain the external database, Redis URL, public origins, authentication secret, server-action encryption key, deployment ID, and SMTP settings. The cloud file does not provision Postgres, Redis, SMTP, TLS, backups, or a load balancer.
+Your `.env` must contain the external database, Redis URL, public origins, authentication secret, server-action encryption key, and SMTP settings. The deployment ID is already part of the image. The cloud file does not provision Postgres, Redis, SMTP, TLS, backups, or a load balancer.
 
 ## Bootstrap the first owner
 
@@ -48,7 +50,7 @@ Set `PROSEWIRE_ALLOW_SIGN_UP=true` only while creating the first account and wor
 ## Platform requirements
 
 - Preserve the same `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` across web replicas and rolling releases
-- Set one `NEXT_DEPLOYMENT_ID` for every replica of the same release
+- Run the same image digest, including its baked deployment ID, on every replica of the same release
 - Route traffic only after `/api/health` returns 200
 - Allow graceful termination so in-flight requests can finish
 - Run web, worker, and migration from the same immutable image digest

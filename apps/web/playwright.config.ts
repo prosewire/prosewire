@@ -33,7 +33,6 @@ export default defineConfig({
       ...process.env,
       PROSEWIRE_PUBLIC_URL: baseURL,
       NEXT_PUBLIC_PROSEWIRE_PUBLIC_URL: baseURL,
-      NEXT_DEPLOYMENT_ID: "acceptance",
       PROSEWIRE_DEPLOYMENT: "cloud",
     },
   },

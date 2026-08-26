@@ -2,6 +2,7 @@
 set -euo pipefail
 
 image="${1:?usage: container-runtime-smoke.sh IMAGE_REFERENCE}"
+deployment_id="${2:-}"
 suffix="${GITHUB_RUN_ID:-$$}-${RANDOM}"
 network="prosewire-smoke-network-$suffix"
 postgres="prosewire-smoke-postgres-$suffix"
@@ -66,7 +67,6 @@ common_env=(
   --env BETTER_AUTH_SECRET="$auth_secret"
   --env PROSEWIRE_PUBLIC_URL=http://web:3000
   --env NEXT_PUBLIC_PROSEWIRE_PUBLIC_URL=http://web:3000
-  --env NEXT_DEPLOYMENT_ID=runtime-smoke
   --env PROSEWIRE_ALLOW_SIGN_UP=false
 )
 
@@ -93,6 +93,11 @@ for attempt in $(seq 1 60); do
   fi
   sleep 1
 done
+
+if [ -n "$deployment_id" ]; then
+  docker exec "$web" wget -qO- http://127.0.0.1:3000/sign-in |
+    grep -F "?dpl=$deployment_id" >/dev/null
+fi
 
 test "$(docker inspect "$worker" --format '{{.State.Running}}')" = "true"
 docker run --rm --entrypoint /bin/sh "$image" -ec '

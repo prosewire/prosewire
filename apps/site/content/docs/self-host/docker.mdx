@@ -24,7 +24,7 @@ At minimum, set:
 - Matching external HTTPS origins in `PROSEWIRE_PUBLIC_URL` and `NEXT_PUBLIC_PROSEWIRE_PUBLIC_URL`
 - A stable `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`
 - `SMTP_URL` and `EMAIL_FROM` for invitations
-- A deployment-specific `NEXT_DEPLOYMENT_ID`
+- A deployment-specific `NEXT_DEPLOYMENT_ID` for the image build
 
 Generate secrets with a cryptographically secure tool, for example:
 
@@ -34,6 +34,8 @@ openssl rand -base64 32
 ```
 
 Read the [configuration map](/docs/reference/configuration/) before starting.
+
+The bundled Compose build passes `NEXT_DEPLOYMENT_ID` into the web image. Change it when you build a new release, then run that same image on every web replica. Replacing the variable on an existing container does not change its built assets.
 
 ## Understand the Compose topology
 

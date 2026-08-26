@@ -20,6 +20,8 @@ COPY packages/mcp/package.json packages/mcp/package.json
 RUN pnpm install --frozen-lockfile
 
 FROM dependencies AS builder
+ARG NEXT_DEPLOYMENT_ID
+ENV NEXT_DEPLOYMENT_ID=$NEXT_DEPLOYMENT_ID
 COPY . .
 RUN pnpm --filter @prosewire/web... build && pnpm --filter @prosewire/worker build
 

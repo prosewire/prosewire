@@ -179,6 +179,8 @@ jobs:
           platforms: linux/amd64
           cache-from: type=gha,scope=prosewire-image
           cache-to: type=gha,mode=max,scope=prosewire-image
+          build-args: |
+            NEXT_DEPLOYMENT_ID=${{ needs.source.outputs.commit-sha }}
           sbom: true
           provenance: mode=max
           tags: ${{ steps.registry.outputs.candidate }}
@@ -207,7 +209,7 @@ jobs:
           reference="$IMAGE@$DIGEST"
           node scripts/verify-image-manifest.mjs "$reference" "$REVISION" "$SOURCE" linux/amd64
           scripts/verify-image-runtime-files.sh "$reference" linux/amd64
-          scripts/container-runtime-smoke.sh "$reference"
+          scripts/container-runtime-smoke.sh "$reference" "$REVISION"
       - name: Verify anonymous edge pull
         env:
           IMAGE: ${{ needs.source.outputs.image }}
@@ -298,6 +300,8 @@ jobs:
           platforms: linux/amd64
           cache-from: type=gha,scope=prosewire-image
           cache-to: type=gha,mode=max,scope=prosewire-image
+          build-args: |
+            NEXT_DEPLOYMENT_ID=${{ needs.source.outputs.commit-sha }}
           sbom: true
           provenance: mode=max
           tags: ${{ steps.registry.outputs.candidate }}
@@ -326,7 +330,7 @@ jobs:
           reference="$IMAGE@$DIGEST"
           node scripts/verify-image-manifest.mjs "$reference" "$REVISION" "$SOURCE" linux/amd64
           scripts/verify-image-runtime-files.sh "$reference" linux/amd64
-          scripts/container-runtime-smoke.sh "$reference"
+          scripts/container-runtime-smoke.sh "$reference" "$REVISION"
       - name: Verify anonymous stable pull
         env:
           IMAGE: ${{ needs.source.outputs.image }}
