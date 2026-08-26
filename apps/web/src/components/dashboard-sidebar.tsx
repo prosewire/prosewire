@@ -8,14 +8,16 @@ import {
   Stack,
   UsersThree,
 } from "@phosphor-icons/react/ssr";
-import { hasPermission } from "@prosewire/core";
 import Link from "next/link";
 import { switchPublication, switchWorkspace } from "@/server/actions";
 import { DashboardNavLink } from "./dashboard-nav-link";
 import type { DashboardShellProps } from "./dashboard-shell-types";
+import {
+  DashboardSelectionMenu,
+  DashboardUserMenu,
+} from "./dashboard-sidebar-menus";
+import { DashboardSidebarToggle } from "./dashboard-sidebar-toggle";
 import { Logo } from "./logo";
-import { Select } from "./select";
-import { SignOutButton } from "./sign-out-button";
 import { ThemeToggle } from "./theme-toggle";
 
 const primary = [
@@ -33,7 +35,9 @@ const manage = [
 
 export function DashboardSidebar({
   userName,
+  canCreatePublication,
   canCreateWorkspace,
+  canReadAudit,
   showWorkspaceSwitcher,
   role,
   workspace,
@@ -42,113 +46,89 @@ export function DashboardSidebar({
   publications,
 }: DashboardShellProps) {
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 hidden w-[248px] flex-col border-r border-[#dedfd9] bg-[#f8f7f2] px-4 py-5 lg:flex">
-      <div className="flex items-center justify-between px-2">
-        <Link href="/dashboard">
+    <aside
+      id="dashboard-sidebar"
+      className="fixed inset-y-0 left-0 z-30 hidden w-[248px] flex-col border-r border-[#dedfd9] bg-[#f8f7f2] px-4 py-5 transition-[width,padding] duration-200 ease-linear group-data-[collapsed=true]/sidebar:w-[72px] group-data-[collapsed=true]/sidebar:px-3 lg:flex"
+    >
+      <div className="flex h-8 items-center justify-between px-2 group-data-[collapsed=true]/sidebar:justify-center group-data-[collapsed=true]/sidebar:px-0">
+        <Link
+          href="/dashboard"
+          className="group-data-[collapsed=true]/sidebar:hidden"
+        >
           <Logo className="text-lg" />
         </Link>
-        <ThemeToggle className="size-8 rounded-lg" />
+        <div className="flex items-center gap-1.5">
+          <span className="group-data-[collapsed=true]/sidebar:hidden">
+            <ThemeToggle className="size-8 rounded-lg" />
+          </span>
+          <DashboardSidebarToggle />
+        </div>
       </div>
 
-      <div className="mt-7 space-y-2 rounded-xl border border-[#dedfd9] bg-white p-2.5 shadow-sm">
+      <div className="mt-7 space-y-1">
         {showWorkspaceSwitcher ? (
-          <form action={switchWorkspace} className="flex items-center gap-2">
-            <Select
-              id="workspace-switcher"
-              name="organizationId"
-              label="Active workspace"
-              labelClassName="sr-only"
-              defaultValue={workspace.id}
-              options={workspaces.map((item) => ({
-                value: item.id,
-                label: item.name,
-              }))}
-              size="small"
-              className="h-8 min-w-0 flex-1 border-transparent bg-transparent px-1.5 text-xs font-semibold shadow-none hover:border-transparent hover:bg-[var(--paper)]"
-            />
-            <button className="rounded-md border border-[#dedfd9] px-2 py-1 text-[10px] font-semibold text-[#687279]">
-              Switch
-            </button>
-          </form>
-        ) : null}
-        <form
-          action={switchPublication}
-          className={`flex items-center gap-2 ${showWorkspaceSwitcher ? "border-t border-[#ecece8] pt-2" : ""}`}
-        >
-          <Select
-            id="publication-switcher"
-            name="publicationId"
-            label="Active publication"
-            labelClassName="sr-only"
-            defaultValue={publication.id}
-            options={publications.map((item) => ({
-              value: item.id,
-              label: item.name,
-            }))}
-            size="small"
-            className="h-8 min-w-0 flex-1 border-transparent bg-transparent px-1.5 text-xs text-[#687279] shadow-none hover:border-transparent hover:bg-[var(--paper)]"
+          <DashboardSelectionMenu
+            action={switchWorkspace}
+            canCreate={canCreateWorkspace}
+            createHref="/onboarding?newWorkspace=1"
+            current={workspace}
+            items={workspaces}
+            kind="workspace"
+            label="Workspace"
+            name="organizationId"
           />
-          <button className="rounded-md border border-[#dedfd9] px-2 py-1 text-[10px] font-semibold text-[#687279]">
-            Open
-          </button>
-        </form>
-        {hasPermission(role, "publications:create") ? (
-          <Link
-            href="/onboarding"
-            className="block border-t border-[#ecece8] pt-2 text-center text-[10px] font-semibold text-[#687279] hover:text-[#172329]"
-          >
-            + New publication
-          </Link>
         ) : null}
-        {canCreateWorkspace ? (
-          <Link
-            href="/onboarding?newWorkspace=1"
-            className="block border-t border-[#ecece8] pt-2 text-center text-[10px] font-semibold text-[#687279] hover:text-[#172329]"
-          >
-            + New workspace
-          </Link>
-        ) : null}
+        <DashboardSelectionMenu
+          action={switchPublication}
+          canCreate={canCreatePublication}
+          createHref="/onboarding"
+          current={publication}
+          items={publications}
+          kind="publication"
+          label="Publication"
+          name="publicationId"
+        />
       </div>
 
       <nav className="mt-6 space-y-1">
         {primary.map((item) => (
-          <DashboardNavLink key={item.href} href={item.href}>
-            <item.icon className="size-4" />
-            {item.label}
+          <DashboardNavLink key={item.href} href={item.href} label={item.label}>
+            <item.icon className="size-4 shrink-0" aria-hidden />
+            <span className="truncate group-data-[collapsed=true]/sidebar:sr-only">
+              {item.label}
+            </span>
           </DashboardNavLink>
         ))}
       </nav>
 
-      <div className="mt-6 px-3 text-[10px] font-bold uppercase tracking-[0.16em] text-[#9aa1a4]">
+      <div className="mt-6 px-3 text-[10px] font-bold uppercase tracking-[0.16em] text-[#9aa1a4] group-data-[collapsed=true]/sidebar:hidden">
         Manage
       </div>
-      <nav className="mt-2 space-y-1">
+      <div className="mx-2 mt-6 hidden h-px bg-[#dedfd9] group-data-[collapsed=true]/sidebar:block" />
+      <nav className="mt-2 space-y-1 group-data-[collapsed=true]/sidebar:mt-4">
         {manage.map((item) => (
-          <DashboardNavLink key={item.href} href={item.href}>
-            <item.icon className="size-4" />
-            {item.label}
+          <DashboardNavLink key={item.href} href={item.href} label={item.label}>
+            <item.icon className="size-4 shrink-0" aria-hidden />
+            <span className="truncate group-data-[collapsed=true]/sidebar:sr-only">
+              {item.label}
+            </span>
           </DashboardNavLink>
         ))}
-        {hasPermission(role, "audit:read") ? (
-          <DashboardNavLink href="/audit">
-            <ClockCounterClockwise className="size-4" />
-            Audit history
+        {canReadAudit ? (
+          <DashboardNavLink href="/audit" label="Audit history">
+            <ClockCounterClockwise className="size-4 shrink-0" aria-hidden />
+            <span className="truncate group-data-[collapsed=true]/sidebar:sr-only">
+              Audit history
+            </span>
           </DashboardNavLink>
         ) : null}
       </nav>
 
       <div className="mt-auto border-t border-[#dedfd9] pt-4">
-        <div className="mb-2 flex items-center gap-2.5 px-2">
-          <div className="grid size-8 place-items-center rounded-full bg-[#20343a] text-xs font-semibold text-white">
-            {userName.slice(0, 1).toUpperCase()}
-          </div>
-          <div className="min-w-0">
-            <p className="truncate text-xs font-semibold">{userName}</p>
-            <p className="text-[10px] capitalize text-[#8a9397]">{role}</p>
-          </div>
-        </div>
-        <SignOutButton />
+        <DashboardUserMenu role={role} userName={userName} />
       </div>
+
+      <DashboardSidebarToggle rail />
     </aside>
   );
 }

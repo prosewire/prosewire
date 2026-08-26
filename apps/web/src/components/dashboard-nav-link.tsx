@@ -8,10 +8,12 @@ export function DashboardNavLink({
   href,
   children,
   compact = false,
+  label,
 }: {
   href: string;
   children: ReactNode;
   compact?: boolean;
+  label?: string;
 }) {
   const pathname = usePathname();
   const active =
@@ -25,10 +27,11 @@ export function DashboardNavLink({
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
+      title={label}
       className={
         compact
           ? `rounded-lg px-3 py-2.5 text-xs font-semibold hover:transition-colors ${stateClass}`
-          : `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium hover:transition-colors ${stateClass}`
+          : `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium hover:transition-colors group-data-[collapsed=true]/sidebar:justify-center group-data-[collapsed=true]/sidebar:gap-0 group-data-[collapsed=true]/sidebar:px-0 ${stateClass}`
       }
     >
       {children}

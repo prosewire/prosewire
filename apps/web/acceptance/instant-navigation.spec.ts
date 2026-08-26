@@ -5,6 +5,11 @@ import { acceptance } from "./fixtures.ts";
 test("dashboard navigation does not animate the shared sidebar", async ({
   page,
 }) => {
+  // The cross-surface flow signs in three browser contexts before this test.
+  // Give this independent browser its own authentication rate-limit bucket.
+  await page.context().setExtraHTTPHeaders({
+    "x-forwarded-for": "192.0.2.1",
+  });
   await page.goto("/sign-in?returnTo=/dashboard");
   await expect(page.locator("form")).toHaveAttribute("data-hydrated", "true");
   await page.getByLabel("Email").fill(acceptance.owner.email);

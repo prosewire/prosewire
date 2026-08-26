@@ -1,12 +1,13 @@
 import { List } from "@phosphor-icons/react/ssr";
-import { hasPermission } from "@prosewire/core";
 import Link from "next/link";
 import { switchPublication, switchWorkspace } from "@/server/actions";
 import { DashboardNavLink } from "./dashboard-nav-link";
 import type { DashboardShellProps } from "./dashboard-shell-types";
+import {
+  DashboardSelectionMenu,
+  DashboardUserMenu,
+} from "./dashboard-sidebar-menus";
 import { Logo } from "./logo";
-import { Select } from "./select";
-import { SignOutButton } from "./sign-out-button";
 import { ThemeToggle } from "./theme-toggle";
 
 const links = [
@@ -21,7 +22,9 @@ const links = [
 
 export function MobileHeader({
   userName,
+  canCreatePublication,
   canCreateWorkspace,
+  canReadAudit,
   showWorkspaceSwitcher,
   role,
   workspace,
@@ -47,71 +50,31 @@ export function MobileHeader({
             <List className="size-4" />
           </summary>
           <div className="absolute right-0 top-11 w-[calc(100vw-2rem)] max-w-sm overflow-hidden rounded-2xl border border-[#d9dbd5] bg-[#f8f7f2] shadow-xl">
-            <div className="space-y-3 border-b border-[#dedfd9] p-4">
+            <div className="space-y-2 border-b border-[#dedfd9] p-4">
               {showWorkspaceSwitcher ? (
-                <form
+                <DashboardSelectionMenu
                   action={switchWorkspace}
-                  className="grid grid-cols-[1fr_auto] items-end gap-2"
-                >
-                  <div className="text-[10px] font-bold uppercase tracking-[.12em] text-[#8a9397]">
-                    <Select
-                      id="mobile-workspace-switcher"
-                      name="organizationId"
-                      label="Workspace"
-                      labelClassName="cursor-default"
-                      defaultValue={workspace.id}
-                      options={workspaces.map((item) => ({
-                        value: item.id,
-                        label: item.name,
-                      }))}
-                      size="small"
-                      className="mt-1.5 h-9 w-full rounded-lg border border-[#d9dbd5] bg-white px-2 text-xs font-semibold normal-case tracking-normal text-[#172329]"
-                    />
-                  </div>
-                  <button className="h-9 rounded-lg border border-[#d9dbd5] bg-white px-3 text-xs font-semibold">
-                    Switch
-                  </button>
-                </form>
+                  canCreate={canCreateWorkspace}
+                  createHref="/onboarding?newWorkspace=1"
+                  current={workspace}
+                  items={workspaces}
+                  kind="workspace"
+                  label="Workspace"
+                  name="organizationId"
+                  placement="mobile"
+                />
               ) : null}
-              <form
+              <DashboardSelectionMenu
                 action={switchPublication}
-                className="grid grid-cols-[1fr_auto] items-end gap-2"
-              >
-                <div className="text-[10px] font-bold uppercase tracking-[.12em] text-[#8a9397]">
-                  <Select
-                    id="mobile-publication-switcher"
-                    name="publicationId"
-                    label="Publication"
-                    labelClassName="cursor-default"
-                    defaultValue={publication.id}
-                    options={publications.map((item) => ({
-                      value: item.id,
-                      label: item.name,
-                    }))}
-                    size="small"
-                    className="mt-1.5 h-9 w-full rounded-lg border border-[#d9dbd5] bg-white px-2 text-xs font-semibold normal-case tracking-normal text-[#172329]"
-                  />
-                </div>
-                <button className="h-9 rounded-lg border border-[#d9dbd5] bg-white px-3 text-xs font-semibold">
-                  Open
-                </button>
-              </form>
-              {hasPermission(role, "publications:create") ? (
-                <Link
-                  href="/onboarding"
-                  className="block text-center text-xs font-semibold text-[#687279]"
-                >
-                  + New publication
-                </Link>
-              ) : null}
-              {canCreateWorkspace ? (
-                <Link
-                  href="/onboarding?newWorkspace=1"
-                  className="block text-center text-xs font-semibold text-[#687279]"
-                >
-                  + New workspace
-                </Link>
-              ) : null}
+                canCreate={canCreatePublication}
+                createHref="/onboarding"
+                current={publication}
+                items={publications}
+                kind="publication"
+                label="Publication"
+                name="publicationId"
+                placement="mobile"
+              />
             </div>
             <nav className="grid grid-cols-2 gap-1 p-3">
               {links.map(([href, label]) => (
@@ -119,22 +82,18 @@ export function MobileHeader({
                   {label}
                 </DashboardNavLink>
               ))}
-              {hasPermission(role, "audit:read") ? (
+              {canReadAudit ? (
                 <DashboardNavLink href="/audit" compact>
                   Audit history
                 </DashboardNavLink>
               ) : null}
             </nav>
-            <div className="flex items-center justify-between border-t border-[#dedfd9] px-3 py-2">
-              <p className="min-w-0 truncate px-2 text-xs font-semibold">
-                {userName}{" "}
-                <span className="font-normal capitalize text-[#8a9397]">
-                  · {role}
-                </span>
-              </p>
-              <div className="w-24">
-                <SignOutButton />
-              </div>
+            <div className="flex justify-end border-t border-[#dedfd9] px-3 py-2">
+              <DashboardUserMenu
+                placement="mobile"
+                role={role}
+                userName={userName}
+              />
             </div>
           </div>
         </details>
