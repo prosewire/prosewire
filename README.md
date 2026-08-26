@@ -23,15 +23,16 @@
   <a href="https://prosewire.com/docs/">Documentation</a> ·
   <a href="#why-prosewire">Why Prosewire</a> ·
   <a href="#features">Features</a> ·
-  <a href="#quick-start">Quick Start</a> ·
-  <a href="#integrate">Integrate</a> ·
+  <a href="#add-to-nextjs-or-astro">Next.js and Astro</a> ·
+  <a href="#self-host-locally">Self-host</a> ·
+  <a href="#other-integrations">Other integrations</a> ·
   <a href="#project-status">Project Status</a> ·
   <a href="#platform">Platform</a> ·
   <a href="#contributing">Contributing</a> ·
   <a href="#license">License</a>
 </p>
 
-Prosewire is an embedded publishing platform for teams that want a capable blog without rebuilding their existing site around a traditional CMS. Authors get a focused editorial dashboard; readers get server-rendered pages; developers can choose a JavaScript embed, rendered HTML, public JSON, or a typed TypeScript client.
+Prosewire is an embedded publishing platform for teams that want a capable blog without rebuilding their existing site around a traditional CMS. Authors get a focused editorial dashboard; readers get server-rendered pages; developers can add native Next.js or Astro routes, use a JavaScript embed, fetch rendered HTML or public JSON, or build with the typed TypeScript client.
 
 The entire stack is portable and Apache-2.0 licensed. Run it locally, self-host it, customize the reader, and export your content whenever you need it.
 
@@ -56,7 +57,26 @@ The entire stack is portable and Apache-2.0 licensed. Run it locally, self-host 
 
 See [the product coverage map](docs/feature-coverage.md) for implemented behavior, partial workflows, and known gaps.
 
-## Quick Start
+## Add to Next.js or Astro
+
+Run the scaffolder inside an existing Next.js or Astro project and point it at your Prosewire deployment:
+
+```bash
+pnpm create prosewire@latest \
+  --url https://your-prosewire-deployment \
+  --blog fieldnotes \
+  --route /blog
+```
+
+The command detects the framework and installs `@prosewire/next` or `@prosewire/astro`. For Next.js, it supports both the App Router and Pages Router. For Astro, it supports static and server-rendered output. It writes thin native routes and refuses to replace files that already exist.
+
+Both packages render semantic `pw-*` markup with no stylesheet or client runtime. You can style the hooks, replace the typed render components, or use the public client directly. Public readers need no management API key and only receive published content whose publication time has arrived.
+
+In a monorepo, run the command from the workspace root. The scaffolder selects a single supported app automatically; when it finds several, pass a target such as `--cwd apps/web`. Add `--agent` to print setup instructions for a coding agent without changing files.
+
+Read the [Next.js guide](https://prosewire.com/docs/integrate/nextjs/) or [Astro guide](https://prosewire.com/docs/integrate/astro/) for framework-specific caching, routing, redirects, and component examples. The package references are also available in the repository for [`@prosewire/next`](packages/next/README.md) and [`@prosewire/astro`](packages/astro/README.md).
+
+## Self-host locally
 
 Requires Node.js 24+, pnpm 11+, and Docker.
 
@@ -77,20 +97,9 @@ To provision an initial development API key, set `PROSEWIRE_SEED_API_KEY` to a u
 
 For the complete local walkthrough, shutdown command, and production distinction, read [Run Prosewire locally](https://prosewire.com/docs/getting-started/). Production deployments use the one-shot migration process and do not run the development seed.
 
-## Integrate
+## Other integrations
 
-### Next.js or Astro in five minutes
-
-Run the scaffolder inside an existing project. It detects Next.js App Router, Next.js Pages Router, or Astro and writes thin native routes. In a monorepo, run it from the workspace root; it selects a single supported app automatically or accepts `--cwd apps/web` when there are several.
-
-```bash
-pnpm create prosewire@latest \
-  --url https://your-prosewire-deployment \
-  --blog fieldnotes \
-  --route /blog
-```
-
-The framework packages ship semantic `pw-*` markup with no stylesheet or client runtime. Style the hooks, replace the typed render components, or use the public client directly. Pass `--agent` to print the setup instructions for a coding agent without changing files.
+Next.js and Astro are the shortest path to a native reader. Prosewire also exposes smaller building blocks for other sites and runtimes.
 
 ### JavaScript embed
 
@@ -125,7 +134,7 @@ const article = await content.getPost("shipping-with-confidence");
 
 Public content is also available directly from `/api/public/:blog/posts`, while `/api/rendered/:blog/:path` returns sanitized HTML.
 
-Start with the [integration documentation](https://prosewire.com/docs/integrate/), or go directly to the package documentation for [Next.js](packages/next/README.md), [Astro](packages/astro/README.md), the [SDK](packages/sdk/README.md), [CLI](packages/cli/README.md), or [MCP server](packages/mcp/README.md).
+See the [integration documentation](https://prosewire.com/docs/integrate/) for every delivery option, or go directly to the package documentation for the [SDK](packages/sdk/README.md), [CLI](packages/cli/README.md), or [MCP server](packages/mcp/README.md).
 
 ## Project Status
 
