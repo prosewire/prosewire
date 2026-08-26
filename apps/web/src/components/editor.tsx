@@ -606,20 +606,20 @@ export function Editor({
                 className="mt-1.5 h-9 w-full rounded-lg border border-[#dcded8] bg-white px-2.5 text-xs font-normal tracking-normal text-[#172329] outline-none"
               />
             </label>
-            <label className="block text-[10px] font-bold uppercase tracking-[.1em] text-[#8a9397]">
-              Language
-              <select
+            <div>
+              <Select
                 name="locale"
+                label="Language"
+                labelClassName="block text-[10px] font-bold uppercase tracking-[.1em] text-[#8a9397]"
                 defaultValue={post.locale}
-                className="mt-1.5 h-9 w-full rounded-lg border border-[#dcded8] bg-white px-2.5 text-xs font-normal tracking-normal text-[#172329] outline-none"
-              >
-                {locales.map((locale) => (
-                  <option key={locale} value={locale}>
-                    {localeName(locale)} ({locale})
-                  </option>
-                ))}
-              </select>
-            </label>
+                options={locales.map((locale) => ({
+                  value: locale,
+                  label: `${localeName(locale)} (${locale})`,
+                }))}
+                size="small"
+                className="mt-1.5 h-9 w-full rounded-lg border border-[#dcded8] bg-white px-2.5 text-xs font-normal tracking-normal text-[#172329] shadow-none outline-none"
+              />
+            </div>
             <label className="block text-[10px] font-bold uppercase tracking-[.1em] text-[#8a9397]">
               Canonical URL
               <input

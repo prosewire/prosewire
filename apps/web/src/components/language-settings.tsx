@@ -3,6 +3,7 @@
 import { Check, Plus, Trash } from "@phosphor-icons/react";
 import { useMemo, useState } from "react";
 import { canonicalLocale, localeName, suggestedLocales } from "@/lib/locales";
+import { Select } from "./select";
 
 interface LanguageSettingsProps {
   readonly defaultLocale: string;
@@ -100,24 +101,22 @@ export function LanguageSettings({
         ) : null}
       </div>
 
-      <label className="text-xs font-semibold">
-        Default language
-        <select
+      <div className="text-xs font-semibold">
+        <Select
           name="locale"
+          label="Default language"
           value={selectedLocale}
-          onChange={(event) => setSelectedLocale(event.target.value)}
+          onValueChange={setSelectedLocale}
+          options={locales.map((locale) => ({
+            value: locale,
+            label: languageLabel(locale),
+          }))}
           className="mt-2 h-10 w-full rounded-xl border border-[#d9dbd5] bg-white px-3 text-sm font-normal outline-none focus:border-[#ef6848]"
-        >
-          {locales.map((locale) => (
-            <option key={locale} value={locale}>
-              {languageLabel(locale)}
-            </option>
-          ))}
-        </select>
+        />
         <span className="mt-2 block font-normal leading-5 text-[#7b8589]">
           New posts start in this language.
         </span>
-      </label>
+      </div>
 
       <div className="sm:col-span-2">
         <p className="text-xs font-semibold">Configured languages</p>
