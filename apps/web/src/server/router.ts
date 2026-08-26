@@ -3,6 +3,7 @@ import {
   ApiAuthenticationFailed,
   ApiInputRejected,
   ApiPostNotFound,
+  ApiRevisionNotFound,
   ApiUnavailable,
   apiErrorStatusByTag,
   decodePrivateApiRequest,
@@ -13,7 +14,9 @@ import {
   getPost,
   health,
   listBlogs,
+  listPostRevisions,
   listPosts,
+  restorePostRevision,
   updatePost,
 } from "./api-entrypoints.ts";
 
@@ -22,6 +25,7 @@ type ApiError =
   | ApiAuthenticationFailed
   | ApiAccessDenied
   | ApiPostNotFound
+  | ApiRevisionNotFound
   | ApiUnavailable;
 
 function isApiError(error: unknown): error is ApiError {
@@ -30,6 +34,7 @@ function isApiError(error: unknown): error is ApiError {
     error instanceof ApiAuthenticationFailed ||
     error instanceof ApiAccessDenied ||
     error instanceof ApiPostNotFound ||
+    error instanceof ApiRevisionNotFound ||
     error instanceof ApiUnavailable
   );
 }
@@ -54,12 +59,16 @@ async function dispatch(request: Request): Promise<unknown> {
       return listPosts(request, operation.input);
     case "GetPost":
       return getPost(request, operation.id);
+    case "ListPostRevisions":
+      return listPostRevisions(request, operation.id);
     case "CreatePost":
       return createPost(request, operation.input);
     case "UpdatePost":
       return updatePost(request, operation.id, operation.input);
     case "ArchivePost":
       return archivePost(request, operation.id);
+    case "RestorePostRevision":
+      return restorePostRevision(request, operation.id, operation.revisionId);
   }
 }
 

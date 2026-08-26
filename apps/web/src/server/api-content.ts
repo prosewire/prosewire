@@ -2,7 +2,7 @@ import type { Db } from "@prosewire/db/client";
 import * as schema from "@prosewire/db/schema";
 import { and, count, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { Context, Effect, Layer, Schema } from "effect";
-import { toApiPost } from "./api-content-models.ts";
+import { toApiPost, toApiPostRevision } from "./api-content-models.ts";
 import { Database } from "./database.ts";
 import { BlogId, type PostId } from "./domain.ts";
 import { operationError } from "./operation-error.ts";
@@ -108,6 +108,28 @@ export const create = Effect.fn("ApiContent.create")(function* () {
       );
       if (!row) return yield* new PostErrors.PostNotFound({ postId });
       return toApiPost(row);
+    }),
+    listPostRevisions: Effect.fn("ApiContent.listPostRevisions")(function* (
+      blogId: BlogId,
+      postId: PostId,
+    ) {
+      const post = yield* execute("post.findForRevisionList", (client) =>
+        client.query.post.findFirst({
+          columns: { id: true },
+          where: and(
+            eq(schema.post.id, postId),
+            eq(schema.post.blogId, blogId),
+          ),
+        }),
+      );
+      if (!post) return yield* new PostErrors.PostNotFound({ postId });
+      const revisions = yield* execute("postRevision.listApi", (client) =>
+        client.query.postRevision.findMany({
+          where: eq(schema.postRevision.postId, postId),
+          orderBy: [desc(schema.postRevision.version)],
+        }),
+      );
+      return revisions.map(toApiPostRevision);
     }),
   };
 });

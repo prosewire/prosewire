@@ -65,6 +65,36 @@ export const postOutput = Schema.Struct({
   categories: Schema.Array(categoryOutput),
 });
 
+export const postRevisionSnapshot = Schema.Struct({
+  authorId: uuid,
+  title: Schema.String,
+  slug: Schema.String,
+  excerpt: Schema.String,
+  contentMarkdown: Schema.String,
+  coverImageUrl: nullable(Schema.String),
+  coverImageAlt: nullable(Schema.String),
+  status: postStatus,
+  locale: Schema.String,
+  featured: Schema.Boolean,
+  seoTitle: nullable(Schema.String),
+  seoDescription: nullable(Schema.String),
+  focusKeyword: nullable(Schema.String),
+  canonicalUrl: nullable(Schema.String),
+  scheduledAt: nullable(isoDateTime),
+  publishedAt: nullable(isoDateTime),
+  archivedAt: nullable(isoDateTime),
+  categoryIds: nullable(Schema.Array(uuid)),
+});
+
+export const postRevisionOutput = Schema.Struct({
+  id: uuid,
+  postId: uuid,
+  editorId: nullable(Schema.String),
+  version: Schema.Int,
+  snapshot: postRevisionSnapshot,
+  createdAt: isoDateTime,
+});
+
 const authorId = uuid;
 const title = Schema.Trim.pipe(
   Schema.check(Schema.isMinLength(1), Schema.isMaxLength(180)),
@@ -209,6 +239,8 @@ export const paginatedPosts = Schema.Struct({
 
 export type PostStatus = typeof postStatus.Type;
 export type Post = typeof postOutput.Type;
+export type PostRevision = typeof postRevisionOutput.Type;
+export type PostRevisionSnapshot = typeof postRevisionSnapshot.Type;
 export type Blog = typeof blogOutput.Type;
 export type PublicBlog = typeof publicBlogOutput.Type;
 export type PublicAuthor = typeof authorOutput.Type;

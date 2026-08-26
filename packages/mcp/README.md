@@ -25,10 +25,9 @@ prosewire-mcp
 Create the API key in **Integrate → Scoped API keys**. The key selects one publication;
 grant only `content:read` unless the client needs write tools.
 
-The `publication_get`, `posts_list`, and `posts_get` tools are read-only.
+The `publication_get`, `posts_list`, `posts_get`, and `posts_revisions_list` tools are read-only.
 `posts_create` and `posts_update` mutate content and require approval.
-`posts_archive` is destructive, requires approval, and removes the post from
-public surfaces. The server publishes those safety annotations to MCP clients;
+`posts_revision_restore` and `posts_archive` are destructive and require approval. Restore saves the current version before applying the selected revision. Archive removes the post from public surfaces. The server publishes those safety annotations to MCP clients;
 clients should still confirm the exact mutation with the user.
 
 The key fixes the server to one publication. The optional `blog` argument on `posts_list` must match that publication's slug or UUID and cannot broaden the boundary. Grant `content:write` only when create, update, or archive tools are required.

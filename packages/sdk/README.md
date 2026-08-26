@@ -68,8 +68,9 @@ Available Promise operations are:
 - `blogs.list()`
 - `posts.list()`, `posts.get()`, and `posts.create()`
 - `posts.update()` and `posts.archive()`
+- `posts.revisions()` and `posts.restore()`
 
-Management keys are publication-scoped. Reads require `content:read`; create, update, and archive require `content:write`. Never expose a management key in browser JavaScript.
+Management keys are publication-scoped. Post and revision reads require `content:read`. Create, update, archive, and revision restore require `content:write`. A restore saves the current post as a new revision before replacing it. Never expose a management key in browser JavaScript.
 
 The optional `blog` value on `posts.list()` is a safety assertion. It must match the API key's publication slug or UUID; it cannot select another publication.
 

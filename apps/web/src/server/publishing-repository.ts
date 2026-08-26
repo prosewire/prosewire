@@ -8,7 +8,7 @@ import {
 import type { Db } from "@prosewire/db/client";
 import * as schema from "@prosewire/db/schema";
 import { and, desc, eq, inArray } from "drizzle-orm";
-import { Clock, Context, Effect, Layer, Result, Schema } from "effect";
+import { Clock, Context, Effect, Layer, Option, Result, Schema } from "effect";
 import { ApiAccess, hasScope } from "./api-access.ts";
 import { BlogAccess } from "./authorization.ts";
 import { BlogErrors } from "./blog-errors.ts";
@@ -17,7 +17,7 @@ import {
   type ApiKeyId,
   AuthorId,
   BlogId,
-  type CategoryId,
+  CategoryId,
   OrganizationId,
   PostId,
   UserId,
@@ -30,8 +30,10 @@ import type {
   ArchiveResult,
   CreatePostCommand,
   MutationResult,
+  RestorePostRevisionCommand,
   UpdatePostCommand,
 } from "./post-commands.ts";
+import { PostRevisionSnapshot } from "./post-commands.ts";
 import { PostErrors } from "./post-errors.ts";
 import {
   lockApiKey,
@@ -70,6 +72,8 @@ type LockedActor =
       readonly blogSlug: string;
       readonly keyId: ApiKeyId;
     };
+
+type PostRow = typeof schema.post.$inferSelect;
 
 export const create = Effect.fn("PublishingRepository.create")(function* () {
   const database = yield* Database;
@@ -204,6 +208,102 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
       });
     }
     return undefined;
+  };
+
+  const getPostCategoryIds = async (
+    tx: TransactionClient,
+    postId: string,
+  ): Promise<Array<CategoryId>> => {
+    const rows = await tx
+      .select({ categoryId: schema.postCategory.categoryId })
+      .from(schema.postCategory)
+      .where(eq(schema.postCategory.postId, postId));
+    return rows.map(({ categoryId }) => CategoryId.make(categoryId));
+  };
+
+  const revisionSnapshot = (
+    post: PostRow,
+    categoryIds: ReadonlyArray<CategoryId>,
+  ): Record<string, unknown> =>
+    Schema.encodeSync(PostRevisionSnapshot)({
+      authorId: AuthorId.make(post.authorId),
+      title: post.title,
+      slug: post.slug,
+      excerpt: post.excerpt,
+      contentMarkdown: post.contentMarkdown,
+      contentHtml: post.contentHtml,
+      coverImageUrl: post.coverImageUrl,
+      coverImageAlt: post.coverImageAlt,
+      status: post.status,
+      locale: post.locale,
+      featured: post.featured,
+      seoTitle: post.seoTitle,
+      seoDescription: post.seoDescription,
+      focusKeyword: post.focusKeyword,
+      canonicalUrl: post.canonicalUrl,
+      scheduledAt: post.scheduledAt,
+      publishedAt: post.publishedAt,
+      archivedAt: post.archivedAt,
+      categoryIds,
+    });
+
+  const captureRevision = async (
+    tx: TransactionClient,
+    post: PostRow,
+    editorId: UserId | null,
+    knownCategoryIds?: ReadonlyArray<CategoryId>,
+  ): Promise<Array<CategoryId>> => {
+    const categoryIds = knownCategoryIds
+      ? [...knownCategoryIds]
+      : await getPostCategoryIds(tx, post.id);
+    const latest = await tx.query.postRevision.findFirst({
+      where: eq(schema.postRevision.postId, post.id),
+      orderBy: [desc(schema.postRevision.version)],
+    });
+    await tx.insert(schema.postRevision).values({
+      postId: post.id,
+      editorId,
+      version: (latest?.version ?? 0) + 1,
+      snapshot: revisionSnapshot(post, categoryIds),
+    });
+    return categoryIds;
+  };
+
+  const preserveSlug = async (
+    tx: TransactionClient,
+    blogId: BlogId,
+    currentSlug: string,
+    nextSlug: string,
+  ): Promise<void> => {
+    if (currentSlug === nextSlug) return;
+    await tx
+      .delete(schema.redirect)
+      .where(
+        and(
+          eq(schema.redirect.blogId, blogId),
+          eq(schema.redirect.fromPath, nextSlug),
+        ),
+      );
+    await tx
+      .update(schema.redirect)
+      .set({ toPath: nextSlug })
+      .where(
+        and(
+          eq(schema.redirect.blogId, blogId),
+          eq(schema.redirect.toPath, currentSlug),
+        ),
+      );
+    await tx
+      .insert(schema.redirect)
+      .values({
+        blogId,
+        fromPath: currentSlug,
+        toPath: nextSlug,
+      })
+      .onConflictDoUpdate({
+        target: [schema.redirect.blogId, schema.redirect.fromPath],
+        set: { toPath: nextSlug },
+      });
   };
 
   const createPost = Effect.fn("Publishing.createPost")(function* (
@@ -484,31 +584,14 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
         );
         if (invalidLink) return Result.fail(invalidLink);
 
-        const latest = await tx.query.postRevision.findFirst({
-          where: eq(schema.postRevision.postId, existing.id),
-          orderBy: [desc(schema.postRevision.version)],
-        });
-        await tx.insert(schema.postRevision).values({
-          postId: existing.id,
-          editorId: locked._tag === "Dashboard" ? locked.userId : null,
-          version: (latest?.version ?? 0) + 1,
-          snapshot: existing,
-        });
+        await captureRevision(
+          tx,
+          existing,
+          locked._tag === "Dashboard" ? locked.userId : null,
+        );
 
         const nextSlug = command.slug ?? existing.slug;
-        if (nextSlug !== existing.slug) {
-          await tx
-            .insert(schema.redirect)
-            .values({
-              blogId: command.blogId,
-              fromPath: existing.slug,
-              toPath: nextSlug,
-            })
-            .onConflictDoUpdate({
-              target: [schema.redirect.blogId, schema.redirect.fromPath],
-              set: { toPath: nextSlug },
-            });
-        }
+        await preserveSlug(tx, command.blogId, existing.slug, nextSlug);
         const nextMarkdown =
           command.contentMarkdown ?? existing.contentMarkdown;
         const nextExcerpt =
@@ -602,6 +685,221 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
     );
   });
 
+  const restorePostRevision = Effect.fn("Publishing.restorePostRevision")(
+    function* (command: RestorePostRevisionCommand, actor: Actor) {
+      const now = new Date(yield* Clock.currentTimeMillis);
+      return yield* executeResult<
+        MutationResult,
+        | PostErrors.PostNotFound
+        | PostErrors.PostRevisionNotFound
+        | PostErrors.InvalidPostRevision
+        | PostErrors.InvalidPost
+        | BlogAccess.BlogAccessDenied
+        | ApiAccess.AuthenticationFailed
+        | ApiAccess.ScopeDenied
+      >("post.restoreRevision", (client) =>
+        client.transaction(async (tx) => {
+          const authorization = await lockActor(
+            tx,
+            command.blogId,
+            actor,
+            "content:read",
+            now,
+          );
+          if (Result.isFailure(authorization)) {
+            return Result.fail(authorization.failure);
+          }
+          const locked = authorization.success;
+          const [existing] = await tx
+            .select()
+            .from(schema.post)
+            .where(
+              and(
+                eq(schema.post.id, command.postId),
+                eq(schema.post.blogId, command.blogId),
+              ),
+            )
+            .for("update");
+          if (!existing) {
+            return Result.fail(
+              new PostErrors.PostNotFound({ postId: command.postId }),
+            );
+          }
+          const revision = await tx.query.postRevision.findFirst({
+            where: and(
+              eq(schema.postRevision.id, command.revisionId),
+              eq(schema.postRevision.postId, command.postId),
+            ),
+          });
+          if (!revision) {
+            return Result.fail(
+              new PostErrors.PostRevisionNotFound({
+                postId: command.postId,
+                revisionId: command.revisionId,
+              }),
+            );
+          }
+          const decoded = Schema.decodeUnknownOption(PostRevisionSnapshot)(
+            revision.snapshot,
+          );
+          if (Option.isNone(decoded)) {
+            return Result.fail(
+              new PostErrors.InvalidPostRevision({
+                revisionId: command.revisionId,
+                message: "Revision snapshot is invalid",
+              }),
+            );
+          }
+          const snapshot = decoded.value;
+          if (snapshot.status === "scheduled" && !snapshot.scheduledAt) {
+            return Result.fail(
+              new PostErrors.InvalidPostRevision({
+                revisionId: command.revisionId,
+                message: "Scheduled revision has no schedule time",
+              }),
+            );
+          }
+          if (locked._tag === "Dashboard") {
+            const createdById = existing.createdById
+              ? UserId.make(existing.createdById)
+              : null;
+            if (!canUpdatePost(locked.role, createdById, locked.userId)) {
+              return Result.fail(
+                new BlogAccess.BlogAccessDenied({
+                  blogId: command.blogId,
+                  userId: locked.userId,
+                  capability: "content:update:any",
+                }),
+              );
+            }
+            if (
+              (existing.status === "archived" ||
+                snapshot.status === "archived") &&
+              !hasPermission(locked.role, "content:archive")
+            ) {
+              return Result.fail(
+                new BlogAccess.BlogAccessDenied({
+                  blogId: command.blogId,
+                  userId: locked.userId,
+                  capability: "content:archive",
+                }),
+              );
+            }
+            if (
+              (existing.status === "scheduled" ||
+                existing.status === "published" ||
+                snapshot.status === "scheduled" ||
+                snapshot.status === "published") &&
+              !hasPermission(locked.role, "content:publish")
+            ) {
+              return Result.fail(
+                new BlogAccess.BlogAccessDenied({
+                  blogId: command.blogId,
+                  userId: locked.userId,
+                  capability: "content:publish",
+                }),
+              );
+            }
+          }
+
+          const currentCategoryIds = await getPostCategoryIds(tx, existing.id);
+          const restoredCategoryIds = snapshot.categoryIds
+            ? [...new Set(snapshot.categoryIds)]
+            : currentCategoryIds;
+          const invalidLink = await validatePublicationLinks(
+            tx,
+            command.blogId,
+            snapshot.authorId,
+            restoredCategoryIds,
+          );
+          if (invalidLink) return Result.fail(invalidLink);
+
+          await captureRevision(
+            tx,
+            existing,
+            locked._tag === "Dashboard" ? locked.userId : null,
+            currentCategoryIds,
+          );
+          await preserveSlug(tx, command.blogId, existing.slug, snapshot.slug);
+          await tx
+            .update(schema.post)
+            .set({
+              authorId: snapshot.authorId,
+              title: snapshot.title,
+              slug: snapshot.slug,
+              excerpt: snapshot.excerpt,
+              contentMarkdown: snapshot.contentMarkdown,
+              contentHtml: snapshot.contentHtml,
+              coverImageUrl: snapshot.coverImageUrl,
+              coverImageAlt: snapshot.coverImageAlt,
+              status: snapshot.status,
+              locale: snapshot.locale,
+              featured: snapshot.featured,
+              seoTitle: snapshot.seoTitle,
+              seoDescription: snapshot.seoDescription,
+              focusKeyword: snapshot.focusKeyword,
+              canonicalUrl: snapshot.canonicalUrl,
+              scheduledAt:
+                snapshot.status === "scheduled" ? snapshot.scheduledAt : null,
+              publishedAt:
+                snapshot.status === "published"
+                  ? (snapshot.publishedAt ?? now)
+                  : null,
+              archivedAt:
+                snapshot.status === "archived"
+                  ? (snapshot.archivedAt ?? now)
+                  : null,
+              updatedById:
+                locked._tag === "Dashboard"
+                  ? locked.userId
+                  : existing.updatedById,
+              updatedAt: now,
+            })
+            .where(eq(schema.post.id, existing.id));
+          if (snapshot.categoryIds !== undefined) {
+            await tx
+              .delete(schema.postCategory)
+              .where(eq(schema.postCategory.postId, existing.id));
+            if (restoredCategoryIds.length > 0) {
+              await tx.insert(schema.postCategory).values(
+                restoredCategoryIds.map((categoryId) => ({
+                  postId: existing.id,
+                  categoryId,
+                  blogId: command.blogId,
+                })),
+              );
+            }
+          }
+          await tx.insert(schema.auditLog).values({
+            organizationId: locked.organizationId,
+            blogId: command.blogId,
+            actorId: locked._tag === "Dashboard" ? locked.userId : null,
+            action: "post.revision_restored",
+            entityType: "post",
+            entityId: existing.id,
+            before: existing,
+            after: {
+              source: locked._tag === "Dashboard" ? "dashboard" : "api",
+              ...(locked._tag === "Api" ? { apiKeyId: locked.keyId } : {}),
+              revisionId: revision.id,
+              revisionVersion: revision.version,
+              title: snapshot.title,
+              slug: snapshot.slug,
+              status: snapshot.status,
+              ...(snapshot.categoryIds === undefined
+                ? {}
+                : { categoryIds: restoredCategoryIds }),
+            },
+          });
+          return Result.succeed({
+            postId: PostId.make(existing.id),
+            blogSlug: locked.blogSlug,
+          });
+        }),
+      );
+    },
+  );
+
   const archivePosts = Effect.fn("Publishing.archivePosts")(function* (
     command: ArchivePostsCommand,
     actor: Actor,
@@ -678,22 +976,40 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
         }
 
         const candidateIds = candidates.map(({ id }) => id);
-        const revisions = await tx.query.postRevision.findMany({
-          where: inArray(schema.postRevision.postId, candidateIds),
-          orderBy: [desc(schema.postRevision.version)],
-        });
+        const [revisions, categoryRows] = await Promise.all([
+          tx.query.postRevision.findMany({
+            where: inArray(schema.postRevision.postId, candidateIds),
+            orderBy: [desc(schema.postRevision.version)],
+          }),
+          tx
+            .select({
+              postId: schema.postCategory.postId,
+              categoryId: schema.postCategory.categoryId,
+            })
+            .from(schema.postCategory)
+            .where(inArray(schema.postCategory.postId, candidateIds)),
+        ]);
         const latestVersion = new Map<string, number>();
         for (const revision of revisions) {
           if (!latestVersion.has(revision.postId)) {
             latestVersion.set(revision.postId, revision.version);
           }
         }
+        const categoryIdsByPost = new Map<string, Array<CategoryId>>();
+        for (const row of categoryRows) {
+          const categoryIds = categoryIdsByPost.get(row.postId) ?? [];
+          categoryIds.push(CategoryId.make(row.categoryId));
+          categoryIdsByPost.set(row.postId, categoryIds);
+        }
         await tx.insert(schema.postRevision).values(
           candidates.map((post) => ({
             postId: post.id,
             editorId: locked._tag === "Dashboard" ? locked.userId : null,
             version: (latestVersion.get(post.id) ?? 0) + 1,
-            snapshot: post,
+            snapshot: revisionSnapshot(
+              post,
+              categoryIdsByPost.get(post.id) ?? [],
+            ),
           })),
         );
         const archived = await tx
@@ -790,6 +1106,7 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
   return {
     createPost,
     updatePost,
+    restorePostRevision,
     archivePosts,
     updateBlogSettings,
   };

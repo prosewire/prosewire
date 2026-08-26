@@ -3,6 +3,7 @@ import {
   paginatedPosts,
   postCreateInput,
   postOutput,
+  postRevisionOutput,
   postStatus,
   postUpdateInput,
 } from "@prosewire/contract";
@@ -107,12 +108,40 @@ export const PostsArchive = Tool.make("posts_archive", {
   .annotate(Tool.Idempotent, true)
   .annotate(Tool.OpenWorld, false);
 
+export const PostsRevisionsList = Tool.make("posts_revisions_list", {
+  description: "List a post's saved revisions (safe, read-only).",
+  parameters: Schema.Struct({ id: postId }),
+  success: Schema.Array(postRevisionOutput),
+  failure: ProsewireToolFailure,
+})
+  .annotate(Tool.Title, "List post revisions")
+  .annotate(Tool.Readonly, true)
+  .annotate(Tool.Destructive, false)
+  .annotate(Tool.Idempotent, true)
+  .annotate(Tool.OpenWorld, false);
+
+export const PostsRevisionRestore = Tool.make("posts_revision_restore", {
+  description:
+    "Restore a saved post revision (destructive, confirm with the user first).",
+  parameters: Schema.Struct({ id: postId, revisionId: postId }),
+  success: postOutput,
+  failure: ProsewireToolFailure,
+  needsApproval: true,
+})
+  .annotate(Tool.Title, "Restore post revision")
+  .annotate(Tool.Readonly, false)
+  .annotate(Tool.Destructive, true)
+  .annotate(Tool.Idempotent, false)
+  .annotate(Tool.OpenWorld, false);
+
 export const ProsewireToolkit = Toolkit.make(
   PublicationGet,
   PostsList,
   PostsGet,
   PostsCreate,
   PostsUpdate,
+  PostsRevisionsList,
+  PostsRevisionRestore,
   PostsArchive,
 );
 
@@ -144,6 +173,8 @@ export interface ProsewireMcpClient {
     readonly get: McpOperation<EffectClient["posts"]["get"]>;
     readonly create: McpOperation<EffectClient["posts"]["create"]>;
     readonly update: McpOperation<EffectClient["posts"]["update"]>;
+    readonly revisions: McpOperation<EffectClient["posts"]["revisions"]>;
+    readonly restore: McpOperation<EffectClient["posts"]["restore"]>;
     readonly archive: McpOperation<EffectClient["posts"]["archive"]>;
   };
 }
@@ -166,6 +197,10 @@ export function createProsewireMcpHandlers(client: ProsewireMcpClient) {
     posts_create: (input) => call(client.posts.create(input)),
     posts_update: ({ id, body }) =>
       call(client.posts.update({ params: { id }, body })),
+    posts_revisions_list: ({ id }) =>
+      call(client.posts.revisions({ params: { id } })),
+    posts_revision_restore: ({ id, revisionId }) =>
+      call(client.posts.restore({ params: { id, revisionId } })),
     posts_archive: ({ id }) => call(client.posts.archive({ params: { id } })),
   });
 }

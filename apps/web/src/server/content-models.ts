@@ -18,6 +18,7 @@ import {
   SnippetId,
   UserId,
 } from "./domain.ts";
+import { PostRevisionSnapshot } from "./post-commands.ts";
 
 const nullableString = Schema.NullOr(Schema.String);
 const timestamps = {
@@ -116,7 +117,7 @@ export class PostRevision extends Schema.Class<PostRevision>(
   postId: PostId,
   editorId: Schema.NullOr(UserId),
   version: Schema.Number,
-  snapshot: Schema.Unknown,
+  snapshot: PostRevisionSnapshot,
   createdAt: Schema.Date,
 }) {}
 
@@ -285,6 +286,7 @@ const toPostRevision = (row: PostRevisionRow) =>
     id: PostRevisionId.make(row.id),
     postId: PostId.make(row.postId),
     editorId: row.editorId ? UserId.make(row.editorId) : null,
+    snapshot: Schema.decodeUnknownSync(PostRevisionSnapshot)(row.snapshot),
   });
 
 const postValues = (row: PostRow) => ({

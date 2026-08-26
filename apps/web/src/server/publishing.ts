@@ -5,6 +5,8 @@ export type { Actor } from "./post-commands.ts";
 export {
   ArchivePostsCommand,
   CreatePostCommand,
+  PostRevisionSnapshot,
+  RestorePostRevisionCommand,
   UpdatePostCommand,
 } from "./post-commands.ts";
 export {
@@ -18,6 +20,7 @@ export const create = Effect.fn("Publishing.create")(function* () {
     createPost: repository.createPost,
     updatePost: repository.updatePost,
     archivePosts: repository.archivePosts,
+    restorePostRevision: repository.restorePostRevision,
     updateBlogSettings: repository.updateBlogSettings,
   };
 });

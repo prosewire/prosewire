@@ -143,7 +143,7 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
           with: {
             author: true,
             categories: { with: { category: true } },
-            revisions: true,
+            revisions: { orderBy: [desc(schema.postRevision.version)] },
           },
         }),
       );

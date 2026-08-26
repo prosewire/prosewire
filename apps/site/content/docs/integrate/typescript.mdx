@@ -83,8 +83,12 @@ await management.health();
 await management.blogs.list();
 await management.posts.list({ page: 1, pageSize: 20 });
 await management.posts.get({ params: { id: postId } });
+const revisions = await management.posts.revisions({ params: { id: postId } });
 await management.posts.create(input);
 await management.posts.update({ params: { id: postId }, body: patch });
+await management.posts.restore({
+  params: { id: postId, revisionId: revisions[0].id },
+});
 await management.posts.archive({ params: { id: postId } });
 ```
 
