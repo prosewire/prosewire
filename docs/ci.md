@@ -40,11 +40,14 @@ Do not retry after an uncertain npm result without querying the registry first.
 ## Image releases
 
 `Release image` has two entry points. A relevant push to `main` tests the exact
-commit, builds a single-platform candidate, verifies its metadata and runtime,
-and promotes the digest to `edge`. A manual dispatch tests the requested commit,
-builds and verifies the multi-platform candidate, then publishes stable tags,
-the immutable Git tag, and the GitHub release. GitHub generates the image
-changelog from the previous stable `vX.Y.Z` image tag to the new tag.
+commit, builds a `linux/amd64` candidate, verifies its metadata and runtime, and
+promotes the digest to `edge`. A manual dispatch tests the requested commit,
+builds and verifies the `linux/amd64` candidate, then publishes stable tags, the
+Git tag, and the GitHub release. The release links to the GHCR package and lists
+the pull commands, digest, architecture, and published tags. When an earlier
+stable `vX.Y.Z` image tag exists, GitHub generates the changelog from that tag.
+The first stable image release does not use an npm package release as its
+changelog baseline.
 
 Both paths call `Validate` before building an image. They also smoke-test the
 built container before changing a public image tag.

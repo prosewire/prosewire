@@ -28,12 +28,14 @@ by repository code.
       version at an immutable commit contained in `main`.
 - [ ] Dispatch `Release image` with that version and full commit SHA.
 - [ ] Confirm the shared validation job passed before the image build started.
-- [ ] Confirm both `linux/amd64` and `linux/arm64` manifests, OCI labels,
-      migrations, web, worker, required files, and `/api/health` passed.
+- [ ] Confirm the `linux/amd64` manifest, OCI labels, migrations, web, worker,
+      required files, and `/api/health` passed.
 - [ ] Confirm the workflow verified the candidate digest before creating the
-      immutable Git tag and promoting stable image aliases.
-- [ ] Confirm the GitHub release notes compare the previous stable image tag to
-      the new `vX.Y.Z` tag.
+      Git tag and promoting stable image aliases.
+- [ ] Confirm the GitHub release links to GHCR and lists the pull commands,
+      digest, architecture, and published tags.
+- [ ] When a previous stable image tag exists, confirm the changelog compares it
+      to the new `vX.Y.Z` tag and does not use an npm package release.
 - [ ] **External, GHCR:** verify public pull access while signed out of a
       maintainer account.
 
