@@ -7,7 +7,9 @@ export interface NamedSelection {
 
 export interface DashboardShellProps {
   readonly userName: string;
+  readonly canCreatePublication: boolean;
   readonly canCreateWorkspace: boolean;
+  readonly canReadAudit: boolean;
   readonly showWorkspaceSwitcher: boolean;
   readonly role: TeamRole;
   readonly workspace: NamedSelection;
