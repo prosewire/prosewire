@@ -3,6 +3,7 @@
 import {
   CalendarDots,
   Check,
+  ClockCounterClockwise,
   FloppyDisk,
   Image as ImageIcon,
   Link,
@@ -22,7 +23,31 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
-import { savePost } from "@/server/actions";
+import { restorePostRevision, savePost } from "@/server/actions";
+
+interface EditorRevision {
+  readonly id: string;
+  readonly version: number;
+  readonly createdAt: string;
+  readonly editor: string;
+  readonly canRestore: boolean;
+  readonly snapshot: {
+    readonly title: string;
+    readonly slug: string;
+    readonly excerpt: string;
+    readonly contentPreview: string;
+    readonly contentTruncated: boolean;
+    readonly status: PostStatus;
+    readonly locale: string;
+    readonly categoryCount: number | null;
+  };
+}
+
+const revisionDateFormatter = new Intl.DateTimeFormat("en", {
+  dateStyle: "medium",
+  timeStyle: "short",
+  timeZone: "UTC",
+});
 
 interface EditorPost {
   id?: string;
@@ -44,6 +69,7 @@ interface EditorPost {
   focusKeyword: string;
   canonicalUrl: string;
   scheduledAt: string;
+  revisions: ReadonlyArray<EditorRevision>;
 }
 
 interface Option {
@@ -56,6 +82,7 @@ interface EditorProps {
   readonly authors: ReadonlyArray<Option>;
   readonly categories: ReadonlyArray<Option>;
   readonly saved: boolean;
+  readonly restored: boolean;
   readonly error: string | undefined;
   readonly canPublish: boolean;
 }
@@ -92,6 +119,7 @@ export function Editor({
   authors,
   categories,
   saved,
+  restored,
   error,
   canPublish,
 }: EditorProps) {
@@ -124,6 +152,13 @@ export function Editor({
         description: "The latest revision is safely stored.",
       });
   }, [saved]);
+
+  useEffect(() => {
+    if (restored)
+      toast.success("Revision restored", {
+        description: "The replaced version is still available in history.",
+      });
+  }, [restored]);
 
   useEffect(() => {
     if (error) toast.error("Post was not saved", { description: error });
@@ -419,6 +454,106 @@ export function Editor({
               lists, and sufficient context.
             </p>
           </section>
+
+          {post.id ? (
+            <section className="mt-6 border-t border-[#dfe0db] pt-6">
+              <div className="flex items-center gap-2">
+                <ClockCounterClockwise className="size-4 text-[#536d78]" />
+                <h2 className="text-sm font-semibold">Revision history</h2>
+              </div>
+              <p className="mt-2 text-[10px] leading-4 text-[#7b8589]">
+                Prosewire saves the previous version before every update,
+                archive, or restore.
+              </p>
+              <div className="mt-3 space-y-2">
+                {post.revisions.length === 0 ? (
+                  <p className="rounded-xl border border-dashed border-[#d7d9d3] px-3 py-4 text-center text-[10px] text-[#7b8589]">
+                    No revisions yet
+                  </p>
+                ) : (
+                  post.revisions.map((revision) => (
+                    <details
+                      key={revision.id}
+                      className="group rounded-xl border border-[#e0e1dc] bg-white"
+                    >
+                      <summary className="cursor-pointer list-none px-3 py-2.5">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate text-[11px] font-semibold">
+                              Version {revision.version}:{" "}
+                              {revision.snapshot.title}
+                            </p>
+                            <p className="mt-0.5 text-[9px] text-[#7b8589]">
+                              {revisionDateFormatter.format(
+                                new Date(revision.createdAt),
+                              )}{" "}
+                              UTC · {revision.editor}
+                            </p>
+                          </div>
+                          <span className="rounded-full bg-[#eef0eb] px-2 py-0.5 text-[8px] font-bold uppercase tracking-wide text-[#536167]">
+                            {revision.snapshot.status}
+                          </span>
+                        </div>
+                      </summary>
+                      <div className="border-t border-[#ecece7] px-3 py-3">
+                        <dl className="grid grid-cols-[70px_1fr] gap-x-2 gap-y-1 text-[10px]">
+                          <dt className="text-[#8a9397]">Slug</dt>
+                          <dd className="truncate font-mono">
+                            {revision.snapshot.slug}
+                          </dd>
+                          <dt className="text-[#8a9397]">Locale</dt>
+                          <dd>{revision.snapshot.locale}</dd>
+                          <dt className="text-[#8a9397]">Categories</dt>
+                          <dd>
+                            {revision.snapshot.categoryCount === null
+                              ? "Not recorded"
+                              : revision.snapshot.categoryCount}
+                          </dd>
+                        </dl>
+                        {revision.snapshot.excerpt ? (
+                          <p className="mt-3 text-[10px] leading-4 text-[#5f6c71]">
+                            {revision.snapshot.excerpt}
+                          </p>
+                        ) : null}
+                        <pre className="mt-3 max-h-44 overflow-auto whitespace-pre-wrap rounded-lg bg-[#f6f5f0] p-2.5 text-[9px] leading-4 text-[#46545a]">
+                          {revision.snapshot.contentPreview || "Empty body"}
+                          {revision.snapshot.contentTruncated
+                            ? "\n\n[Preview truncated]"
+                            : ""}
+                        </pre>
+                        {revision.canRestore ? (
+                          <details className="mt-3 rounded-lg border border-[#e2c7bf] bg-[#fff8f5] px-2.5 py-2">
+                            <summary className="cursor-pointer text-[10px] font-semibold text-[#a44230]">
+                              Restore this version
+                            </summary>
+                            <p className="mt-2 text-[9px] leading-4 text-[#765b55]">
+                              Your current version will be saved first. Unsaved
+                              edits in this form will be discarded.
+                            </p>
+                            <button
+                              type="submit"
+                              formAction={restorePostRevision.bind(
+                                null,
+                                revision.id,
+                              )}
+                              formNoValidate
+                              className="mt-2 h-8 rounded-lg bg-[#a44230] px-3 text-[10px] font-semibold text-white"
+                            >
+                              Confirm restore
+                            </button>
+                          </details>
+                        ) : (
+                          <p className="mt-3 text-[9px] leading-4 text-[#a44230]">
+                            Your role cannot restore this publication state.
+                          </p>
+                        )}
+                      </div>
+                    </details>
+                  ))
+                )}
+              </div>
+            </section>
+          ) : null}
 
           <section className="mt-6 space-y-4 border-t border-[#dfe0db] pt-6">
             <h2 className="text-sm font-semibold">Search & publishing</h2>

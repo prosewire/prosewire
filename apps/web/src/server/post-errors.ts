@@ -1,5 +1,5 @@
 import { Schema } from "effect";
-import { PostId } from "./domain.ts";
+import { PostId, PostRevisionId } from "./domain.ts";
 
 export class PostNotFound extends Schema.TaggedError<PostNotFound>()(
   "PostNotFound",
@@ -15,6 +15,20 @@ export class InvalidPost extends Schema.TaggedError<InvalidPost>()(
   { message: Schema.String },
 ) {}
 
+export class PostRevisionNotFound extends Schema.TaggedError<PostRevisionNotFound>()(
+  "PostRevisionNotFound",
+  { postId: PostId, revisionId: PostRevisionId },
+) {
+  override get message(): string {
+    return `Revision ${this.revisionId} was not found for post ${this.postId}`;
+  }
+}
+
+export class InvalidPostRevision extends Schema.TaggedError<InvalidPostRevision>()(
+  "InvalidPostRevision",
+  { revisionId: PostRevisionId, message: Schema.String },
+) {}
+
 export class PostRenderingFailed extends Schema.TaggedError<PostRenderingFailed>()(
   "PostRenderingFailed",
   {
@@ -27,6 +41,11 @@ export class PostRenderingFailed extends Schema.TaggedError<PostRenderingFailed>
   }
 }
 
-export type Error = PostNotFound | InvalidPost | PostRenderingFailed;
+export type Error =
+  | PostNotFound
+  | InvalidPost
+  | PostRevisionNotFound
+  | InvalidPostRevision
+  | PostRenderingFailed;
 
 export * as PostErrors from "./post-errors";

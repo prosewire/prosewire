@@ -5,6 +5,7 @@ import {
   BlogId,
   CategoryId,
   PostId,
+  PostRevisionId,
   type UserId,
 } from "./domain.ts";
 
@@ -67,6 +68,37 @@ export class ArchivePostsCommand extends Schema.Class<ArchivePostsCommand>(
   blogId: BlogId,
   postIds: Schema.Array(PostId),
   requireAll: Schema.Boolean,
+}) {}
+
+export const PostRevisionSnapshot = Schema.Struct({
+  authorId: AuthorId,
+  title: Schema.String,
+  slug: Schema.String,
+  excerpt: Schema.String,
+  contentMarkdown: Schema.String,
+  contentHtml: Schema.String,
+  coverImageUrl: Schema.NullOr(Schema.String),
+  coverImageAlt: Schema.NullOr(Schema.String),
+  status: PostStatus,
+  locale: Schema.String,
+  featured: Schema.Boolean,
+  seoTitle: Schema.NullOr(Schema.String),
+  seoDescription: Schema.NullOr(Schema.String),
+  focusKeyword: Schema.NullOr(Schema.String),
+  canonicalUrl: Schema.NullOr(Schema.String),
+  scheduledAt: Schema.NullOr(Schema.DateFromString),
+  publishedAt: Schema.NullOr(Schema.DateFromString),
+  archivedAt: Schema.NullOr(Schema.DateFromString),
+  categoryIds: Schema.optional(Schema.Array(CategoryId)),
+});
+export type PostRevisionSnapshot = typeof PostRevisionSnapshot.Type;
+
+export class RestorePostRevisionCommand extends Schema.Class<RestorePostRevisionCommand>(
+  "Publishing.RestorePostRevisionCommand",
+)({
+  blogId: BlogId,
+  postId: PostId,
+  revisionId: PostRevisionId,
 }) {}
 
 export type Actor =

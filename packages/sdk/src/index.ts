@@ -2,6 +2,7 @@ import {
   api,
   type PostCreateEncodedInput,
   type PostCreateInput,
+  type PostRevision,
   type PostStatus,
   type PostUpdateInput,
   type PublicAuthor,
@@ -79,6 +80,8 @@ export function createEffectClient(options: ProsewireClientOptions) {
         provideFetch(generated.posts.list({ query: input })),
       get: (input: { readonly params: { readonly id: string } }) =>
         provideFetch(generated.posts.get(input)),
+      revisions: (input: { readonly params: { readonly id: string } }) =>
+        provideFetch(generated.posts.listRevisions(input)),
       create: (input: PostCreateEncodedInput) =>
         provideFetch(
           generated.posts.create({ payload: normalizedCreateInput(input) }),
@@ -95,6 +98,12 @@ export function createEffectClient(options: ProsewireClientOptions) {
         ),
       archive: (input: { readonly params: { readonly id: string } }) =>
         provideFetch(generated.posts.archive(input)),
+      restore: (input: {
+        readonly params: {
+          readonly id: string;
+          readonly revisionId: string;
+        };
+      }) => provideFetch(generated.posts.restoreRevision(input)),
     },
   };
 }
@@ -113,6 +122,8 @@ export function createClient(options: ProsewireClientOptions) {
         Effect.runPromise(client.posts.list(input)),
       get: (input: { readonly params: { readonly id: string } }) =>
         Effect.runPromise(client.posts.get(input)),
+      revisions: (input: { readonly params: { readonly id: string } }) =>
+        Effect.runPromise(client.posts.revisions(input)),
       create: (input: PostCreateEncodedInput) =>
         Effect.runPromise(client.posts.create(input)),
       update: (input: {
@@ -121,6 +132,12 @@ export function createClient(options: ProsewireClientOptions) {
       }) => Effect.runPromise(client.posts.update(input)),
       archive: (input: { readonly params: { readonly id: string } }) =>
         Effect.runPromise(client.posts.archive(input)),
+      restore: (input: {
+        readonly params: {
+          readonly id: string;
+          readonly revisionId: string;
+        };
+      }) => Effect.runPromise(client.posts.restore(input)),
     },
   };
 }
@@ -128,6 +145,7 @@ export function createClient(options: ProsewireClientOptions) {
 export type Client = ReturnType<typeof createClient>;
 
 export type {
+  PostRevision,
   PublicAuthor,
   PublicBlog,
   PublicCategory,

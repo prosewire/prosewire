@@ -1,5 +1,10 @@
-import type { Post } from "@prosewire/contract";
+import type {
+  PostRevision as ApiPostRevision,
+  Post,
+} from "@prosewire/contract";
 import type * as databaseSchema from "@prosewire/db/schema";
+import { Schema } from "effect";
+import { PostRevisionSnapshot } from "./post-commands.ts";
 
 export type ApiPostRow = typeof databaseSchema.post.$inferSelect & {
   readonly author: typeof databaseSchema.author.$inferSelect;
@@ -45,6 +50,39 @@ export function toApiPost(row: ApiPostRow): Post {
       slug: category.slug,
       description: category.description,
     })),
+  };
+}
+
+export function toApiPostRevision(
+  row: typeof databaseSchema.postRevision.$inferSelect,
+): ApiPostRevision {
+  const snapshot = Schema.decodeUnknownSync(PostRevisionSnapshot)(row.snapshot);
+  return {
+    id: row.id,
+    postId: row.postId,
+    editorId: row.editorId,
+    version: row.version,
+    createdAt: row.createdAt.toISOString(),
+    snapshot: {
+      authorId: snapshot.authorId,
+      title: snapshot.title,
+      slug: snapshot.slug,
+      excerpt: snapshot.excerpt,
+      contentMarkdown: snapshot.contentMarkdown,
+      coverImageUrl: snapshot.coverImageUrl,
+      coverImageAlt: snapshot.coverImageAlt,
+      status: snapshot.status,
+      locale: snapshot.locale,
+      featured: snapshot.featured,
+      seoTitle: snapshot.seoTitle,
+      seoDescription: snapshot.seoDescription,
+      focusKeyword: snapshot.focusKeyword,
+      canonicalUrl: snapshot.canonicalUrl,
+      scheduledAt: snapshot.scheduledAt?.toISOString() ?? null,
+      publishedAt: snapshot.publishedAt?.toISOString() ?? null,
+      archivedAt: snapshot.archivedAt?.toISOString() ?? null,
+      categoryIds: snapshot.categoryIds ?? null,
+    },
   };
 }
 

@@ -24,14 +24,14 @@ prosewire get welcome
 export PROSEWIRE_API_KEY=pw_live_...
 prosewire create --data post.json
 prosewire update 00000000-0000-4000-8000-000000000000 --data changes.json
+prosewire revisions 00000000-0000-4000-8000-000000000000
+prosewire restore 00000000-0000-4000-8000-000000000000 00000000-0000-4000-8000-000000000001 --yes
 prosewire archive 00000000-0000-4000-8000-000000000000 --yes
 ```
 
 `--url`, `--blog`, and `--key` override the corresponding environment variables. The URL defaults to `http://localhost:3000`; public commands still require a publication slug through `--blog` or `PROSEWIRE_BLOG`.
 
-`posts` and `get` are read-only and use the public content API. `create` and
-`update` mutate content and require `PROSEWIRE_API_KEY` (or `--key`). `archive`
-is destructive, requires a write-scoped key, and refuses to run without `--yes`.
+`posts` and `get` are read-only and use the public content API. `revisions` is a private read and requires a read-scoped key. `create` and `update` mutate content and require `PROSEWIRE_API_KEY` (or `--key`). `restore` and `archive` are destructive, require a write-scoped key, and refuse to run without `--yes`. Restore saves the version it replaces before applying the selected revision.
 Create keys in **Integrate → Scoped API keys** and avoid shell history or committed
 environment files when supplying them.
 

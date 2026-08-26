@@ -55,6 +55,34 @@ const privatePost = {
   createdAt: "2026-01-01T00:00:00.000Z",
 };
 
+const revision = {
+  id: "44444444-4444-4444-8444-444444444444",
+  postId: privatePost.id,
+  editorId: null,
+  version: 1,
+  createdAt: "2026-01-03T00:00:00.000Z",
+  snapshot: {
+    authorId: privatePost.author.id,
+    title: "Earlier",
+    slug: "earlier",
+    excerpt: "Earlier draft",
+    contentMarkdown: "# Earlier",
+    coverImageUrl: null,
+    coverImageAlt: null,
+    status: "draft",
+    locale: "en",
+    featured: false,
+    seoTitle: null,
+    seoDescription: null,
+    focusKeyword: null,
+    canonicalUrl: null,
+    scheduledAt: null,
+    publishedAt: null,
+    archivedAt: null,
+    categoryIds: [],
+  },
+} as const;
+
 describe("Prosewire SDK", () => {
   it("calls the typed API with a normalized URL and bearer key", async () => {
     const request = vi.fn(
@@ -107,6 +135,9 @@ describe("Prosewire SDK", () => {
             }),
           );
         }
+        if (outgoing.method === "GET" && url.pathname.endsWith("/revisions")) {
+          return Promise.resolve(Response.json([revision]));
+        }
         if (outgoing.method === "DELETE") {
           return Promise.resolve(Response.json({ ok: true }));
         }
@@ -129,6 +160,9 @@ describe("Prosewire SDK", () => {
       client.posts.get({ params: { id: privatePost.id } }),
     ).resolves.toMatchObject({ id: privatePost.id });
     await expect(
+      client.posts.revisions({ params: { id: privatePost.id } }),
+    ).resolves.toEqual([revision]);
+    await expect(
       client.posts.create({
         blogId: blog.id,
         authorId: privatePost.author.id,
@@ -145,23 +179,34 @@ describe("Prosewire SDK", () => {
     await expect(
       client.posts.archive({ params: { id: privatePost.id } }),
     ).resolves.toEqual({ ok: true });
+    await expect(
+      client.posts.restore({
+        params: { id: privatePost.id, revisionId: revision.id },
+      }),
+    ).resolves.toMatchObject({ id: privatePost.id });
 
     expect(requests.map(({ method }) => method)).toEqual([
+      "GET",
       "GET",
       "GET",
       "GET",
       "POST",
       "PATCH",
       "DELETE",
+      "POST",
     ]);
     expect(requests[1]?.url).toContain("status=draft&page=2&pageSize=10");
-    await expect(requests[3]?.json()).resolves.toMatchObject({
+    expect(requests[3]?.url).toContain(`/posts/${privatePost.id}/revisions`);
+    await expect(requests[4]?.json()).resolves.toMatchObject({
       contentMarkdown: "",
       status: "draft",
       locale: "en",
       featured: false,
       categoryIds: [],
     });
+    expect(requests[7]?.url).toContain(
+      `/posts/${privatePost.id}/revisions/${revision.id}/restore`,
+    );
   });
 
   it("queries every public content endpoint and encodes user input", async () => {

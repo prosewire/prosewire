@@ -9,6 +9,7 @@ import {
   ArchivePostsCommand,
   CreatePostCommand,
   Publishing,
+  RestorePostRevisionCommand,
   UpdateBlogSettingsInput,
   UpdatePostCommand,
 } from "./publishing.ts";
@@ -46,6 +47,8 @@ export type BulkArchiveBoundaryInput = Omit<
   typeof ArchivePostsCommand.Encoded,
   "requireAll"
 >;
+export type RestorePostRevisionBoundaryInput =
+  typeof RestorePostRevisionCommand.Encoded;
 export type UpdateBlogSettingsBoundaryInput =
   typeof UpdateBlogSettingsInput.Encoded;
 
@@ -62,6 +65,11 @@ const decodeBulkArchive = (input: unknown) =>
     ...(typeof input === "object" && input !== null ? input : {}),
     requireAll: false,
   }).pipe(Effect.mapError(() => invalidInput("Invalid post selection")));
+
+const decodeRestorePostRevision = (input: unknown) =>
+  Schema.decodeUnknownEffect(RestorePostRevisionCommand)(input).pipe(
+    Effect.mapError(() => invalidInput("Invalid revision selection")),
+  );
 
 const decodeBlogSettings = (input: unknown) =>
   Schema.decodeUnknownEffect(UpdateBlogSettingsInput)(input).pipe(
@@ -133,6 +141,20 @@ export function bulkArchive(input: BulkArchiveBoundaryInput) {
         userId: actorId,
       });
       return result.archived > 0;
+    }),
+  );
+}
+
+export function restorePostRevision(input: RestorePostRevisionBoundaryInput) {
+  return runAppEffect(
+    Effect.gen(function* () {
+      const command = yield* decodeRestorePostRevision(input);
+      const actorId = yield* currentActorId();
+      const publishing = yield* Publishing.Service;
+      return yield* publishing.restorePostRevision(command, {
+        _tag: "Dashboard",
+        userId: actorId,
+      });
     }),
   );
 }

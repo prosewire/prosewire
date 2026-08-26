@@ -7,6 +7,7 @@ import { actionErrorRedirect } from "./action-errors.ts";
 import { BlogAccessDenied, WorkspaceAccessDenied } from "./authorization.ts";
 import {
   bulkArchive as runBulkArchive,
+  restorePostRevision as runRestorePostRevision,
   savePost as runSavePost,
   updateBlogSettings as runUpdateBlogSettings,
   type SavePostBoundaryInput,
@@ -141,6 +142,28 @@ export async function bulkArchivePosts(formData: FormData): Promise<void> {
   if (!changed) return;
   revalidatePath("/posts");
   revalidatePath("/dashboard");
+}
+
+export async function restorePostRevision(
+  revisionId: string,
+  formData: FormData,
+): Promise<void> {
+  const postId = text(formData, "id");
+  let result: Awaited<ReturnType<typeof runRestorePostRevision>>;
+  try {
+    result = await runRestorePostRevision({
+      blogId: text(formData, "blogId"),
+      postId,
+      revisionId,
+    });
+  } catch (error) {
+    redirectActionError(error, `/posts/${postId}/edit`);
+  }
+  revalidatePath("/dashboard");
+  revalidatePath("/posts");
+  revalidatePath(`/posts/${postId}/edit`);
+  revalidatePath(`/b/${result.blogSlug}`);
+  redirect(`/posts/${postId}/edit?restored=1`);
 }
 
 export async function updateBlogSettings(formData: FormData): Promise<void> {

@@ -60,6 +60,8 @@ function mockClient(): ProsewireMcpClient {
       get: vi.fn(() => Effect.succeed(post)),
       create: vi.fn(() => Effect.succeed(post)),
       update: vi.fn(() => Effect.succeed({ ...post, title: "Updated" })),
+      revisions: vi.fn(() => Effect.succeed([])),
+      restore: vi.fn(() => Effect.succeed({ ...post, title: "Restored" })),
       archive: vi.fn(() => Effect.succeed({ ok: true as const })),
     },
   };
@@ -101,6 +103,8 @@ describe("Prosewire Effect MCP server", () => {
       "posts_get",
       "posts_create",
       "posts_update",
+      "posts_revisions_list",
+      "posts_revision_restore",
       "posts_archive",
     ]);
     expect(
@@ -125,6 +129,15 @@ describe("Prosewire Effect MCP server", () => {
       ),
     ).toBe(true);
     expect(ProsewireToolkit.tools.posts_archive.needsApproval).toBe(true);
+    expect(
+      Context.get(
+        ProsewireToolkit.tools.posts_revision_restore.annotations,
+        Tool.Destructive,
+      ),
+    ).toBe(true);
+    expect(ProsewireToolkit.tools.posts_revision_restore.needsApproval).toBe(
+      true,
+    );
   });
 
   it("validates inputs and delegates all tools to the Effect SDK", async () => {
@@ -142,6 +155,11 @@ describe("Prosewire Effect MCP server", () => {
     await expect(
       runTool(client, (toolkit) => toolkit.handle("posts_get", { id })),
     ).resolves.toMatchObject({ id });
+    await expect(
+      runTool(client, (toolkit) =>
+        toolkit.handle("posts_revisions_list", { id }),
+      ),
+    ).resolves.toEqual([]);
     await expect(
       runTool(client, (toolkit) =>
         toolkit.handle("posts_create", {
@@ -168,6 +186,14 @@ describe("Prosewire Effect MCP server", () => {
     await expect(
       runTool(client, (toolkit) => toolkit.handle("posts_archive", { id })),
     ).resolves.toEqual({ ok: true });
+    await expect(
+      runTool(client, (toolkit) =>
+        toolkit.handle("posts_revision_restore", {
+          id,
+          revisionId: id,
+        }),
+      ),
+    ).resolves.toMatchObject({ title: "Restored" });
 
     expect(client.posts.list).toHaveBeenCalledWith({
       status: "draft",
@@ -190,6 +216,10 @@ describe("Prosewire Effect MCP server", () => {
       params: { id },
       body: { title: "Updated" },
     });
+    expect(client.posts.revisions).toHaveBeenCalledWith({ params: { id } });
+    expect(client.posts.restore).toHaveBeenCalledWith({
+      params: { id, revisionId: id },
+    });
     expect(client.posts.archive).toHaveBeenCalledWith({ params: { id } });
   });
 
@@ -201,6 +231,15 @@ describe("Prosewire Effect MCP server", () => {
       ),
     ).rejects.toThrow();
     expect(client.posts.archive).not.toHaveBeenCalled();
+    await expect(
+      runTool(client, (toolkit) =>
+        toolkit.handle("posts_revision_restore", {
+          id,
+          revisionId: "not-a-uuid",
+        }),
+      ),
+    ).rejects.toThrow();
+    expect(client.posts.restore).not.toHaveBeenCalled();
   });
 
   it("preserves SDK error messages and falls back for unknown failures", async () => {

@@ -18,6 +18,7 @@ export default async function NewPostPage({
     <Editor
       canPublish={hasPermission(context.role, "content:publish")}
       saved={false}
+      restored={false}
       error={query.error}
       authors={authors.map(({ id, name }) => ({ id, name }))}
       categories={categories.map(({ id, name }) => ({ id, name }))}
@@ -40,6 +41,7 @@ export default async function NewPostPage({
         focusKeyword: "",
         canonicalUrl: "",
         scheduledAt: "",
+        revisions: [],
       }}
     />
   );

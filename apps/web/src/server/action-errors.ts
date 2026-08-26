@@ -6,6 +6,7 @@ export type ActionBoundaryError =
   | SessionErrors.AuthenticationRequired
   | PostErrors.InvalidPost
   | PostErrors.PostNotFound
+  | PostErrors.PostRevisionNotFound
   | BlogErrors.BlogNotFound
   | BlogErrors.InvalidBlogSettings
   | ({ readonly _tag: string } & Error);
@@ -21,6 +22,7 @@ export function actionErrorRedirect(
     case "InvalidBlogSettings":
       return `${fallbackPath}?error=${encodeURIComponent(error.message)}`;
     case "PostNotFound":
+    case "PostRevisionNotFound":
     case "BlogNotFound":
       return `${fallbackPath}?error=${encodeURIComponent(error.message)}`;
     default:

@@ -11,6 +11,7 @@ import {
   paginatedPosts,
   postCreateInput,
   postOutput,
+  postRevisionOutput,
   postStatus,
   postUpdateInput,
 } from "./schemas.ts";
@@ -20,6 +21,7 @@ export const apiErrorStatusByTag = {
   ApiAuthenticationFailed: 401,
   ApiAccessDenied: 403,
   ApiPostNotFound: 404,
+  ApiRevisionNotFound: 404,
   ApiUnavailable: 500,
 } as const;
 
@@ -54,6 +56,12 @@ export class ApiPostNotFound extends Schema.TaggedError<ApiPostNotFound>()(
   { httpApiStatus: apiErrorStatusByTag.ApiPostNotFound },
 ) {}
 
+export class ApiRevisionNotFound extends Schema.TaggedError<ApiRevisionNotFound>()(
+  "ApiRevisionNotFound",
+  { message: Schema.String },
+  { httpApiStatus: apiErrorStatusByTag.ApiRevisionNotFound },
+) {}
+
 export class ApiUnavailable extends Schema.TaggedError<ApiUnavailable>()(
   "ApiUnavailable",
   { message: Schema.String },
@@ -65,10 +73,12 @@ export const apiErrors = [
   ApiAuthenticationFailed,
   ApiAccessDenied,
   ApiPostNotFound,
+  ApiRevisionNotFound,
   ApiUnavailable,
 ] as const;
 
 export const privateApiPostId = Schema.String.check(Schema.isUUID());
+export const privateApiRevisionId = Schema.String.check(Schema.isUUID());
 export const privateApiPageNumber = Schema.FiniteFromString.pipe(
   Schema.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(1)),
 );
@@ -143,6 +153,31 @@ const posts = HttpApiGroup.make("posts")
       success: Schema.Struct({ ok: Schema.Literal(true) }),
       error: apiErrors,
     }).annotate(OpenApi.Summary, "Archive a post"),
+  )
+  .add(
+    HttpApiEndpoint.get(
+      "listRevisions",
+      `${privateApiPaths.posts}/:id/revisions`,
+      {
+        params: { id: privateApiPostId },
+        success: Schema.Array(postRevisionOutput),
+        error: apiErrors,
+      },
+    ).annotate(OpenApi.Summary, "List post revisions"),
+  )
+  .add(
+    HttpApiEndpoint.post(
+      "restoreRevision",
+      `${privateApiPaths.posts}/:id/revisions/:revisionId/restore`,
+      {
+        params: {
+          id: privateApiPostId,
+          revisionId: privateApiRevisionId,
+        },
+        success: postOutput,
+        error: apiErrors,
+      },
+    ).annotate(OpenApi.Summary, "Restore a post revision"),
   );
 
 export const api = HttpApi.make("ProsewireApi")
