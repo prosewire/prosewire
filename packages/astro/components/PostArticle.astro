@@ -14,9 +14,13 @@ const jsonLd = {
   "@type": "BlogPosting",
   headline: post.title,
   description: post.excerpt,
+  image: post.coverImageUrl,
+  inLanguage: post.locale,
   datePublished: post.publishedAt,
   dateModified: post.updatedAt,
   mainEntityOfPage: canonicalUrl,
+  articleSection: post.categories.map((category) => category.name),
+  keywords: post.categories.map((category) => category.name).join(", "),
   author: { "@type": "Person", name: post.author.name },
   publisher: { "@type": "Organization", name: blog.name },
 };

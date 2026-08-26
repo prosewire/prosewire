@@ -17,6 +17,8 @@ export default async function NewPostPage({
   return (
     <Editor
       canPublish={hasPermission(context.role, "content:publish")}
+      publicationName={blog.name}
+      publicationUrl={blog.publicUrl ?? `/b/${blog.slug}`}
       saved={false}
       restored={false}
       error={query.error}

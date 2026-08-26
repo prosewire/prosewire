@@ -1,5 +1,6 @@
 import type { PublicPost } from "@prosewire/sdk";
 import Link from "next/link";
+import { postJsonLd } from "./metadata.ts";
 import { type IndexPageProps, type PostPageProps, postPath } from "./shared.ts";
 
 function queryHref(
@@ -117,17 +118,7 @@ export function ProsewirePost({
   canonicalUrl,
 }: PostPageProps) {
   const date = publishedDate(post);
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "BlogPosting",
-    headline: post.title,
-    description: post.excerpt,
-    datePublished: post.publishedAt,
-    dateModified: post.updatedAt,
-    mainEntityOfPage: canonicalUrl,
-    author: { "@type": "Person", name: post.author.name },
-    publisher: { "@type": "Organization", name: blog.name },
-  };
+  const jsonLd = postJsonLd(blog, post, canonicalUrl);
   return (
     <main className="pw-root pw-post" data-prosewire="post">
       <script

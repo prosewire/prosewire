@@ -26,6 +26,8 @@ export default async function EditPostPage({
   return (
     <Editor
       canPublish={canPublish}
+      publicationName={blog.name}
+      publicationUrl={blog.publicUrl ?? `/b/${blog.slug}`}
       saved={query.saved === "1"}
       restored={query.restored === "1"}
       error={query.error}

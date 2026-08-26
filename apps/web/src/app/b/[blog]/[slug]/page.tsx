@@ -25,11 +25,44 @@ export async function generateMetadata({
   const canonical =
     post.canonicalUrl ??
     (blog.publicUrl ? `${blog.publicUrl}/${post.slug}` : undefined);
+  const title = post.seoTitle ?? post.title;
+  const description = post.seoDescription ?? post.excerpt;
+  const categories = post.categories.map((entry) => entry.category.name);
   return {
-    title: post.seoTitle ?? post.title,
-    description: post.seoDescription ?? post.excerpt,
+    title,
+    description,
     alternates: { canonical },
     authors: [{ name: post.author.name }],
+    openGraph: {
+      type: "article",
+      title,
+      description,
+      siteName: blog.name,
+      locale: post.locale,
+      modifiedTime: post.updatedAt.toISOString(),
+      authors: [post.author.name],
+      tags: categories,
+      ...(canonical ? { url: canonical } : {}),
+      ...(post.publishedAt
+        ? { publishedTime: post.publishedAt.toISOString() }
+        : {}),
+      ...(post.coverImageUrl
+        ? {
+            images: [
+              {
+                url: post.coverImageUrl,
+                alt: post.coverImageAlt || post.title,
+              },
+            ],
+          }
+        : {}),
+    },
+    twitter: {
+      card: post.coverImageUrl ? "summary_large_image" : "summary",
+      title,
+      description,
+      ...(post.coverImageUrl ? { images: [post.coverImageUrl] } : {}),
+    },
   };
 }
 
@@ -69,6 +102,10 @@ export default async function PublicPostPage({
     datePublished: post.publishedAt?.toISOString(),
     dateModified: post.updatedAt.toISOString(),
     mainEntityOfPage: canonical,
+    image: post.coverImageUrl,
+    inLanguage: post.locale,
+    articleSection: post.categories.map((entry) => entry.category.name),
+    keywords: post.categories.map((entry) => entry.category.name).join(", "),
     author: {
       "@type": "Person",
       name: post.author.name,

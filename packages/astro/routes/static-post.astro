@@ -8,6 +8,7 @@ import {
 /// <reference path="../virtual.d.ts" />
 import { createPublicClient, type PublicPostResolution } from "@prosewire/sdk";
 import PostArticle from "../components/PostArticle.astro";
+import PostMetadata from "../components/PostMetadata.astro";
 
 export async function getStaticPaths() {
   const client = createPublicClient({ baseUrl, blog: publication });
@@ -47,9 +48,7 @@ const canonicalUrl =
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width" />
-    <title>{result.post.seoTitle ?? result.post.title}</title>
-    <meta name="description" content={result.post.seoDescription ?? result.post.excerpt} />
-    {canonicalUrl && <link rel="canonical" href={canonicalUrl} />}
+    <PostMetadata blog={result.blog} post={result.post} canonicalUrl={canonicalUrl} />
   </head>
   <body><PostArticle blog={result.blog} post={result.post} basePath={basePath} canonicalUrl={canonicalUrl} /></body>
 </html>
