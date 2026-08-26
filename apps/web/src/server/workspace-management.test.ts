@@ -118,6 +118,38 @@ describe.skipIf(!databaseUrl)(
         ),
       );
 
+    it.effect("detects self-hosted installation data", () =>
+      Effect.gen(function* () {
+        const management = yield* WorkspaceManagement.Service;
+
+        expect(yield* management.hasWorkspace()).toBe(false);
+        expect(yield* management.hasInstallation()).toBe(false);
+
+        yield* Effect.promise(() =>
+          testDatabase.client.insert(schema.organization).values({
+            id: organizationId,
+            name: "Existing workspace",
+            slug: "existing-workspace",
+          }),
+        );
+        expect(yield* management.hasWorkspace()).toBe(true);
+        expect(yield* management.hasInstallation()).toBe(true);
+
+        yield* Effect.promise(async () => {
+          await testDatabase.client
+            .delete(schema.organization)
+            .where(eq(schema.organization.id, organizationId));
+          await testDatabase.client.insert(schema.user).values({
+            id: actor.id,
+            email: actor.email,
+            name: actor.name,
+          });
+        });
+        expect(yield* management.hasWorkspace()).toBe(false);
+        expect(yield* management.hasInstallation()).toBe(true);
+      }).pipe(Effect.provide(layer())),
+    );
+
     it.effect("allows only one concurrent self-hosted bootstrap", () =>
       Effect.gen(function* () {
         const secondActor = {
