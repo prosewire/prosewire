@@ -448,7 +448,7 @@ export function Editor({
               }}
               placeholder="Give this post a clear title…"
               rows={1}
-              className="display-font min-h-[1.1em] w-full resize-none overflow-hidden border-0 bg-transparent text-4xl leading-[1.06] outline-none [field-sizing:content] placeholder:text-[#c4c7c2] sm:text-5xl"
+              className="display-font min-h-[1.1em] w-full resize-none overflow-hidden border-0 bg-transparent text-4xl leading-[1.06] outline-none [field-sizing:content] placeholder:text-[#c4c7c2] xl:text-5xl"
               required
               autoFocus={!post.id}
             />

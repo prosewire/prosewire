@@ -282,12 +282,9 @@ export function TiptapMarkdownEditor({
         type="button"
         aria-label="Open block menu"
         onClick={() => {
-          const bounds = wrapperRef.current?.getBoundingClientRect();
-          if (!bounds) return;
+          if (!wrapperRef.current) return;
           editor.chain().focus().run();
-          requestAnimationFrame(() =>
-            setSlashMenu({ left: 0, top: bounds.height - 18 }),
-          );
+          requestAnimationFrame(() => setSlashMenu({ left: 0, top: 36 }));
         }}
         className="absolute -left-10 top-1 hidden size-7 place-items-center rounded-lg text-[#9aa1a4] transition hover:bg-[#f0f1ed] hover:text-[#172329] sm:grid"
       >
