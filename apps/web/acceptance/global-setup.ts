@@ -182,6 +182,7 @@ export default async function globalSetup(): Promise<void> {
         name: "Acceptance Fieldnotes",
         slug: acceptance.blog.slug,
         description: "Postgres-backed publishing acceptance fixtures.",
+        customCss: ":root{--acceptance-custom-css:1}",
       },
       {
         id: acceptance.otherBlog.id,

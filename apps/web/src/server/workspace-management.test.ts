@@ -12,7 +12,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { Effect, Layer, Redacted } from "effect";
 import { BlogAccess } from "./authorization.ts";
 import { WebConfig } from "./config.ts";
-import { testDatabaseLayer } from "./database.test-support.ts";
+import { databaseLayer } from "./database-test-support.ts";
 import { InvitationId, OrganizationId, UserId } from "./domain.ts";
 import { PlatformCrypto } from "./platform-crypto.ts";
 import {
@@ -101,7 +101,7 @@ describe.skipIf(!databaseUrl)(
       WorkspaceManagement.live.pipe(
         Layer.provide(
           Layer.mergeAll(
-            testDatabaseLayer(testDatabase.client),
+            databaseLayer(testDatabase.client),
             Layer.mock(BlogAccess.Service, {}),
             PlatformCrypto.layer,
             Layer.succeed(WebConfig, {

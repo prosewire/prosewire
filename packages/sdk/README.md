@@ -2,7 +2,7 @@
 
 Typed clients for Prosewire's authenticated management API and public content API.
 
-The package is on the `0.2.x` release line. Pin a compatible version and review the changelog before upgrading while the public contract is pre-1.0.
+The package is pre-1.0. Pin a compatible version and review the changelog before upgrading.
 
 Full guide: [Build a native reader with TypeScript](https://prosewire.com/docs/integrate/typescript/)
 
@@ -49,7 +49,7 @@ Public clients need no key and only return published content whose publication t
 
 ## Manage a publication
 
-Create a publication-scoped API key in **Settings → Developer** and keep it on a trusted server:
+Create a publication-scoped API key in **Integrate → Scoped API keys** and keep it on a trusted server:
 
 ```ts
 import { createClient } from "@prosewire/sdk";
@@ -70,6 +70,8 @@ Available Promise operations are:
 - `posts.update()` and `posts.archive()`
 
 Management keys are publication-scoped. Reads require `content:read`; create, update, and archive require `content:write`. Never expose a management key in browser JavaScript.
+
+The optional `blog` value on `posts.list()` is a safety assertion. It must match the API key's publication slug or UUID; it cannot select another publication.
 
 For Effect applications, `createEffectClient` exposes the same operations as
 typed Effects. `createClient` is the Promise-compatible facade for existing

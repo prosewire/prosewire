@@ -1,7 +1,4 @@
 ---
-/// <reference path="../virtual.d.ts" />
-import { createPublicClient, type PublicPostResolution } from "@prosewire/sdk";
-import PostArticle from "../components/PostArticle.astro";
 import {
   basePath,
   baseUrl,
@@ -9,6 +6,9 @@ import {
   revalidate,
   siteUrl,
 } from "virtual:prosewire/config";
+/// <reference path="../virtual.d.ts" />
+import { createPublicClient, type PublicPostResolution } from "@prosewire/sdk";
+import PostArticle from "../components/PostArticle.astro";
 
 const client = createPublicClient({ baseUrl, blog: publication });
 const result: PublicPostResolution = await client.resolvePost(

@@ -1,18 +1,20 @@
 import type { Db } from "@prosewire/db/client";
 import { Effect, Layer, Redacted } from "effect";
 import { WebConfig } from "./config.ts";
-import { Database, DatabaseError } from "./database.ts";
+import { Database, DatabaseError, type DatabaseShape } from "./database.ts";
 
 export const databaseUrl = process.env["DATABASE_URL"];
 
 export function databaseLayer(client: Db) {
+  const execute: DatabaseShape["execute"] = (operation, evaluate) =>
+    Effect.tryPromise({
+      try: () => evaluate(client),
+      catch: (cause) => new DatabaseError({ operation, cause }),
+    });
+
   return Layer.succeed(Database, {
     client: Effect.succeed(client),
-    execute: (operation, evaluate) =>
-      Effect.tryPromise({
-        try: () => evaluate(client),
-        catch: (cause) => new DatabaseError({ operation, cause }),
-      }),
+    execute,
   });
 }
 

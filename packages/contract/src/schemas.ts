@@ -7,7 +7,9 @@ const withDefault = <S extends Schema.Constraint>(
 
 const uuid = Schema.String.check(Schema.isUUID());
 const isoDateTime = Schema.String.check(
-  Schema.isPattern(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/),
+  Schema.isPattern(
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/,
+  ),
 );
 const url = Schema.String.check(
   Schema.isPattern(/^[a-z][a-z\d+.-]*:\/\/\S+$/i),
@@ -77,21 +79,15 @@ const slug = Schema.Trim.pipe(
 const excerpt = Schema.String.check(Schema.isMaxLength(500));
 const contentMarkdown = Schema.String;
 const coverImageUrl = nullable(url);
-const coverImageAlt = nullable(
-  Schema.String.check(Schema.isMaxLength(180)),
-);
+const coverImageAlt = nullable(Schema.String.check(Schema.isMaxLength(180)));
 const locale = Schema.String.check(
   Schema.isMinLength(2),
   Schema.isMaxLength(10),
 );
 const featured = Schema.Boolean;
 const seoTitle = nullable(Schema.String.check(Schema.isMaxLength(70)));
-const seoDescription = nullable(
-  Schema.String.check(Schema.isMaxLength(180)),
-);
-const focusKeyword = nullable(
-  Schema.String.check(Schema.isMaxLength(120)),
-);
+const seoDescription = nullable(Schema.String.check(Schema.isMaxLength(180)));
+const focusKeyword = nullable(Schema.String.check(Schema.isMaxLength(120)));
 const canonicalUrl = nullable(url);
 const scheduledAt = nullable(isoDateTime);
 const categoryIds = Schema.Array(uuid);

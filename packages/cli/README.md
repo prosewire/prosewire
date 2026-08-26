@@ -2,7 +2,7 @@
 
 Command-line access to Prosewire public content and publishing operations.
 
-The package is on the `0.2.x` release line and requires Node.js 24 or newer.
+The package is pre-1.0 and requires Node.js 24 or newer. Pin a compatible version and review the changelog before upgrading.
 
 Full guide: [Automate publishing with the CLI](https://prosewire.com/docs/integrate/cli/)
 
@@ -32,7 +32,7 @@ prosewire archive 00000000-0000-4000-8000-000000000000 --yes
 `posts` and `get` are read-only and use the public content API. `create` and
 `update` mutate content and require `PROSEWIRE_API_KEY` (or `--key`). `archive`
 is destructive, requires a write-scoped key, and refuses to run without `--yes`.
-Create keys in **Settings → Developer** and avoid shell history or committed
+Create keys in **Integrate → Scoped API keys** and avoid shell history or committed
 environment files when supplying them.
 
 `create --data` expects a JSON object with `blogId`, `authorId`, `title`, and `slug`; other fields follow the management post-create contract. `update <id> --data` accepts a partial post object. Both identifiers are UUIDs. The current management API does not expose a standalone author-list endpoint, so resolve author IDs from an existing authenticated post response or portable export.

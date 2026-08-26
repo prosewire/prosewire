@@ -11,6 +11,7 @@ import {
 import { hasPermission } from "@prosewire/core";
 import Link from "next/link";
 import { switchPublication, switchWorkspace } from "@/server/actions";
+import { DashboardNavLink } from "./dashboard-nav-link";
 import type { DashboardShellProps } from "./dashboard-shell-types";
 import { Logo } from "./logo";
 import { SignOutButton } from "./sign-out-button";
@@ -99,15 +100,11 @@ export function DashboardSidebar({
       </div>
 
       <nav className="mt-6 space-y-1">
-        {primary.map((item, index) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition hover:bg-white ${index === 0 ? "bg-white text-[#172329] shadow-sm" : "text-[#687279]"}`}
-          >
+        {primary.map((item) => (
+          <DashboardNavLink key={item.href} href={item.href}>
             <item.icon className="size-4" />
             {item.label}
-          </Link>
+          </DashboardNavLink>
         ))}
       </nav>
 
@@ -116,23 +113,16 @@ export function DashboardSidebar({
       </div>
       <nav className="mt-2 space-y-1">
         {manage.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[#687279] transition hover:bg-white hover:text-[#172329]"
-          >
+          <DashboardNavLink key={item.href} href={item.href}>
             <item.icon className="size-4" />
             {item.label}
-          </Link>
+          </DashboardNavLink>
         ))}
         {hasPermission(role, "audit:read") ? (
-          <Link
-            href="/audit"
-            className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[#687279] transition hover:bg-white hover:text-[#172329]"
-          >
+          <DashboardNavLink href="/audit">
             <ClockCounterClockwise className="size-4" />
             Audit history
-          </Link>
+          </DashboardNavLink>
         ) : null}
       </nav>
 

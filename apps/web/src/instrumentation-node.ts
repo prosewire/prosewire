@@ -1,5 +1,5 @@
-import { Effect, Redacted, Schema } from "effect";
 import { runMigrations, withDatabaseAdvisoryLock } from "@prosewire/db";
+import { Effect, Redacted, Schema } from "effect";
 import { makeBootstrapRuntime } from "./server/bootstrap-runtime.ts";
 import { WebConfig } from "./server/config.ts";
 import { Seed } from "./server/seed.ts";
@@ -23,7 +23,9 @@ const attempt = <A>(
 
 const bootstrapEffect = Effect.fn("WebInstrumentation.bootstrap")(function* () {
   const config = yield* WebConfig;
-  yield* attempt("migrate", () => runMigrations(Redacted.value(config.databaseUrl)));
+  yield* attempt("migrate", () =>
+    runMigrations(Redacted.value(config.databaseUrl)),
+  );
   const seed = yield* Seed.Service;
   yield* seed.initialData();
 });
@@ -32,9 +34,8 @@ export async function registerNode(): Promise<void> {
   const runtime = makeBootstrapRuntime();
   try {
     const config = await runtime.runPromise(WebConfig);
-    await withDatabaseAdvisoryLock(
-      Redacted.value(config.databaseUrl),
-      () => runtime.runPromise(bootstrapEffect()),
+    await withDatabaseAdvisoryLock(Redacted.value(config.databaseUrl), () =>
+      runtime.runPromise(bootstrapEffect()),
     );
   } finally {
     await runtime.dispose();

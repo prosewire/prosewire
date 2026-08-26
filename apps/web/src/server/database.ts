@@ -1,5 +1,5 @@
+import { type Db, type DbResource, openDb } from "@prosewire/db/client";
 import { Context, Effect, Layer, Redacted, Schema, Scope } from "effect";
-import { openDb, type Db, type DbResource } from "@prosewire/db/client";
 import { WebConfig } from "./config.ts";
 
 export class DatabaseError extends Schema.TaggedError<DatabaseError>()(
@@ -51,7 +51,9 @@ export class Database extends Context.Service<Database, DatabaseShape>()(
               ),
           ).pipe(Effect.provideService(Scope.Scope, scope)),
         );
-        const client = getResource.pipe(Effect.map((resource) => resource.client));
+        const client = getResource.pipe(
+          Effect.map((resource) => resource.client),
+        );
         const execute: DatabaseShape["execute"] = (operation, evaluate) =>
           Effect.flatMap(client, (client) =>
             Effect.tryPromise({

@@ -15,7 +15,7 @@ The MCP server supports Node.js 24 or newer and communicates over stdio.
 
 ## Configure a client
 
-Create a publication-scoped key in **Settings → Developer**. Start with
+Create a publication-scoped key in **Integrate → Scoped API keys**. Start with
 `content:read`; add `content:write` only when the client must change content.
 
 ```json
@@ -46,4 +46,4 @@ Restart the MCP client after changing the command or environment. If the server 
 
 The server advertises read-only, idempotent, destructive, and approval metadata to MCP clients. Client support for those annotations varies, so confirm the target post and intended change before approving any mutation, especially an archive.
 
-The API key determines the publication boundary. The optional `blog` argument on `posts_list` cannot broaden that boundary to another publication.
+The API key determines the publication boundary. The optional `blog` argument on `posts_list` asserts that its slug or UUID matches the key's publication; a mismatch is rejected.

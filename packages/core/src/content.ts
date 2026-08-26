@@ -47,7 +47,9 @@ function uniqueId(label: string, counts: Map<string, number>): string {
   return count === 1 ? base : `${base}-${count}`;
 }
 
-export function contentHeadings(markdown: string): ReadonlyArray<ContentHeading> {
+export function contentHeadings(
+  markdown: string,
+): ReadonlyArray<ContentHeading> {
   const counts = new Map<string, number>();
   return (markdown.match(/^#{2,3}\s+.+$/gm) ?? []).map((heading) => {
     const level = heading.startsWith("###") ? 3 : 2;

@@ -12,8 +12,8 @@ import { openTestDatabase, type TestDatabase } from "@prosewire/db/testing";
 import { eq } from "drizzle-orm";
 import { Effect, Layer } from "effect";
 import { ApiAccess } from "./api-access.ts";
-import { testDatabaseLayer } from "./database.test-support.ts";
 import { Database, DatabaseError } from "./database.ts";
+import { databaseLayer } from "./database-test-support.ts";
 import { PlatformCrypto } from "./platform-crypto.ts";
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -104,9 +104,7 @@ describe.skipIf(!databaseUrl)("API key scopes with PostgreSQL", () => {
           .where(eq(schema.apiKey.id, "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")),
       );
       expect(persistedKey?.lastUsedAt).toBeNull();
-    }).pipe(
-      Effect.provide(accessLayer(testDatabaseLayer(testDatabase.client))),
-    ),
+    }).pipe(Effect.provide(accessLayer(databaseLayer(testDatabase.client)))),
   );
 
   it.effect("rejects mutation access for read-only keys", () =>
@@ -116,8 +114,6 @@ describe.skipIf(!databaseUrl)("API key scopes with PostgreSQL", () => {
         access.authenticate(token, "content:write"),
       );
       expect(denied._tag).toBe("ApiScopeDenied");
-    }).pipe(
-      Effect.provide(accessLayer(testDatabaseLayer(testDatabase.client))),
-    ),
+    }).pipe(Effect.provide(accessLayer(databaseLayer(testDatabase.client)))),
   );
 });

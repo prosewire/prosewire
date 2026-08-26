@@ -50,7 +50,7 @@ Public queries only return published content whose publication time has arrived.
 
 ## Use the management API
 
-Create a publication-scoped API key in **Settings → Developer**. Keep it in a
+Create a publication-scoped API key in **Integrate → Scoped API keys**. Keep it in a
 server-only environment variable and grant only the scopes the application needs.
 
 ```dotenv
@@ -71,6 +71,10 @@ const drafts = await management.posts.list({ status: "draft" });
 
 Never expose a management key in browser JavaScript. Public content clients do
 not need authentication.
+
+The optional `blog` value on `posts.list()` asserts that the key belongs to the
+given publication slug or UUID. A mismatch is rejected rather than selecting a
+different publication.
 
 The Promise client exposes these management operations:
 

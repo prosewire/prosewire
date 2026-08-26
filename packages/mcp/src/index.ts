@@ -64,7 +64,7 @@ program.pipe(
       new McpProcessError({
         message:
           error instanceof Config.ConfigError
-            ? "PROSEWIRE_API_KEY is required. Create one in Settings → Developer."
+            ? "PROSEWIRE_API_KEY is required. Create one in Integrate → Scoped API keys."
             : error instanceof Error
               ? error.message
               : "The Prosewire MCP server stopped unexpectedly.",

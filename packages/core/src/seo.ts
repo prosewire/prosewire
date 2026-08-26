@@ -55,28 +55,106 @@ export function analyzeSeo(input: SeoInput): SeoAnalysis {
   const links = input.markdown.match(/\[[^\]]+\]\([^)]+\)/g) ?? [];
   const internalLinks = links.filter((link) => /\]\((\/|#)/.test(link));
   const keyword = input.focusKeyword?.trim().toLowerCase();
-  const lowered = `${input.title} ${input.description ?? ""} ${text}`.toLowerCase();
+  const lowered =
+    `${input.title} ${input.description ?? ""} ${text}`.toLowerCase();
   const keywordHits = keyword ? lowered.split(keyword).length - 1 : 0;
   const titleLength = input.title.trim().length;
   const descriptionLength = input.description?.trim().length ?? 0;
-  const hasQuestionHeading = headings.some((heading) => /\?|\b(how|what|why|when|where)\b/i.test(heading));
+  const hasQuestionHeading = headings.some((heading) =>
+    /\?|\b(how|what|why|when|where)\b/i.test(heading),
+  );
   const hasList = /^(\s*[-*+]\s+|\s*\d+\.\s+)/m.test(input.markdown);
-  const hasDefinition = /\b(is|means|refers to|defined as)\b/i.test(text.slice(0, 500));
+  const hasDefinition = /\b(is|means|refers to|defined as)\b/i.test(
+    text.slice(0, 500),
+  );
 
   const checks: SeoCheck[] = [
-    check("title", "Search title", titleLength >= 30 && titleLength <= 60, 15, `${titleLength} characters`, "Aim for 30–60 characters", titleLength > 0),
-    check("description", "Meta description", descriptionLength >= 120 && descriptionLength <= 160, 15, `${descriptionLength} characters`, "Aim for 120–160 characters", descriptionLength > 0),
-    check("length", "Useful depth", words.length >= 600, 15, `${words.length} words`, "Add enough detail to answer the reader fully", words.length >= 300),
-    check("structure", "Scannable structure", headings.length >= 3, 10, `${headings.length} section headings`, "Add at least three H2/H3 headings", headings.length > 0),
-    check("keyword", "Focus phrase", Boolean(keyword && keywordHits >= 2), 15, keyword ? `Used ${keywordHits} times` : "Focus phrase set", keyword ? "Use the focus phrase naturally in the title and copy" : "Choose a focus phrase", Boolean(keyword && keywordHits > 0)),
-    check("images", "Accessible images", images.length === 0 || images.length === imagesWithAlt.length, 10, images.length ? "Every image has alt text" : "No images to check", "Add descriptive alt text to every image"),
-    check("links", "Helpful internal links", internalLinks.length >= 1, 10, `${internalLinks.length} internal link${internalLinks.length === 1 ? "" : "s"}`, "Add a relevant link to another post", links.length > 0),
-    check("slug", "Clean URL", Boolean(input.slug && input.slug.length <= 75 && !input.slug.includes("_")), 10, input.slug ?? "Clean slug", "Use a short, readable slug", Boolean(input.slug)),
+    check(
+      "title",
+      "Search title",
+      titleLength >= 30 && titleLength <= 60,
+      15,
+      `${titleLength} characters`,
+      "Aim for 30–60 characters",
+      titleLength > 0,
+    ),
+    check(
+      "description",
+      "Meta description",
+      descriptionLength >= 120 && descriptionLength <= 160,
+      15,
+      `${descriptionLength} characters`,
+      "Aim for 120–160 characters",
+      descriptionLength > 0,
+    ),
+    check(
+      "length",
+      "Useful depth",
+      words.length >= 600,
+      15,
+      `${words.length} words`,
+      "Add enough detail to answer the reader fully",
+      words.length >= 300,
+    ),
+    check(
+      "structure",
+      "Scannable structure",
+      headings.length >= 3,
+      10,
+      `${headings.length} section headings`,
+      "Add at least three H2/H3 headings",
+      headings.length > 0,
+    ),
+    check(
+      "keyword",
+      "Focus phrase",
+      Boolean(keyword && keywordHits >= 2),
+      15,
+      keyword ? `Used ${keywordHits} times` : "Focus phrase set",
+      keyword
+        ? "Use the focus phrase naturally in the title and copy"
+        : "Choose a focus phrase",
+      Boolean(keyword && keywordHits > 0),
+    ),
+    check(
+      "images",
+      "Accessible images",
+      images.length === 0 || images.length === imagesWithAlt.length,
+      10,
+      images.length ? "Every image has alt text" : "No images to check",
+      "Add descriptive alt text to every image",
+    ),
+    check(
+      "links",
+      "Helpful internal links",
+      internalLinks.length >= 1,
+      10,
+      `${internalLinks.length} internal link${internalLinks.length === 1 ? "" : "s"}`,
+      "Add a relevant link to another post",
+      links.length > 0,
+    ),
+    check(
+      "slug",
+      "Clean URL",
+      Boolean(
+        input.slug && input.slug.length <= 75 && !input.slug.includes("_"),
+      ),
+      10,
+      input.slug ?? "Clean slug",
+      "Use a short, readable slug",
+      Boolean(input.slug),
+    ),
   ];
 
   const earned = checks.reduce((sum, item) => sum + item.points, 0);
   const total = checks.reduce((sum, item) => sum + item.maxPoints, 0);
-  const mentionSignals = [headings.length >= 3, hasQuestionHeading, hasList, hasDefinition, words.length >= 500];
+  const mentionSignals = [
+    headings.length >= 3,
+    hasQuestionHeading,
+    hasList,
+    hasDefinition,
+    words.length >= 500,
+  ];
 
   return {
     score: Math.round((earned / total) * 100),

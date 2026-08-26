@@ -153,9 +153,20 @@ test.describe
       await expect(
         page.getByRole("heading", { name: "Acceptance Published" }),
       ).toBeVisible();
+      await expect(page.getByRole("link", { name: "About" })).toHaveAttribute(
+        "href",
+        `/b/${acceptance.blog.slug}/authors/${acceptance.author.slug}`,
+      );
       expect(
         await page.locator('script[type="application/ld+json"]').textContent(),
       ).toContain('"@type":"BlogPosting"');
+
+      await page.goto(
+        `/b/${acceptance.blog.slug}/authors/${acceptance.author.slug}`,
+      );
+      expect(await page.locator("body style").textContent()).toContain(
+        "--acceptance-custom-css:1",
+      );
 
       await page.setContent(
         `<div data-prosewire="${acceptance.blog.slug}"></div><script data-blog="${acceptance.blog.slug}" data-path="acceptance-published" src="/embed.js"></script>`,
@@ -188,6 +199,27 @@ test.describe
       expect(initial.items.map((post) => post.title)).not.toContain(
         "Other Tenant Secret",
       );
+      await expect(
+        client.posts.list({
+          blog: acceptance.blog.slug,
+          page: 1,
+          pageSize: 100,
+        }),
+      ).resolves.toMatchObject({ total: initial.total });
+      await expect(
+        client.posts.list({
+          blog: acceptance.blog.id,
+          page: 1,
+          pageSize: 100,
+        }),
+      ).resolves.toMatchObject({ total: initial.total });
+      await expect(
+        client.posts.list({
+          blog: acceptance.otherBlog.slug,
+          page: 1,
+          pageSize: 100,
+        }),
+      ).rejects.toThrow();
       expect(
         (await otherTenant.posts.list({ page: 1, pageSize: 100 })).items,
       ).toHaveLength(1);
@@ -264,8 +296,23 @@ test.describe
         { redirect: "manual" },
       );
       expect(rawRedirect.status).toBe(301);
-      expect(rawRedirect.headers.get("location")).toContain(
+      expect(rawRedirect.headers.get("location")).toBe(
         `/api/public/${acceptance.blog.slug}/posts/lifecycle-published`,
+      );
+      const renderedRedirect = await fetch(
+        `${baseUrl}/api/rendered/${acceptance.blog.slug}/lifecycle-acceptance`,
+        { redirect: "manual" },
+      );
+      expect(renderedRedirect.status).toBe(301);
+      expect(renderedRedirect.headers.get("location")).toBe(
+        `/api/rendered/${acceptance.blog.slug}/lifecycle-published`,
+      );
+      await page.goto(`/b/${acceptance.blog.slug}`);
+      await page.setContent(
+        `<div data-prosewire="${acceptance.blog.slug}"></div><script data-blog="${acceptance.blog.slug}" data-path="lifecycle-acceptance" src="/embed.js"></script>`,
+      );
+      await expect(page.locator("[data-prosewire]")).toContainText(
+        "Lifecycle Acceptance",
       );
       await page.goto(`/b/${acceptance.blog.slug}/lifecycle-acceptance`);
       await expect(page).toHaveURL(
@@ -406,6 +453,9 @@ test.describe
         await expect(owner).toHaveURL(/\/dashboard$/);
         await owner.goto("/posts");
         await expect(
+          owner.locator('a[href="/posts"][aria-current="page"]:visible'),
+        ).toBeVisible();
+        await expect(
           owner.getByRole("link", { name: "New post" }),
         ).toBeVisible();
         await expect(
@@ -417,6 +467,15 @@ test.describe
         await expect(
           owner.getByText("Other Tenant Secret", { exact: true }),
         ).toHaveCount(0);
+        await owner.goto("/integrate");
+        await expect(
+          owner.locator('a[href="/integrate"][aria-current="page"]:visible'),
+        ).toBeVisible();
+        await owner.setViewportSize({ width: 390, height: 844 });
+        await owner.locator('summary[aria-label="Open navigation"]').click();
+        await expect(
+          owner.locator('a[href="/integrate"][aria-current="page"]:visible'),
+        ).toBeVisible();
 
         await owner.setViewportSize({ width: 1440, height: 900 });
         await owner.goto("/posts/new");

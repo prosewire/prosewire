@@ -4,6 +4,15 @@
     "paths": { "@/*": ["./src/*"] },
     "types": ["node"]
   },
-  "include": ["next-env.d.ts", "next.config.ts", "playwright.config.ts", "acceptance/**/*.ts", "acceptance/**/*.mjs", "src/**/*.ts", "src/**/*.tsx", ".next/types/**/*.ts"],
+  "include": [
+    "next-env.d.ts",
+    "next.config.ts",
+    "playwright.config.ts",
+    "acceptance/**/*.ts",
+    "acceptance/**/*.mjs",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
   "exclude": ["node_modules"]
 }

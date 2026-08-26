@@ -9,10 +9,7 @@ const bootstrapLockId = 4_921_850_732;
 
 export interface AdvisoryLockClient {
   readonly connect: () => Promise<unknown>;
-  readonly query: (
-    text: string,
-    values?: Array<unknown>,
-  ) => Promise<unknown>;
+  readonly query: (text: string, values?: Array<unknown>) => Promise<unknown>;
   readonly end: () => Promise<void>;
 }
 
@@ -40,7 +37,10 @@ export async function withDatabaseAdvisoryLock<A>(
   }
 }
 
-export async function runMigrations(databaseUrl: string, migrationsFolder?: string): Promise<void> {
+export async function runMigrations(
+  databaseUrl: string,
+  migrationsFolder?: string,
+): Promise<void> {
   const pool = new Pool({ connectionString: databaseUrl });
   const database = drizzle(pool);
   const candidates = [
@@ -50,8 +50,12 @@ export async function runMigrations(databaseUrl: string, migrationsFolder?: stri
     path.resolve(process.cwd(), "../../packages/db/drizzle"),
     path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "drizzle"),
   ].filter((candidate): candidate is string => Boolean(candidate));
-  const folder = candidates.find((candidate) => existsSync(path.join(candidate, "meta", "_journal.json"))) ?? candidates[0];
-  if (!folder) throw new Error("Could not resolve the Drizzle migrations directory");
+  const folder =
+    candidates.find((candidate) =>
+      existsSync(path.join(candidate, "meta", "_journal.json")),
+    ) ?? candidates[0];
+  if (!folder)
+    throw new Error("Could not resolve the Drizzle migrations directory");
   try {
     await migrate(database, { migrationsFolder: folder });
   } finally {

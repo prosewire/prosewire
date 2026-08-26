@@ -1,8 +1,9 @@
-import mdx from "@astrojs/mdx";
 import { unified } from "@astrojs/markdown-remark";
+import mdx from "@astrojs/mdx";
 import react from "@astrojs/react";
 import sitemap from "@astrojs/sitemap";
 import tailwindcss from "@tailwindcss/vite";
+import { defineConfig } from "astro/config";
 import {
   rehypeCode,
   remarkCodeTab,
@@ -10,11 +11,12 @@ import {
   remarkNpm,
   remarkStructure,
 } from "fumadocs-core/mdx-plugins";
-import { defineConfig } from "astro/config";
 
 const site =
   process.env.SITE_URL ??
-  (process.env.WORKERS_CI === "1" ? "https://prosewire.com" : "http://localhost:4321");
+  (process.env.WORKERS_CI === "1"
+    ? "https://prosewire.com"
+    : "http://localhost:4321");
 
 export default defineConfig({
   site,
@@ -23,7 +25,12 @@ export default defineConfig({
   markdown: {
     syntaxHighlight: false,
     processor: unified({
-      remarkPlugins: [remarkHeading, remarkCodeTab, remarkNpm, [remarkStructure, { exportAs: "structuredData" }]],
+      remarkPlugins: [
+        remarkHeading,
+        remarkCodeTab,
+        remarkNpm,
+        [remarkStructure, { exportAs: "structuredData" }],
+      ],
       rehypePlugins: [rehypeCode],
     }),
   },

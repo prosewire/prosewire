@@ -2,27 +2,22 @@ import { Schema } from "effect";
 import {
   ApiInputRejected,
   ApiPostNotFound,
+  privateApiPaths,
+  privateApiPostId,
+  privateApiPostListQuery,
 } from "./router.ts";
 import {
-  postCreateInput,
-  postStatus,
-  postUpdateInput,
   type PostCreateInput,
   type PostStatus,
   type PostUpdateInput,
+  postCreateInput,
+  postUpdateInput,
 } from "./schemas.ts";
 
-const uuid = Schema.String.check(Schema.isUUID());
-const pageNumber = Schema.NumberFromString.pipe(
-  Schema.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(1)),
-);
-const pageSize = Schema.NumberFromString.pipe(
-  Schema.check(
-    Schema.isInt(),
-    Schema.isGreaterThanOrEqualTo(1),
-    Schema.isLessThanOrEqualTo(100),
-  ),
-);
+const path = (route: string) => `${privateApiPaths.prefix}${route}`;
+const healthPath = path(privateApiPaths.health);
+const blogsPath = path(privateApiPaths.blogs);
+const postsPath = path(privateApiPaths.posts);
 
 export interface PostListRequest {
   readonly blog?: string | undefined;
@@ -66,68 +61,48 @@ async function json(request: Request): Promise<unknown> {
 }
 
 async function identifier(pathname: string): Promise<string | undefined> {
-  const match = /^\/api\/v1\/posts\/([^/]+)$/.exec(pathname);
-  if (!match?.[1]) return undefined;
+  const prefix = `${postsPath}/`;
+  if (!pathname.startsWith(prefix)) return undefined;
+  const encoded = pathname.slice(prefix.length);
+  if (!encoded || encoded.includes("/")) return undefined;
   let value: string;
   try {
-    value = decodeURIComponent(match[1]);
+    value = decodeURIComponent(encoded);
   } catch {
     throw new ApiInputRejected({ message: "Invalid post id" });
   }
-  return decode(uuid, value, "Invalid post id");
+  return decode(privateApiPostId, value, "Invalid post id");
 }
 
 export async function decodePrivateApiRequest(
   request: Request,
 ): Promise<PrivateApiRequest> {
   const { pathname, searchParams } = new URL(request.url);
-  if (request.method === "GET" && pathname === "/api/v1/health") {
+  if (request.method === "GET" && pathname === healthPath) {
     return { _tag: "Health" };
   }
-  if (request.method === "GET" && pathname === "/api/v1/blogs") {
+  if (request.method === "GET" && pathname === blogsPath) {
     return { _tag: "ListBlogs" };
   }
-  if (request.method === "GET" && pathname === "/api/v1/posts") {
-    const statusValue = searchParams.get("status");
+  if (request.method === "GET" && pathname === postsPath) {
+    const query = await decode(
+      privateApiPostListQuery,
+      Object.fromEntries(searchParams),
+      "Invalid post list query",
+    );
     return {
       _tag: "ListPosts",
       input: {
-        ...(searchParams.has("blog")
-          ? { blog: searchParams.get("blog") ?? undefined }
-          : {}),
-        ...(searchParams.has("search")
-          ? { search: searchParams.get("search") ?? undefined }
-          : {}),
-        ...(statusValue === null
-          ? {}
-          : {
-              status: await decode(
-                postStatus,
-                statusValue,
-                "Invalid post status",
-              ),
-            }),
-        page: searchParams.has("page")
-          ? await decode(
-              pageNumber,
-              searchParams.get("page"),
-              "Invalid pagination parameters",
-            )
-          : 1,
-        pageSize: searchParams.has("pageSize")
-          ? await decode(
-              pageSize,
-              searchParams.get("pageSize"),
-              "Invalid pagination parameters",
-            )
-          : 20,
+        ...query,
+        page: query.page ?? 1,
+        pageSize: query.pageSize ?? 20,
       },
     };
   }
 
   const id = await identifier(pathname);
   if (id && request.method === "GET") return { _tag: "GetPost", id };
-  if (pathname === "/api/v1/posts" && request.method === "POST") {
+  if (pathname === postsPath && request.method === "POST") {
     return {
       _tag: "CreatePost",
       input: await decode(

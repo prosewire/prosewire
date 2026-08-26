@@ -1,8 +1,8 @@
 ---
+import { basePath, baseUrl, publication } from "virtual:prosewire/config";
 /// <reference path="../virtual.d.ts" />
 import { createPublicClient } from "@prosewire/sdk";
 import PostList from "../components/PostList.astro";
-import { basePath, baseUrl, publication } from "virtual:prosewire/config";
 
 const client = createPublicClient({ baseUrl, blog: publication });
 const [firstPage, posts] = await Promise.all([

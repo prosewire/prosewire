@@ -1,9 +1,5 @@
 import { Schema } from "effect";
-import {
-  Blog,
-  TeamRole,
-  Workspace,
-} from "./content-models.ts";
+import { Blog, TeamRole, Workspace } from "./content-models.ts";
 import { MemberId, UserId } from "./domain.ts";
 
 export class WorkspaceAuthorization extends Schema.Class<WorkspaceAuthorization>(

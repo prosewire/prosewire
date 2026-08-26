@@ -1,4 +1,10 @@
-export const teamRoles = ["owner", "admin", "editor", "author", "viewer"] as const;
+export const teamRoles = [
+  "owner",
+  "admin",
+  "editor",
+  "author",
+  "viewer",
+] as const;
 
 export type TeamRole = (typeof teamRoles)[number];
 
@@ -61,7 +67,13 @@ export function hasPermission(role: TeamRole, permission: Permission): boolean {
   return rolePermissions[role].has(permission);
 }
 
-export function canUpdatePost(role: TeamRole, createdById: string | null, userId: string): boolean {
-  return hasPermission(role, "content:update:any") ||
-    (hasPermission(role, "content:update:own") && createdById === userId);
+export function canUpdatePost(
+  role: TeamRole,
+  createdById: string | null,
+  userId: string,
+): boolean {
+  return (
+    hasPermission(role, "content:update:any") ||
+    (hasPermission(role, "content:update:own") && createdById === userId)
+  );
 }

@@ -1,4 +1,12 @@
-import { Config, Context, Effect, Layer, Option, Redacted, Schema } from "effect";
+import {
+  Config,
+  Context,
+  Effect,
+  Layer,
+  Option,
+  Redacted,
+  Schema,
+} from "effect";
 
 export class SeedConfigurationError extends Schema.TaggedError<SeedConfigurationError>()(
   "SeedConfigurationError",
@@ -31,7 +39,8 @@ export class SeedConfig extends Context.Service<SeedConfig, SeedConfigShape>()(
         adminPasswordValue === "replace-with-a-unique-admin-password"
       ) {
         return yield* new SeedConfigurationError({
-          message: "ADMIN_PASSWORD must be a unique value of at least 12 characters",
+          message:
+            "ADMIN_PASSWORD must be a unique value of at least 12 characters",
         });
       }
 
@@ -44,7 +53,8 @@ export class SeedConfig extends Context.Service<SeedConfig, SeedConfigShape>()(
           seedApiKeyValue === "pw_local_development_key")
       ) {
         return yield* new SeedConfigurationError({
-          message: "PROSEWIRE_SEED_API_KEY must be a unique value of at least 24 characters",
+          message:
+            "PROSEWIRE_SEED_API_KEY must be a unique value of at least 24 characters",
         });
       }
 

@@ -13,8 +13,8 @@ import { Effect, Layer, Redacted, Schema } from "effect";
 import { ApiAccess } from "./api-access.ts";
 import { BlogAccess } from "./authorization.ts";
 import { WebConfig } from "./config.ts";
-import { testDatabaseLayer } from "./database.test-support.ts";
 import { Database } from "./database.ts";
+import { databaseLayer } from "./database-test-support.ts";
 import {
   ApiKeyId,
   AuthorId,
@@ -218,7 +218,7 @@ describe.skipIf(!databaseUrl)("Publishing transitions with PostgreSQL", () => {
     Publishing.live.pipe(
       Layer.provide(
         Layer.mergeAll(
-          testDatabaseLayer(testDatabase.client),
+          databaseLayer(testDatabase.client),
           configLayer(testDatabase.url),
           Layer.mock(BlogAccess.Service, {}),
         ),
