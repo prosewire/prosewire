@@ -49,6 +49,7 @@ export const testBlog = new Blog({
   slug: BlogSlug.make("fieldnotes"),
   description: "Portable publishing",
   locale: "en",
+  locales: ["en"],
   accentColor: "#ef6848",
   customCss: "",
   publicUrl: null,

@@ -23,6 +23,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
+import { localeName } from "@/lib/locales";
 import { restorePostRevision, savePost } from "@/server/actions";
 
 interface EditorRevision {
@@ -81,6 +82,7 @@ interface EditorProps {
   readonly post: EditorPost;
   readonly authors: ReadonlyArray<Option>;
   readonly categories: ReadonlyArray<Option>;
+  readonly locales: ReadonlyArray<string>;
   readonly saved: boolean;
   readonly restored: boolean;
   readonly error: string | undefined;
@@ -118,6 +120,7 @@ export function Editor({
   post,
   authors,
   categories,
+  locales,
   saved,
   restored,
   error,
@@ -603,12 +606,18 @@ export function Editor({
               />
             </label>
             <label className="block text-[10px] font-bold uppercase tracking-[.1em] text-[#8a9397]">
-              Locale
-              <input
+              Language
+              <select
                 name="locale"
                 defaultValue={post.locale}
                 className="mt-1.5 h-9 w-full rounded-lg border border-[#dcded8] bg-white px-2.5 text-xs font-normal tracking-normal text-[#172329] outline-none"
-              />
+              >
+                {locales.map((locale) => (
+                  <option key={locale} value={locale}>
+                    {localeName(locale)} ({locale})
+                  </option>
+                ))}
+              </select>
             </label>
             <label className="block text-[10px] font-bold uppercase tracking-[.1em] text-[#8a9397]">
               Canonical URL

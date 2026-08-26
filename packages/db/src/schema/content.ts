@@ -25,20 +25,33 @@ const timestamps = {
     .defaultNow(),
 };
 
-export const blog = pgTable("blog", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  organizationId: text("organization_id")
-    .notNull()
-    .references(() => organization.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  slug: text("slug").notNull().unique(),
-  description: text("description").notNull().default(""),
-  locale: text("locale").notNull().default("en"),
-  accentColor: text("accent_color").notNull().default("#f06445"),
-  customCss: text("custom_css").notNull().default(""),
-  publicUrl: text("public_url"),
-  ...timestamps,
-});
+export const blog = pgTable(
+  "blog",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    slug: text("slug").notNull().unique(),
+    description: text("description").notNull().default(""),
+    locale: text("locale").notNull().default("en"),
+    locales: text("locales")
+      .array()
+      .notNull()
+      .default(sql`array['en']::text[]`),
+    accentColor: text("accent_color").notNull().default("#f06445"),
+    customCss: text("custom_css").notNull().default(""),
+    publicUrl: text("public_url"),
+    ...timestamps,
+  },
+  (table) => [
+    check(
+      "blog_default_locale_check",
+      sql`cardinality(${table.locales}) > 0 and ${table.locale} = any(${table.locales})`,
+    ),
+  ],
+);
 
 export const author = pgTable(
   "author",

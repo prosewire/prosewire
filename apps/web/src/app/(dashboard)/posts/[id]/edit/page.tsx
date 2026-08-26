@@ -20,7 +20,7 @@ export default async function EditPostPage({
   const [{ id }, query] = await Promise.all([params, searchParams]);
   const result = dashboardData(await loadEditPost(id));
   if (!result) notFound();
-  const { post, authors, categories, context } = result;
+  const { blog, post, authors, categories, context } = result;
   const canPublish = hasPermission(context.role, "content:publish");
   const canArchive = hasPermission(context.role, "content:archive");
   return (
@@ -31,6 +31,7 @@ export default async function EditPostPage({
       error={query.error}
       authors={authors.map(({ id, name }) => ({ id, name }))}
       categories={categories.map(({ id, name }) => ({ id, name }))}
+      locales={blog.locales}
       post={{
         id: post.id,
         blogId: post.blogId,

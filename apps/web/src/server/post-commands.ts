@@ -29,7 +29,7 @@ export class CreatePostCommand extends Schema.Class<CreatePostCommand>(
   coverImageUrl: Schema.optional(Schema.NullOr(Schema.String)),
   coverImageAlt: Schema.optional(Schema.NullOr(Schema.String)),
   status: PostStatus,
-  locale: Schema.String,
+  locale: Schema.optional(Schema.String),
   featured: Schema.Boolean,
   seoTitle: Schema.optional(Schema.NullOr(Schema.String)),
   seoDescription: Schema.optional(Schema.NullOr(Schema.String)),
