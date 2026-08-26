@@ -43,7 +43,7 @@ function fromPromise<A>(evaluate: () => Promise<A>) {
 }
 
 function parseJson<S extends Schema.Constraint>(schema: S, value: string) {
-  return Schema.decodeUnknownEffect(Schema.fromJsonString(schema))(value).pipe(
+  return Schema.decodeEffect(Schema.fromJsonString(schema))(value).pipe(
     Effect.mapError((cause) => new CliError.UserError({ cause })),
   );
 }

@@ -69,10 +69,10 @@ export const apiErrors = [
 ] as const;
 
 export const privateApiPostId = Schema.String.check(Schema.isUUID());
-export const privateApiPageNumber = Schema.NumberFromString.pipe(
+export const privateApiPageNumber = Schema.FiniteFromString.pipe(
   Schema.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(1)),
 );
-export const privateApiPageSize = Schema.NumberFromString.pipe(
+export const privateApiPageSize = Schema.FiniteFromString.pipe(
   Schema.check(
     Schema.isInt(),
     Schema.isGreaterThanOrEqualTo(1),

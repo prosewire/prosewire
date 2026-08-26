@@ -268,7 +268,7 @@ export async function loadOnboarding() {
 }
 
 export async function loadInvitation(invitationId: string) {
-  const parsed = Schema.decodeUnknownOption(InvitationId)(invitationId);
+  const parsed = Schema.decodeOption(InvitationId)(invitationId);
   if (Option.isNone(parsed)) {
     return Promise.resolve({ session: null, details: undefined });
   }
@@ -307,7 +307,7 @@ export async function loadAuthenticationState(invitationId?: string) {
           invitation: undefined,
         };
       }
-      const parsed = Schema.decodeUnknownOption(InvitationId)(invitationId);
+      const parsed = Schema.decodeOption(InvitationId)(invitationId);
       if (Option.isNone(parsed)) {
         return {
           session,

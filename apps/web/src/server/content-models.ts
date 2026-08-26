@@ -115,7 +115,7 @@ export class PostRevision extends Schema.Class<PostRevision>(
   id: PostRevisionId,
   postId: PostId,
   editorId: Schema.NullOr(UserId),
-  version: Schema.Number,
+  version: Schema.Finite,
   snapshot: Schema.Unknown,
   createdAt: Schema.Date,
 }) {}
@@ -152,7 +152,7 @@ export class DashboardPost extends Schema.Class<DashboardPost>(
   ...postFields,
   author: Author,
   categories: Schema.Array(PostCategory),
-  viewCount: Schema.Number,
+  viewCount: Schema.Finite,
 }) {}
 
 export class DashboardPostDetail extends Schema.Class<DashboardPostDetail>(
@@ -184,7 +184,7 @@ export class Redirect extends Schema.Class<Redirect>("Content.Redirect")({
   blogId: BlogId,
   fromPath: Schema.String,
   toPath: Schema.String,
-  statusCode: Schema.Number,
+  statusCode: Schema.Finite,
   createdAt: Schema.Date,
 }) {}
 

@@ -25,8 +25,7 @@ export class AuthRequestFailed extends Schema.TaggedError<AuthRequestFailed>()(
   },
 ) {}
 
-const parseBlogSlug = (value: string) =>
-  Schema.decodeUnknownOption(BlogSlug)(value);
+const parseBlogSlug = (value: string) => Schema.decodeOption(BlogSlug)(value);
 
 const json = (value: unknown, init?: ResponseInit) =>
   Response.json(value, init);

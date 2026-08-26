@@ -84,7 +84,7 @@ const decodeUpdateInput = (
   blogId: BlogId,
   value: PostUpdateInput,
 ) =>
-  Schema.decodeUnknownEffect(UpdatePostCommand)({
+  Schema.decodeEffect(UpdatePostCommand)({
     postId,
     blogId,
     ...value,

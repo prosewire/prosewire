@@ -1,11 +1,44 @@
 import { Schema } from "effect";
 import { describe, expect, it } from "vitest";
-import { postCreateInput, postUpdateInput } from "./schemas.ts";
+import {
+  postCreateInput,
+  postUpdateInput,
+  publicPostOutput,
+} from "./schemas.ts";
+
+const publicPost = {
+  id: "11111111-1111-4111-8111-111111111111",
+  slug: "published-post",
+  title: "Published post",
+  excerpt: "",
+  contentMarkdown: "# Published",
+  contentHtml: "<h1>Published</h1>",
+  coverImageUrl: null,
+  coverImageAlt: null,
+  status: "published" as const,
+  locale: "en",
+  featured: false,
+  publishedAt: "2026-08-26T10:00:00.000Z",
+  updatedAt: "2026-08-26T10:00:00.000Z",
+  seoTitle: null,
+  seoDescription: null,
+  canonicalUrl: null,
+  author: {
+    id: "22222222-2222-4222-8222-222222222222",
+    name: "Author",
+    slug: "author",
+    bio: null,
+    avatarUrl: null,
+    jobTitle: null,
+    credentials: null,
+  },
+  categories: [],
+};
 
 describe("post mutation schemas", () => {
   it("applies defaults to create input", () => {
     expect(
-      Schema.decodeUnknownSync(postCreateInput)({
+      Schema.decodeSync(postCreateInput)({
         blogId: "11111111-1111-4111-8111-111111111111",
         authorId: "22222222-2222-4222-8222-222222222222",
         title: "Draft",
@@ -21,10 +54,24 @@ describe("post mutation schemas", () => {
   });
 
   it("does not inject create defaults into a partial update", () => {
-    expect(
-      Schema.decodeUnknownSync(postUpdateInput)({ status: "published" }),
-    ).toEqual({
-      status: "published",
-    });
+    expect(Schema.decodeSync(postUpdateInput)({ status: "published" })).toEqual(
+      {
+        status: "published",
+      },
+    );
   });
+});
+
+describe("public post schemas", () => {
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    "rejects a non-finite reading time",
+    (readingMinutes) => {
+      expect(() =>
+        Schema.decodeSync(publicPostOutput)({
+          ...publicPost,
+          readingMinutes,
+        }),
+      ).toThrow();
+    },
+  );
 });
