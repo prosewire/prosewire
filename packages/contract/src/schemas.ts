@@ -200,7 +200,7 @@ export const publicPostOutput = Schema.Struct({
   featured: Schema.Boolean,
   publishedAt: nullable(isoDateTime),
   updatedAt: isoDateTime,
-  readingMinutes: Schema.Number,
+  readingMinutes: Schema.Finite,
   seoTitle: nullable(Schema.String),
   seoDescription: nullable(Schema.String),
   canonicalUrl: nullable(Schema.String),

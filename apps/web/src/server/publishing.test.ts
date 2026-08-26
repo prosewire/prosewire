@@ -56,7 +56,7 @@ describe("Publishing inputs", () => {
     "decodes external identifiers and dates into the domain command",
     () =>
       Effect.gen(function* () {
-        const command = yield* Schema.decodeUnknownEffect(CreatePostCommand)({
+        const command = yield* Schema.decodeEffect(CreatePostCommand)({
           blogId,
           authorId,
           title: "Scheduled post",
@@ -80,7 +80,7 @@ describe("Publishing inputs", () => {
   it.effect("rejects malformed persistent identities at the boundary", () =>
     Effect.gen(function* () {
       const error = yield* Effect.flip(
-        Schema.decodeUnknownEffect(CreatePostCommand)({
+        Schema.decodeEffect(CreatePostCommand)({
           blogId,
           authorId: "not-a-uuid",
           title: "Invalid post",

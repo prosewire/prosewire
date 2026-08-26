@@ -44,8 +44,7 @@ const currentActor = Effect.fn("PageEntrypoints.currentActor")(function* () {
   };
 });
 
-const parseBlogSlug = (value: string) =>
-  Schema.decodeUnknownOption(BlogSlug)(value);
+const parseBlogSlug = (value: string) => Schema.decodeOption(BlogSlug)(value);
 
 export type DashboardPageResult<A> =
   | { readonly _tag: "Success"; readonly value: A }
@@ -181,7 +180,7 @@ export function loadNewPost() {
 }
 
 export function loadEditPost(id: string) {
-  const postId = Schema.decodeUnknownOption(PostId)(id);
+  const postId = Schema.decodeOption(PostId)(id);
   if (Option.isNone(postId)) {
     return Promise.resolve<DashboardPageResult<null>>({
       _tag: "Success",
