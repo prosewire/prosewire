@@ -45,8 +45,8 @@ const post: PublicPost = {
   excerpt: "An excerpt",
   contentMarkdown: "# Published",
   contentHtml: "<h2>Safe content</h2>",
-  coverImageUrl: null,
-  coverImageAlt: null,
+  coverImageUrl: "https://images.example/published.jpg",
+  coverImageAlt: "A field notebook on a desk",
   status: "published",
   locale: "en",
   featured: false,
@@ -65,7 +65,14 @@ const post: PublicPost = {
     jobTitle: null,
     credentials: null,
   },
-  categories: [],
+  categories: [
+    {
+      id: "44444444-4444-4444-8444-444444444444",
+      name: "Engineering",
+      slug: "engineering",
+      description: null,
+    },
+  ],
 };
 
 const page: PublicPostPage = {
@@ -117,6 +124,8 @@ describe("@prosewire/next", () => {
     expect(index).toContain('href="/writing/published"');
     expect(article).toContain('data-prosewire-part="post-body"');
     expect(article).toContain("<h2>Safe content</h2>");
+    expect(article).toContain("https://images.example/published.jpg");
+    expect(article).toContain('"inLanguage":"en"');
     expect(`${index}${article}`).not.toContain("style=");
   });
 
@@ -165,6 +174,7 @@ describe("@prosewire/next", () => {
       baseUrl: "https://content.example",
       publication: "field-notes",
       basePath: "/writing",
+      siteUrl: "https://www.example.com",
       client: client(),
     });
 
@@ -188,6 +198,7 @@ describe("@prosewire/next", () => {
       baseUrl: "https://content.example",
       publication: "field-notes",
       basePath: "/writing",
+      siteUrl: "https://www.example.com",
       client: client(),
       components: { IndexPage: customIndex, PostPage: customPost },
     });
@@ -207,7 +218,24 @@ describe("@prosewire/next", () => {
       integration.post.generateMetadata({
         params: { slug: "published" },
       }),
-    ).resolves.toMatchObject({ title: "Published" });
+    ).resolves.toMatchObject({
+      title: "Published",
+      openGraph: {
+        type: "article",
+        url: "https://www.example.com/writing/published",
+        images: [
+          {
+            url: "https://images.example/published.jpg",
+            alt: "A field notebook on a desk",
+          },
+        ],
+        tags: ["Engineering"],
+      },
+      twitter: {
+        card: "summary_large_image",
+        images: ["https://images.example/published.jpg"],
+      },
+    });
   });
 
   it("turns resolved legacy slugs into permanent framework redirects", async () => {
@@ -258,9 +286,13 @@ describe("@prosewire/next", () => {
     expect(
       renderToStaticMarkup(<integration.index.Page result={page} />),
     ).toContain("Field Notes");
-    expect(
-      renderToStaticMarkup(<integration.post.Page blog={blog} post={post} />),
-    ).toContain("https://www.example.com/blog/published");
+    const postMarkup = renderToStaticMarkup(
+      <integration.post.Page blog={blog} post={post} />,
+    );
+    expect(postMarkup).toContain("https://www.example.com/blog/published");
+    expect(postMarkup).toContain(
+      '"image":"https://images.example/published.jpg"',
+    );
   });
 
   it("handles missing and redirected App Router posts", async () => {

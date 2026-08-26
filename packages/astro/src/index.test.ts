@@ -10,6 +10,7 @@ describe("@prosewire/astro", () => {
     const files = [
       "components/PostList.astro",
       "components/PostArticle.astro",
+      "components/PostMetadata.astro",
       "routes/static-index.astro",
       "routes/static-post.astro",
       "routes/server-index.astro",
@@ -33,6 +34,14 @@ describe("@prosewire/astro", () => {
     );
     expect(components.join("\n")).toContain('data-prosewire-part="post-body"');
     expect(components.join("\n")).not.toMatch(/<style|style=/);
+
+    const metadata = await readFile(
+      join(root.pathname, "components/PostMetadata.astro"),
+      "utf8",
+    );
+    expect(metadata).toContain('property="og:type"');
+    expect(metadata).toContain('name="twitter:card"');
+    expect(metadata).toContain('property="article:published_time"');
   });
 
   it("normalizes the reader route and exposes a standalone client", () => {

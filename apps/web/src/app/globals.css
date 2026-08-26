@@ -41,11 +41,6 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-button,
-input,
-textarea {
-  font: inherit;
-}
 a {
   color: inherit;
   text-decoration: none;
@@ -173,6 +168,107 @@ html.dark .paper-grid {
   padding: 0;
 }
 
+.pw-tiptap-editor .tiptap {
+  min-height: 520px;
+  outline: none;
+  color: #29363b;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.125rem;
+  line-height: 1.82;
+}
+
+.pw-tiptap-editor .tiptap > * {
+  margin: 0;
+}
+
+.pw-tiptap-editor .tiptap > * + * {
+  margin-top: 1.2em;
+}
+
+.pw-tiptap-editor .tiptap h2,
+.pw-tiptap-editor .tiptap h3 {
+  color: var(--ink);
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 400;
+  letter-spacing: -0.025em;
+  line-height: 1.22;
+}
+
+.pw-tiptap-editor .tiptap h2 {
+  margin-top: 2em;
+  font-size: 1.8rem;
+}
+
+.pw-tiptap-editor .tiptap h3 {
+  margin-top: 1.7em;
+  font-size: 1.4rem;
+}
+
+.pw-tiptap-editor .tiptap ul,
+.pw-tiptap-editor .tiptap ol {
+  padding-left: 1.5em;
+}
+
+.pw-tiptap-editor .tiptap ul {
+  list-style: disc;
+}
+
+.pw-tiptap-editor .tiptap ol {
+  list-style: decimal;
+}
+
+.pw-tiptap-editor .tiptap li + li {
+  margin-top: 0.35em;
+}
+
+.pw-tiptap-editor .tiptap blockquote {
+  border-left: 3px solid var(--accent);
+  padding-left: 1.25rem;
+  color: #586469;
+  font-style: italic;
+}
+
+.pw-tiptap-editor .tiptap a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.pw-tiptap-editor .tiptap code {
+  border-radius: 5px;
+  background: #ebece7;
+  padding: 0.15em 0.35em;
+  font-family: ui-monospace, monospace;
+  font-size: 0.88em;
+}
+
+.pw-tiptap-editor .tiptap pre {
+  overflow-x: auto;
+  border-radius: 14px;
+  background: #172329;
+  color: #f7f4ec;
+  padding: 1.2rem;
+}
+
+.pw-tiptap-editor .tiptap pre code {
+  background: none;
+  padding: 0;
+}
+
+.pw-tiptap-editor .tiptap hr {
+  margin-block: 2.4rem;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+
+.pw-tiptap-editor .tiptap p.is-editor-empty:first-child::before {
+  float: left;
+  height: 0;
+  color: #aeb4ad;
+  content: attr(data-placeholder);
+  pointer-events: none;
+}
+
 html.dark .pw-prose {
   color: #c7d2d5;
 }
@@ -180,6 +276,18 @@ html.dark .pw-prose blockquote {
   color: #aebdc1;
 }
 html.dark .pw-prose code {
+  background: #253238;
+}
+
+html.dark .pw-tiptap-editor .tiptap {
+  color: #c7d2d5;
+}
+
+html.dark .pw-tiptap-editor .tiptap blockquote {
+  color: #aebdc1;
+}
+
+html.dark .pw-tiptap-editor .tiptap code {
   background: #253238;
 }
 

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
 import { cache, createElement } from "react";
 import { ProsewireIndex, ProsewirePost } from "./components.tsx";
+import { postPresentationMetadata } from "./metadata.ts";
 import {
   canonicalPostUrl,
   createNextClient,
@@ -79,11 +80,41 @@ export function createProsewireApp(options: ProsewireNextOptions) {
     const result = await getPost(slug);
     if (result.status === "not-found") return {};
     const canonical = canonicalPostUrl(options, result.blog, result.post);
+    const metadata = postPresentationMetadata(
+      result.blog,
+      result.post,
+      canonical,
+    );
     return {
-      title: result.post.seoTitle ?? result.post.title,
-      description: result.post.seoDescription ?? result.post.excerpt,
+      title: metadata.title,
+      description: metadata.description,
       alternates: canonical ? { canonical } : undefined,
-      authors: [{ name: result.post.author.name }],
+      authors: [{ name: metadata.author }],
+      openGraph: {
+        type: "article",
+        title: metadata.title,
+        description: metadata.description,
+        siteName: metadata.siteName,
+        locale: metadata.locale,
+        modifiedTime: metadata.updatedAt,
+        authors: [metadata.author],
+        tags: metadata.categories,
+        ...(metadata.canonicalUrl ? { url: metadata.canonicalUrl } : {}),
+        ...(metadata.publishedAt
+          ? { publishedTime: metadata.publishedAt }
+          : {}),
+        ...(metadata.imageUrl
+          ? {
+              images: [{ url: metadata.imageUrl, alt: metadata.imageAlt }],
+            }
+          : {}),
+      },
+      twitter: {
+        card: metadata.imageUrl ? "summary_large_image" : "summary",
+        title: metadata.title,
+        description: metadata.description,
+        ...(metadata.imageUrl ? { images: [metadata.imageUrl] } : {}),
+      },
     };
   }
 

@@ -1,18 +1,17 @@
 "use client";
 
 import {
+  ArrowLeft,
   CalendarDots,
   Check,
   ClockCounterClockwise,
+  Eye,
   FloppyDisk,
   Image as ImageIcon,
-  Link,
-  ListBullets,
+  Link as LinkIcon,
   MagnifyingGlass,
+  SidebarSimple,
   Sparkle,
-  TextB,
-  TextHTwo,
-  TextItalic,
 } from "@phosphor-icons/react";
 import {
   analyzeSeo,
@@ -20,12 +19,15 @@ import {
   renderMarkdown,
   slugify,
 } from "@prosewire/core";
-import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
+import { cn } from "@/lib/cn";
 import { localeName } from "@/lib/locales";
 import { restorePostRevision, savePost } from "@/server/actions";
 import { Select } from "./select";
+import { TiptapMarkdownEditor } from "./tiptap-markdown-editor";
 
 interface EditorRevision {
   readonly id: string;
@@ -84,20 +86,32 @@ interface EditorProps {
   readonly authors: ReadonlyArray<Option>;
   readonly categories: ReadonlyArray<Option>;
   readonly locales: ReadonlyArray<string>;
+  readonly publicationName: string;
+  readonly publicationUrl: string;
   readonly saved: boolean;
   readonly restored: boolean;
   readonly error: string | undefined;
   readonly canPublish: boolean;
 }
 
+type SidebarTab = "post" | "seo" | "social";
+
+const fieldLabelClass =
+  "mb-1.5 flex items-center justify-between gap-2 text-[10px] font-bold uppercase tracking-[.1em] text-[#8a9397]";
+const fieldClass =
+  "min-h-10 w-full rounded-lg border border-[#dcded8] bg-white px-3 text-xs font-normal tracking-normal text-[#172329] outline-none transition focus:border-[#ef6848] focus:ring-2 focus:ring-[#ef6848]/10";
+const textAreaClass = `${fieldClass} resize-y py-2.5 leading-5`;
+
 function SubmitButton({
   value,
+  label,
   children,
-  secondary = false,
+  primary = false,
 }: {
-  value: string;
-  children: React.ReactNode;
-  secondary?: boolean;
+  readonly value: string;
+  readonly label: string;
+  readonly children: React.ReactNode;
+  readonly primary?: boolean;
 }) {
   const { pending } = useFormStatus();
   return (
@@ -105,15 +119,147 @@ function SubmitButton({
       type="submit"
       name="status"
       value={value}
+      aria-label={label}
       disabled={pending}
-      className={
-        secondary
-          ? "inline-flex h-9 items-center gap-2 rounded-xl border border-[#d8dad4] bg-white px-3 text-xs font-semibold shadow-sm disabled:opacity-60"
-          : "inline-flex h-9 items-center gap-2 rounded-xl bg-[#ef6848] px-3.5 text-xs font-semibold text-white shadow-sm disabled:opacity-60"
-      }
+      className={cn(
+        "inline-flex h-9 items-center justify-center gap-2 rounded-xl px-3 text-xs font-semibold shadow-sm transition disabled:opacity-60",
+        primary
+          ? "border border-[#ef6848] bg-[#ef6848] text-white hover:bg-[#df5d40]"
+          : "border border-[#d8dad4] bg-white text-[#172329] hover:bg-[#f4f3ee]",
+      )}
     >
       {pending ? "Saving…" : children}
     </button>
+  );
+}
+
+function SidebarTabs({
+  selected,
+  onSelect,
+}: {
+  readonly selected: SidebarTab;
+  readonly onSelect: (tab: SidebarTab) => void;
+}) {
+  return (
+    <div
+      role="tablist"
+      aria-label="Post settings"
+      className="sticky top-0 z-10 grid grid-cols-3 border-b border-[#d9dbd5] bg-[#f7f6f1] px-3 pt-2"
+    >
+      {(["post", "seo", "social"] as const).map((tab) => (
+        <button
+          key={tab}
+          type="button"
+          role="tab"
+          aria-selected={selected === tab}
+          onClick={() => onSelect(tab)}
+          className={cn(
+            "h-10 border-b-2 border-transparent text-[11px] font-semibold capitalize text-[#7b8589] transition",
+            selected === tab && "border-[#ef6848] text-[#172329]",
+          )}
+        >
+          {tab === "seo" ? "SEO" : tab}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function RevisionHistory({ post }: { readonly post: EditorPost }) {
+  if (!post.id) return null;
+  return (
+    <section className="border-t border-[#dfe0db] pt-5">
+      <div className="flex items-center gap-2">
+        <ClockCounterClockwise className="size-4 text-[#536d78]" />
+        <h3 className="text-xs font-semibold">Revision history</h3>
+      </div>
+      <p className="mt-2 text-[10px] leading-4 text-[#7b8589]">
+        The current version is saved before every update, archive, or restore.
+      </p>
+      <div className="mt-3 space-y-2">
+        {post.revisions.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-[#d7d9d3] px-3 py-4 text-center text-[10px] text-[#7b8589]">
+            No revisions yet
+          </p>
+        ) : (
+          post.revisions.map((revision) => (
+            <details
+              key={revision.id}
+              className="group rounded-xl border border-[#e0e1dc] bg-white"
+            >
+              <summary className="cursor-pointer list-none px-3 py-2.5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-[11px] font-semibold">
+                      Version {revision.version}: {revision.snapshot.title}
+                    </p>
+                    <p className="mt-0.5 text-[9px] text-[#7b8589]">
+                      {revisionDateFormatter.format(
+                        new Date(revision.createdAt),
+                      )}{" "}
+                      UTC · {revision.editor}
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-[#eef0eb] px-2 py-0.5 text-[8px] font-bold uppercase tracking-wide text-[#536167]">
+                    {revision.snapshot.status}
+                  </span>
+                </div>
+              </summary>
+              <div className="border-t border-[#ecece7] px-3 py-3">
+                <dl className="grid grid-cols-[70px_1fr] gap-x-2 gap-y-1 text-[10px]">
+                  <dt className="text-[#8a9397]">Slug</dt>
+                  <dd className="truncate font-mono">
+                    {revision.snapshot.slug}
+                  </dd>
+                  <dt className="text-[#8a9397]">Locale</dt>
+                  <dd>{revision.snapshot.locale}</dd>
+                  <dt className="text-[#8a9397]">Categories</dt>
+                  <dd>
+                    {revision.snapshot.categoryCount === null
+                      ? "Not recorded"
+                      : revision.snapshot.categoryCount}
+                  </dd>
+                </dl>
+                {revision.snapshot.excerpt ? (
+                  <p className="mt-3 text-[10px] leading-4 text-[#5f6c71]">
+                    {revision.snapshot.excerpt}
+                  </p>
+                ) : null}
+                <pre className="mt-3 max-h-44 overflow-auto whitespace-pre-wrap rounded-lg bg-[#f6f5f0] p-2.5 text-[9px] leading-4 text-[#46545a]">
+                  {revision.snapshot.contentPreview || "Empty body"}
+                  {revision.snapshot.contentTruncated
+                    ? "\n\n[Preview truncated]"
+                    : ""}
+                </pre>
+                {revision.canRestore ? (
+                  <details className="mt-3 rounded-lg border border-[#e2c7bf] bg-[#fff8f5] px-2.5 py-2">
+                    <summary className="cursor-pointer text-[10px] font-semibold text-[#a44230]">
+                      Restore this version
+                    </summary>
+                    <p className="mt-2 text-[9px] leading-4 text-[#765b55]">
+                      The current version is saved first. Unsaved edits in this
+                      form will be discarded.
+                    </p>
+                    <button
+                      type="submit"
+                      formAction={restorePostRevision.bind(null, revision.id)}
+                      formNoValidate
+                      className="mt-2 h-8 rounded-lg bg-[#a44230] px-3 text-[10px] font-semibold text-white"
+                    >
+                      Confirm restore
+                    </button>
+                  </details>
+                ) : (
+                  <p className="mt-3 text-[9px] leading-4 text-[#a44230]">
+                    Your role cannot restore this publication state.
+                  </p>
+                )}
+              </div>
+            </details>
+          ))
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -122,6 +268,8 @@ export function Editor({
   authors,
   categories,
   locales,
+  publicationName,
+  publicationUrl,
   saved,
   restored,
   error,
@@ -129,26 +277,47 @@ export function Editor({
 }: EditorProps) {
   const [title, setTitle] = useState(post.title);
   const [slug, setSlug] = useState(post.slug);
+  const [excerpt, setExcerpt] = useState(post.excerpt);
   const [markdown, setMarkdown] = useState(post.contentMarkdown);
+  const [seoTitle, setSeoTitle] = useState(post.seoTitle);
   const [description, setDescription] = useState(post.seoDescription);
   const [focusKeyword, setFocusKeyword] = useState(post.focusKeyword);
+  const [canonicalUrl, setCanonicalUrl] = useState(post.canonicalUrl);
+  const [coverImageUrl, setCoverImageUrl] = useState(post.coverImageUrl);
+  const [coverImageAlt, setCoverImageAlt] = useState(post.coverImageAlt);
+  const [authorId, setAuthorId] = useState(post.authorId);
   const [categoryIds, setCategoryIds] = useState(
     () => new Set(post.categoryIds),
   );
-  const [tab, setTab] = useState<"write" | "preview">("write");
+  const [sidebarTab, setSidebarTab] = useState<SidebarTab>("seo");
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [previewing, setPreviewing] = useState(false);
+  const [sourceEditing, setSourceEditing] = useState(false);
   const [previewHtml, setPreviewHtml] = useState(post.contentHtml);
-  const textarea = useRef<HTMLTextAreaElement>(null);
+
   const analysis = useMemo(
     () =>
       analyzeSeo({
-        title: post.seoTitle || title,
+        title: seoTitle || title,
         description,
         markdown,
         focusKeyword,
         slug,
       }),
-    [description, focusKeyword, markdown, post.seoTitle, slug, title],
+    [description, focusKeyword, markdown, seoTitle, slug, title],
   );
+
+  const baseUrl = publicationUrl.replace(/\/$/, "");
+  const displayBaseUrl = baseUrl.replace(/^https?:\/\//, "");
+  const resolvedSlug = slug || "untitled";
+  const selectedAuthor =
+    authors.find((author) => author.id === authorId)?.name ?? "Unknown author";
+  const selectedCategories = categories
+    .filter((category) => categoryIds.has(category.id))
+    .map((category) => category.name);
+  const searchTitle = seoTitle || title || "Untitled post";
+  const searchDescription = description || excerpt || "Add a post summary.";
+  const hasCoverPreview = /^https?:\/\//.test(coverImageUrl);
 
   useEffect(() => {
     if (saved)
@@ -160,7 +329,7 @@ export function Editor({
   useEffect(() => {
     if (restored)
       toast.success("Revision restored", {
-        description: "The replaced version is still available in history.",
+        description: "The replaced version remains available in history.",
       });
   }, [restored]);
 
@@ -169,7 +338,7 @@ export function Editor({
   }, [error]);
 
   useEffect(() => {
-    if (tab !== "preview") return;
+    if (!previewing) return;
     let cancelled = false;
     void renderMarkdown(markdown)
       .then((html) => {
@@ -179,66 +348,95 @@ export function Editor({
     return () => {
       cancelled = true;
     };
-  }, [markdown, tab]);
-
-  function wrap(before: string, after = before, placeholder = "text") {
-    const field = textarea.current;
-    if (!field) return;
-    const start = field.selectionStart;
-    const end = field.selectionEnd;
-    const selected = markdown.slice(start, end) || placeholder;
-    const next = `${markdown.slice(0, start)}${before}${selected}${after}${markdown.slice(end)}`;
-    setMarkdown(next);
-    requestAnimationFrame(() => {
-      field.focus();
-      field.setSelectionRange(
-        start + before.length,
-        start + before.length + selected.length,
-      );
-    });
-  }
+  }, [markdown, previewing]);
 
   return (
     <form action={savePost} className="min-h-screen bg-[#efeee8]">
       {post.id ? <input type="hidden" name="id" value={post.id} /> : null}
       <input type="hidden" name="blogId" value={post.blogId} />
-      <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b border-[#d9dbd5] bg-[#f8f7f2]/95 px-4 py-3 backdrop-blur sm:px-6">
-        <div className="flex items-center gap-3">
-          <a href="/posts" className="text-xs font-semibold text-[#6b767b]">
-            ← Posts
-          </a>
-          <span className="h-4 w-px bg-[#d7d9d3]" />
-          <span className="max-w-[210px] truncate text-xs font-semibold">
-            {title || "Untitled post"}
-          </span>
-          <span className="hidden text-[10px] text-[#959da0] sm:inline">
-            {post.status === "draft" ? "Draft" : post.status}
-          </span>
+      <input type="hidden" name="contentMarkdown" value={markdown} />
+
+      <header className="sticky top-16 z-10 flex min-h-[59px] flex-wrap items-center justify-between gap-3 border-b border-[#d9dbd5] bg-[#f8f7f2]/95 px-3 py-2 backdrop-blur sm:px-5 lg:top-0">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+          <Link
+            href="/posts"
+            aria-label="Back to posts"
+            className="grid size-8 shrink-0 place-items-center rounded-lg text-[#687279] transition hover:bg-white hover:text-[#172329]"
+          >
+            <ArrowLeft className="size-4" />
+          </Link>
+          <span className="hidden h-4 w-px bg-[#d7d9d3] sm:block" />
+          <div className="min-w-0">
+            <p className="max-w-40 truncate text-xs font-semibold sm:max-w-56">
+              {title || "Untitled post"}
+            </p>
+            <p className="mt-0.5 text-[9px] capitalize text-[#8a9397]">
+              {post.status}
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <SubmitButton value="draft" secondary>
+
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <button
+            type="button"
+            aria-label={previewing ? "Return to editor" : "Preview post"}
+            aria-pressed={previewing}
+            onClick={() => setPreviewing((current) => !current)}
+            className={cn(
+              "inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-[#d8dad4] bg-white px-2.5 text-xs font-semibold shadow-sm transition hover:bg-[#f4f3ee]",
+              previewing && "bg-[#172329] text-white hover:bg-[#172329]",
+            )}
+          >
+            <Eye className="size-3.5" />
+            <span className="hidden md:inline">
+              {previewing ? "Edit" : "Preview"}
+            </span>
+          </button>
+          <button
+            type="button"
+            aria-label={sidebarOpen ? "Hide settings" : "Show settings"}
+            aria-pressed={!sidebarOpen}
+            onClick={() => setSidebarOpen((current) => !current)}
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-[#d8dad4] bg-white px-2.5 text-xs font-semibold shadow-sm transition hover:bg-[#f4f3ee]"
+          >
+            <SidebarSimple className="size-3.5" />
+            <span className="hidden xl:inline">
+              {sidebarOpen ? "Focus" : "Settings"}
+            </span>
+          </button>
+          <SubmitButton value="draft" label="Save draft">
             <FloppyDisk className="size-3.5" />
-            Save draft
+            <span className="hidden sm:inline">Save</span>
           </SubmitButton>
           {canPublish ? (
-            <SubmitButton value="scheduled" secondary>
+            <SubmitButton value="scheduled" label="Schedule post">
               <CalendarDots className="size-3.5" />
-              Schedule
+              <span className="hidden xl:inline">Schedule</span>
             </SubmitButton>
           ) : null}
           {canPublish ? (
-            <SubmitButton value="published">
+            <SubmitButton value="published" label="Publish post" primary>
               <Check className="size-3.5" />
-              {post.status === "published" ? "Publish changes" : "Publish"}
+              <span>Publish</span>
             </SubmitButton>
           ) : null}
         </div>
       </header>
 
-      <div className="mx-auto grid max-w-[1500px] lg:grid-cols-[minmax(0,1fr)_330px]">
-        <main className="min-w-0 border-r border-[#d9dbd5] bg-white px-4 py-7 sm:px-8 lg:px-12 xl:px-20">
-          <div className="mx-auto max-w-[820px]">
-            <input
+      <div
+        className={cn(
+          "mx-auto grid max-w-[1600px]",
+          sidebarOpen && "lg:grid-cols-[minmax(0,1fr)_330px]",
+        )}
+      >
+        <main
+          className={cn(
+            "min-w-0 bg-white px-6 py-12 sm:px-10 lg:px-12 xl:px-20",
+            sidebarOpen && "lg:border-r lg:border-[#d9dbd5]",
+          )}
+        >
+          <div className="mx-auto max-w-[760px]">
+            <textarea
               aria-label="Post title"
               name="title"
               value={title}
@@ -249,414 +447,488 @@ export function Editor({
                   setSlug(slugify(value));
               }}
               placeholder="Give this post a clear title…"
-              className="display-font w-full border-0 bg-transparent text-4xl leading-tight outline-none placeholder:text-[#c4c7c2] sm:text-5xl"
+              rows={1}
+              className="display-font min-h-[1.1em] w-full resize-none overflow-hidden border-0 bg-transparent text-4xl leading-[1.06] outline-none [field-sizing:content] placeholder:text-[#c4c7c2] xl:text-5xl"
               required
               autoFocus={!post.id}
             />
-            <div className="mt-5 flex flex-wrap items-center gap-3 text-xs text-[#7b8589]">
-              <Select
-                name="authorId"
-                defaultValue={post.authorId}
-                aria-label="Post author"
-                options={authors.map((author) => ({
-                  value: author.id,
-                  label: author.name,
-                }))}
-                size="small"
-                className="h-8 w-auto min-w-32 rounded-lg border-[#e0e1dc] bg-[#fafaf7] px-2.5 py-1.5 text-xs shadow-none"
-              />
-              <details className="relative rounded-lg border border-[#e0e1dc] bg-[#fafaf7] px-2.5 py-1.5">
-                <summary className="cursor-pointer select-none">
-                  {categoryIds.size === 0
-                    ? "No categories"
-                    : `${categoryIds.size} ${categoryIds.size === 1 ? "category" : "categories"}`}
-                </summary>
-                <fieldset className="absolute left-0 top-full z-10 mt-1 max-h-56 min-w-52 space-y-1 overflow-y-auto rounded-xl border border-[#d9dbd5] bg-white p-2 shadow-lg">
-                  <legend className="sr-only">Categories</legend>
-                  {categories.length === 0 ? (
-                    <p className="px-2 py-1 text-[11px] text-[#7b8589]">
-                      No categories available
-                    </p>
-                  ) : (
-                    categories.map((category) => (
-                      <label
-                        key={category.id}
-                        className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-[#f4f3ee]"
-                      >
-                        <input
-                          type="checkbox"
-                          name="categoryId"
-                          value={category.id}
-                          checked={categoryIds.has(category.id)}
-                          onChange={(event) => {
-                            setCategoryIds((current) => {
-                              const next = new Set(current);
-                              if (event.target.checked) next.add(category.id);
-                              else next.delete(category.id);
-                              return next;
-                            });
-                          }}
-                          className="size-3.5 accent-[#ef6848]"
-                        />
-                        <span>{category.name}</span>
-                      </label>
-                    ))
-                  )}
-                </fieldset>
-              </details>
+
+            <div className="mt-4 flex min-w-0 items-center gap-1.5 text-[11px] text-[#7b8589]">
+              <LinkIcon className="size-3.5 shrink-0" />
+              <span className="min-w-0 truncate">
+                {displayBaseUrl}/<span>{resolvedSlug}</span>
+              </span>
+              <button
+                type="button"
+                aria-label="Edit URL slug"
+                onClick={() => {
+                  setSidebarOpen(true);
+                  setSidebarTab("seo");
+                  requestAnimationFrame(() =>
+                    document.getElementById("post-slug")?.focus(),
+                  );
+                }}
+                className="shrink-0 rounded-md px-1.5 py-0.5 font-semibold text-[#ef6848] hover:bg-[#fee9df]"
+              >
+                Edit
+              </button>
+            </div>
+
+            <textarea
+              name="excerpt"
+              value={excerpt}
+              onChange={(event) => setExcerpt(event.target.value)}
+              placeholder="Write a concise summary for cards, feeds, and sharing…"
+              rows={2}
+              className="mt-6 min-h-[3.5em] w-full resize-none overflow-hidden border-0 bg-transparent font-[Georgia] text-lg leading-7 text-[#647076] outline-none [field-sizing:content] placeholder:text-[#aeb4ad]"
+            />
+
+            <div className="mt-5 flex flex-wrap items-center gap-2 text-[11px] text-[#7b8589]">
+              <span className="grid size-7 place-items-center rounded-full bg-[#dfe8de] text-[9px] font-bold text-[#1f6e52]">
+                {selectedAuthor
+                  .split(/\s+/)
+                  .map((part) => part[0])
+                  .join("")
+                  .slice(0, 2)
+                  .toUpperCase()}
+              </span>
+              <span>{selectedAuthor}</span>
+              {selectedCategories.length > 0 ? (
+                <>
+                  <span>·</span>
+                  <span>{selectedCategories.join(", ")}</span>
+                </>
+              ) : null}
+              <span>·</span>
               <span>
                 {analysis.wordCount} words · {analysis.readingMinutes} min read
               </span>
             </div>
 
-            <textarea
-              name="excerpt"
-              defaultValue={post.excerpt}
-              placeholder="Write a concise summary for cards, feeds, and sharing…"
-              className="mt-7 min-h-20 w-full resize-y rounded-xl border border-[#e0e1dc] bg-[#fafaf7] px-4 py-3 text-sm leading-6 outline-none focus:border-[#ef6848]"
-            />
-
-            <div className="mt-7 overflow-hidden rounded-2xl border border-[#d9dbd5]">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#e3e4df] bg-[#f7f6f1] px-2 py-2">
-                <div className="flex items-center gap-0.5">
-                  <button
-                    type="button"
-                    title="Bold"
-                    onClick={() => wrap("**")}
-                    className="grid size-8 place-items-center rounded-lg text-[#69757a] transition hover:bg-white hover:text-[#172329]"
-                  >
-                    <TextB className="size-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    title="Italic"
-                    onClick={() => wrap("_")}
-                    className="grid size-8 place-items-center rounded-lg text-[#69757a] transition hover:bg-white hover:text-[#172329]"
-                  >
-                    <TextItalic className="size-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    title="Heading"
-                    onClick={() => wrap("## ", "", "Section heading")}
-                    className="grid size-8 place-items-center rounded-lg text-[#69757a] transition hover:bg-white hover:text-[#172329]"
-                  >
-                    <TextHTwo className="size-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    title="Link"
-                    onClick={() => wrap("[", "](https://)", "link label")}
-                    className="grid size-8 place-items-center rounded-lg text-[#69757a] transition hover:bg-white hover:text-[#172329]"
-                  >
-                    <Link className="size-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    title="Image"
-                    onClick={() => wrap("![", "](https://)", "alt text")}
-                    className="grid size-8 place-items-center rounded-lg text-[#69757a] transition hover:bg-white hover:text-[#172329]"
-                  >
-                    <ImageIcon className="size-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    title="List"
-                    onClick={() => wrap("- ", "", "List item")}
-                    className="grid size-8 place-items-center rounded-lg text-[#69757a] transition hover:bg-white hover:text-[#172329]"
-                  >
-                    <ListBullets className="size-3.5" />
-                  </button>
-                </div>
-                <div className="flex rounded-lg border border-[#dcded8] bg-white p-0.5 text-[10px] font-semibold">
-                  <button
-                    type="button"
-                    onClick={() => setTab("write")}
-                    className={`rounded-md px-2.5 py-1 ${tab === "write" ? "bg-[#172329] text-white" : "text-[#69757a]"}`}
-                  >
-                    Write
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTab("preview")}
-                    className={`rounded-md px-2.5 py-1 ${tab === "preview" ? "bg-[#172329] text-white" : "text-[#69757a]"}`}
-                  >
-                    Preview
-                  </button>
-                </div>
-              </div>
-              {tab === "write" ? (
-                <textarea
-                  ref={textarea}
-                  name="contentMarkdown"
-                  value={markdown}
-                  onChange={(event) => setMarkdown(event.target.value)}
-                  placeholder="Start writing in Markdown…"
-                  className="min-h-[620px] w-full resize-y border-0 bg-white p-5 font-[Georgia] text-[17px] leading-8 outline-none sm:p-7"
-                />
-              ) : (
+            <div className="mt-11 border-t border-[#ecece8] pt-9">
+              {previewing ? (
                 <div
-                  className="pw-prose min-h-[620px] p-5 sm:p-7"
+                  className="pw-prose min-h-[520px]"
                   dangerouslySetInnerHTML={{ __html: previewHtml }}
                 />
+              ) : sourceEditing ? (
+                <div>
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold">Markdown source</p>
+                      <p className="mt-1 text-[10px] text-[#7b8589]">
+                        Use this for portable syntax the rich editor cannot
+                        show.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSourceEditing(false)}
+                      className="h-8 rounded-lg border border-[#d8dad4] bg-white px-3 text-[10px] font-semibold hover:bg-[#f4f3ee]"
+                    >
+                      Return to rich editor
+                    </button>
+                  </div>
+                  <textarea
+                    aria-label="Markdown source"
+                    value={markdown}
+                    onChange={(event) => setMarkdown(event.target.value)}
+                    spellCheck={false}
+                    className="min-h-[520px] w-full resize-y rounded-xl border border-[#d8dad4] bg-[#fafaf7] p-5 font-mono text-sm leading-6 text-[#29363b] outline-none focus:border-[#ef6848] focus:ring-2 focus:ring-[#ef6848]/10"
+                  />
+                </div>
+              ) : (
+                <TiptapMarkdownEditor value={markdown} onChange={setMarkdown} />
               )}
             </div>
           </div>
         </main>
 
-        <aside className="bg-[#f7f6f1] px-4 py-6 sm:px-6 lg:sticky lg:top-[65px] lg:h-[calc(100vh-65px)] lg:overflow-y-auto">
-          <section>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <MagnifyingGlass className="size-4 text-[#ef6848]" />
-                <h2 className="text-sm font-semibold">Content checks</h2>
-              </div>
-              <span className="text-xs font-bold text-[#1f6e52]">
-                {analysis.score}/100
-              </span>
-            </div>
-            <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-[#e2e4de]">
-              <div
-                className="h-full rounded-full bg-[#1f6e52] transition-all"
-                style={{ width: `${analysis.score}%` }}
-              />
-            </div>
-            <div className="mt-4 space-y-2">
-              {analysis.checks.map((item) => (
-                <div
-                  key={item.id}
-                  className="rounded-xl border border-[#e0e1dc] bg-white p-3"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-[11px] font-semibold">{item.label}</p>
-                    <span
-                      className={`text-[9px] font-bold uppercase tracking-wide ${item.status === "pass" ? "text-[#1f6e52]" : item.status === "warning" ? "text-[#c17c16]" : "text-[#c64b35]"}`}
-                    >
-                      {item.status}
+        {sidebarOpen ? (
+          <aside
+            id="post-settings"
+            className="bg-[#f7f6f1] lg:sticky lg:top-[59px] lg:h-[calc(100vh-59px)] lg:overflow-y-auto"
+          >
+            <SidebarTabs selected={sidebarTab} onSelect={setSidebarTab} />
+
+            <div className="px-5 py-6">
+              {sidebarTab === "post" ? (
+                <div className="space-y-5" role="tabpanel">
+                  <div className="flex items-center justify-between gap-3">
+                    <h2 className="text-sm font-semibold">Post settings</h2>
+                    <span className="rounded-full bg-[#eef0eb] px-2 py-1 text-[9px] font-bold capitalize text-[#536167]">
+                      {post.status}
                     </span>
                   </div>
-                  <p className="mt-1 text-[10px] leading-4 text-[#7d878b]">
-                    {item.detail}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </section>
 
-          <section className="mt-6 border-t border-[#dfe0db] pt-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Sparkle className="size-4 text-[#7b65b8]" />
-                <h2 className="text-sm font-semibold">AI discovery</h2>
-              </div>
-              <span className="text-xs font-bold text-[#7b65b8]">
-                {analysis.mentionScore}/5
-              </span>
-            </div>
-            <p className="mt-2 text-[10px] leading-4 text-[#7b8589]">
-              Checks for answer-first structure, useful headings, definitions,
-              lists, and sufficient context.
-            </p>
-          </section>
+                  <div>
+                    <Select
+                      name="authorId"
+                      label="Author"
+                      labelClassName={fieldLabelClass}
+                      value={authorId}
+                      onValueChange={setAuthorId}
+                      options={authors.map((author) => ({
+                        value: author.id,
+                        label: author.name,
+                      }))}
+                      size="small"
+                      className="h-10 rounded-lg px-3 text-xs shadow-none"
+                    />
+                  </div>
 
-          {post.id ? (
-            <section className="mt-6 border-t border-[#dfe0db] pt-6">
-              <div className="flex items-center gap-2">
-                <ClockCounterClockwise className="size-4 text-[#536d78]" />
-                <h2 className="text-sm font-semibold">Revision history</h2>
-              </div>
-              <p className="mt-2 text-[10px] leading-4 text-[#7b8589]">
-                Prosewire saves the previous version before every update,
-                archive, or restore.
-              </p>
-              <div className="mt-3 space-y-2">
-                {post.revisions.length === 0 ? (
-                  <p className="rounded-xl border border-dashed border-[#d7d9d3] px-3 py-4 text-center text-[10px] text-[#7b8589]">
-                    No revisions yet
-                  </p>
-                ) : (
-                  post.revisions.map((revision) => (
-                    <details
-                      key={revision.id}
-                      className="group rounded-xl border border-[#e0e1dc] bg-white"
+                  <fieldset>
+                    <legend className={fieldLabelClass}>Categories</legend>
+                    <div className="max-h-44 space-y-1 overflow-y-auto rounded-xl border border-[#dcded8] bg-white p-2">
+                      {categories.length === 0 ? (
+                        <p className="px-2 py-2 text-[10px] text-[#7b8589]">
+                          No categories available
+                        </p>
+                      ) : (
+                        categories.map((category) => (
+                          <label
+                            key={category.id}
+                            className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs hover:bg-[#f4f3ee]"
+                          >
+                            <input
+                              type="checkbox"
+                              name="categoryId"
+                              value={category.id}
+                              checked={categoryIds.has(category.id)}
+                              onChange={(event) => {
+                                setCategoryIds((current) => {
+                                  const next = new Set(current);
+                                  if (event.target.checked)
+                                    next.add(category.id);
+                                  else next.delete(category.id);
+                                  return next;
+                                });
+                              }}
+                              className="size-3.5 accent-[#ef6848]"
+                            />
+                            {category.name}
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  </fieldset>
+
+                  <div>
+                    <Select
+                      name="locale"
+                      label="Language"
+                      labelClassName={fieldLabelClass}
+                      defaultValue={post.locale}
+                      options={locales.map((locale) => ({
+                        value: locale,
+                        label: `${localeName(locale)} (${locale})`,
+                      }))}
+                      size="small"
+                      className="h-10 rounded-lg px-3 text-xs shadow-none"
+                    />
+                  </div>
+
+                  <label className="block">
+                    <span className={fieldLabelClass}>Schedule time</span>
+                    <input
+                      name="scheduledAt"
+                      type="datetime-local"
+                      defaultValue={post.scheduledAt}
+                      className={fieldClass}
+                    />
+                  </label>
+
+                  <label className="flex min-h-10 items-center justify-between gap-3 border-y border-[#dfe0db] py-2 text-xs font-medium">
+                    <span>Pin on the publication home</span>
+                    <input
+                      name="featured"
+                      type="checkbox"
+                      defaultChecked={post.featured}
+                      className="size-4 accent-[#ef6848]"
+                    />
+                  </label>
+
+                  <section>
+                    <h3 className="text-xs font-semibold">Portable source</h3>
+                    <p className="mt-1 text-[9px] leading-4 text-[#7b8589]">
+                      The rich editor saves Markdown. Open the source view for
+                      uncommon syntax or embedded HTML.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPreviewing(false);
+                        setSourceEditing((current) => !current);
+                        requestAnimationFrame(() =>
+                          document
+                            .querySelector<HTMLElement>(
+                              '[aria-label="Markdown source"]',
+                            )
+                            ?.focus(),
+                        );
+                      }}
+                      className="mt-3 h-9 w-full rounded-lg border border-[#d8dad4] bg-white px-3 text-[10px] font-semibold hover:bg-[#f4f3ee]"
                     >
-                      <summary className="cursor-pointer list-none px-3 py-2.5">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="truncate text-[11px] font-semibold">
-                              Version {revision.version}:{" "}
-                              {revision.snapshot.title}
-                            </p>
-                            <p className="mt-0.5 text-[9px] text-[#7b8589]">
-                              {revisionDateFormatter.format(
-                                new Date(revision.createdAt),
-                              )}{" "}
-                              UTC · {revision.editor}
-                            </p>
-                          </div>
-                          <span className="rounded-full bg-[#eef0eb] px-2 py-0.5 text-[8px] font-bold uppercase tracking-wide text-[#536167]">
-                            {revision.snapshot.status}
-                          </span>
-                        </div>
-                      </summary>
-                      <div className="border-t border-[#ecece7] px-3 py-3">
-                        <dl className="grid grid-cols-[70px_1fr] gap-x-2 gap-y-1 text-[10px]">
-                          <dt className="text-[#8a9397]">Slug</dt>
-                          <dd className="truncate font-mono">
-                            {revision.snapshot.slug}
-                          </dd>
-                          <dt className="text-[#8a9397]">Locale</dt>
-                          <dd>{revision.snapshot.locale}</dd>
-                          <dt className="text-[#8a9397]">Categories</dt>
-                          <dd>
-                            {revision.snapshot.categoryCount === null
-                              ? "Not recorded"
-                              : revision.snapshot.categoryCount}
-                          </dd>
-                        </dl>
-                        {revision.snapshot.excerpt ? (
-                          <p className="mt-3 text-[10px] leading-4 text-[#5f6c71]">
-                            {revision.snapshot.excerpt}
-                          </p>
-                        ) : null}
-                        <pre className="mt-3 max-h-44 overflow-auto whitespace-pre-wrap rounded-lg bg-[#f6f5f0] p-2.5 text-[9px] leading-4 text-[#46545a]">
-                          {revision.snapshot.contentPreview || "Empty body"}
-                          {revision.snapshot.contentTruncated
-                            ? "\n\n[Preview truncated]"
-                            : ""}
-                        </pre>
-                        {revision.canRestore ? (
-                          <details className="mt-3 rounded-lg border border-[#e2c7bf] bg-[#fff8f5] px-2.5 py-2">
-                            <summary className="cursor-pointer text-[10px] font-semibold text-[#a44230]">
-                              Restore this version
-                            </summary>
-                            <p className="mt-2 text-[9px] leading-4 text-[#765b55]">
-                              Your current version will be saved first. Unsaved
-                              edits in this form will be discarded.
-                            </p>
-                            <button
-                              type="submit"
-                              formAction={restorePostRevision.bind(
-                                null,
-                                revision.id,
-                              )}
-                              formNoValidate
-                              className="mt-2 h-8 rounded-lg bg-[#a44230] px-3 text-[10px] font-semibold text-white"
-                            >
-                              Confirm restore
-                            </button>
-                          </details>
-                        ) : (
-                          <p className="mt-3 text-[9px] leading-4 text-[#a44230]">
-                            Your role cannot restore this publication state.
-                          </p>
-                        )}
-                      </div>
-                    </details>
-                  ))
-                )}
-              </div>
-            </section>
-          ) : null}
+                      {sourceEditing
+                        ? "Return to rich editor"
+                        : "Edit Markdown source"}
+                    </button>
+                  </section>
 
-          <section className="mt-6 space-y-4 border-t border-[#dfe0db] pt-6">
-            <h2 className="text-sm font-semibold">Search & publishing</h2>
-            <label className="block text-[10px] font-bold uppercase tracking-[.1em] text-[#8a9397]">
-              Slug
-              <input
-                name="slug"
-                value={slug}
-                onChange={(event) => setSlug(slugify(event.target.value))}
-                className="mt-1.5 h-9 w-full rounded-lg border border-[#dcded8] bg-white px-2.5 text-xs font-normal tracking-normal text-[#172329] outline-none focus:border-[#ef6848]"
-              />
-            </label>
-            <label className="block text-[10px] font-bold uppercase tracking-[.1em] text-[#8a9397]">
-              Focus phrase
-              <input
-                name="focusKeyword"
-                value={focusKeyword}
-                onChange={(event) => setFocusKeyword(event.target.value)}
-                className="mt-1.5 h-9 w-full rounded-lg border border-[#dcded8] bg-white px-2.5 text-xs font-normal tracking-normal text-[#172329] outline-none focus:border-[#ef6848]"
-              />
-            </label>
-            <label className="block text-[10px] font-bold uppercase tracking-[.1em] text-[#8a9397]">
-              Search title
-              <input
-                name="seoTitle"
-                defaultValue={post.seoTitle}
-                placeholder={title}
-                className="mt-1.5 h-9 w-full rounded-lg border border-[#dcded8] bg-white px-2.5 text-xs font-normal tracking-normal text-[#172329] outline-none focus:border-[#ef6848]"
-              />
-            </label>
-            <label className="block text-[10px] font-bold uppercase tracking-[.1em] text-[#8a9397]">
-              Meta description
-              <textarea
-                name="seoDescription"
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                className="mt-1.5 min-h-20 w-full resize-y rounded-lg border border-[#dcded8] bg-white px-2.5 py-2 text-xs font-normal leading-5 tracking-normal text-[#172329] outline-none focus:border-[#ef6848]"
-              />
-            </label>
-            <label className="block text-[10px] font-bold uppercase tracking-[.1em] text-[#8a9397]">
-              Schedule time
-              <input
-                name="scheduledAt"
-                type="datetime-local"
-                defaultValue={post.scheduledAt}
-                className="mt-1.5 h-9 w-full rounded-lg border border-[#dcded8] bg-white px-2.5 text-xs font-normal tracking-normal text-[#172329] outline-none"
-              />
-            </label>
-            <div>
-              <Select
-                name="locale"
-                label="Language"
-                labelClassName="block text-[10px] font-bold uppercase tracking-[.1em] text-[#8a9397]"
-                defaultValue={post.locale}
-                options={locales.map((locale) => ({
-                  value: locale,
-                  label: `${localeName(locale)} (${locale})`,
-                }))}
-                size="small"
-                className="mt-1.5 h-9 w-full rounded-lg border border-[#dcded8] bg-white px-2.5 text-xs font-normal tracking-normal text-[#172329] shadow-none outline-none"
-              />
+                  <RevisionHistory post={post} />
+                </div>
+              ) : null}
+
+              {sidebarTab === "seo" ? (
+                <div role="tabpanel">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <MagnifyingGlass className="size-4 text-[#ef6848]" />
+                      <h2 className="text-sm font-semibold">
+                        Search appearance
+                      </h2>
+                    </div>
+                    <span className="text-xs font-bold text-[#1f6e52]">
+                      {analysis.score}/100
+                    </span>
+                  </div>
+
+                  <label className="mt-5 block">
+                    <span className={fieldLabelClass}>
+                      <span>URL slug</span>
+                      <span className="normal-case tracking-normal text-[#959da0]">
+                        Redirected after publish
+                      </span>
+                    </span>
+                    <div className="flex min-w-0 items-center rounded-lg border border-[#dcded8] bg-white focus-within:border-[#ef6848] focus-within:ring-2 focus-within:ring-[#ef6848]/10">
+                      <span className="shrink-0 pl-3 text-[10px] text-[#8a9397]">
+                        {displayBaseUrl}/
+                      </span>
+                      <input
+                        id="post-slug"
+                        name="slug"
+                        value={slug}
+                        onChange={(event) =>
+                          setSlug(slugify(event.target.value))
+                        }
+                        className="h-10 min-w-0 flex-1 border-0 bg-transparent px-1 pr-3 text-xs outline-none"
+                        required
+                      />
+                    </div>
+                  </label>
+
+                  <label className="mt-4 block">
+                    <span className={fieldLabelClass}>
+                      <span>Search title</span>
+                      <span className="normal-case tracking-normal text-[#959da0]">
+                        {seoTitle.length}/70
+                      </span>
+                    </span>
+                    <input
+                      name="seoTitle"
+                      value={seoTitle}
+                      onChange={(event) => setSeoTitle(event.target.value)}
+                      placeholder={title || "Uses post title"}
+                      maxLength={70}
+                      className={fieldClass}
+                    />
+                  </label>
+
+                  <label className="mt-4 block">
+                    <span className={fieldLabelClass}>
+                      <span>Meta description</span>
+                      <span className="normal-case tracking-normal text-[#959da0]">
+                        {description.length}/180
+                      </span>
+                    </span>
+                    <textarea
+                      name="seoDescription"
+                      value={description}
+                      onChange={(event) => setDescription(event.target.value)}
+                      placeholder="Uses the post summary"
+                      maxLength={180}
+                      className={`${textAreaClass} min-h-24`}
+                    />
+                  </label>
+
+                  <div className="mt-5 rounded-xl border border-[#dcded8] bg-white p-3">
+                    <p className="text-[9px] font-bold uppercase tracking-[.1em] text-[#8a9397]">
+                      Search preview
+                    </p>
+                    <p className="mt-3 truncate text-[10px] text-[#1f6e52]">
+                      {publicationName} · {displayBaseUrl}
+                    </p>
+                    <p className="mt-1 text-[15px] leading-5 text-[#2855a7]">
+                      {searchTitle}
+                    </p>
+                    <p className="mt-1 text-[10px] leading-4 text-[#5f6a70]">
+                      {searchDescription}
+                    </p>
+                  </div>
+
+                  <label className="mt-4 block">
+                    <span className={fieldLabelClass}>Focus phrase</span>
+                    <input
+                      name="focusKeyword"
+                      value={focusKeyword}
+                      onChange={(event) => setFocusKeyword(event.target.value)}
+                      className={fieldClass}
+                    />
+                  </label>
+
+                  <label className="mt-4 block">
+                    <span className={fieldLabelClass}>
+                      <span>Canonical URL</span>
+                      <span className="normal-case tracking-normal text-[#959da0]">
+                        Optional override
+                      </span>
+                    </span>
+                    <input
+                      name="canonicalUrl"
+                      type="url"
+                      value={canonicalUrl}
+                      onChange={(event) => setCanonicalUrl(event.target.value)}
+                      placeholder={`${baseUrl}/${resolvedSlug}`}
+                      className={fieldClass}
+                    />
+                  </label>
+
+                  <section className="mt-6 border-t border-[#dfe0db] pt-5">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="text-xs font-semibold">Content checks</h3>
+                      <span className="text-[10px] text-[#7b8589]">
+                        {
+                          analysis.checks.filter(
+                            (item) => item.status === "pass",
+                          ).length
+                        }
+                        /{analysis.checks.length} passed
+                      </span>
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      {analysis.checks.map((item) => (
+                        <div
+                          key={item.id}
+                          className="rounded-xl border border-[#e0e1dc] bg-white p-3"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-[10px] font-semibold">
+                              {item.label}
+                            </p>
+                            <span
+                              className={cn(
+                                "text-[8px] font-bold uppercase tracking-wide",
+                                item.status === "pass"
+                                  ? "text-[#1f6e52]"
+                                  : item.status === "warning"
+                                    ? "text-[#c17c16]"
+                                    : "text-[#c64b35]",
+                              )}
+                            >
+                              {item.status}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-[9px] leading-4 text-[#7d878b]">
+                            {item.detail}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="mt-6 border-t border-[#dfe0db] pt-5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Sparkle className="size-4 text-[#7b65b8]" />
+                        <h3 className="text-xs font-semibold">AI discovery</h3>
+                      </div>
+                      <span className="text-xs font-bold text-[#7b65b8]">
+                        {analysis.mentionScore}/5
+                      </span>
+                    </div>
+                    <p className="mt-2 text-[9px] leading-4 text-[#7b8589]">
+                      Checks answer-first structure, headings, definitions,
+                      lists, and context.
+                    </p>
+                  </section>
+                </div>
+              ) : null}
+
+              {sidebarTab === "social" ? (
+                <div role="tabpanel">
+                  <div className="flex items-center gap-2">
+                    <ImageIcon className="size-4 text-[#ef6848]" />
+                    <h2 className="text-sm font-semibold">Social card</h2>
+                  </div>
+                  <p className="mt-2 text-[10px] leading-4 text-[#7b8589]">
+                    Search fields provide the title and description. The cover
+                    image is used for Open Graph and large social cards.
+                  </p>
+
+                  <div className="mt-5 overflow-hidden rounded-xl border border-[#dcded8] bg-white">
+                    {hasCoverPreview ? (
+                      <div
+                        role="img"
+                        aria-label={coverImageAlt || "Post cover image"}
+                        className="aspect-[1.91/1] bg-[#e5e6e1] bg-cover bg-center"
+                        style={{
+                          backgroundImage: `url(${JSON.stringify(coverImageUrl)})`,
+                        }}
+                      />
+                    ) : (
+                      <div className="grid aspect-[1.91/1] place-items-center bg-[#efeee8] text-center text-[#7b8589]">
+                        <div>
+                          <ImageIcon className="mx-auto size-6" />
+                          <p className="mt-2 text-[10px]">No cover image yet</p>
+                        </div>
+                      </div>
+                    )}
+                    <div className="p-3">
+                      <p className="text-xs font-semibold leading-4">
+                        {searchTitle}
+                      </p>
+                      <p className="mt-1 truncate text-[9px] text-[#7b8589]">
+                        {displayBaseUrl}
+                      </p>
+                    </div>
+                  </div>
+
+                  <label className="mt-5 block">
+                    <span className={fieldLabelClass}>Cover image URL</span>
+                    <input
+                      name="coverImageUrl"
+                      type="url"
+                      value={coverImageUrl}
+                      onChange={(event) => setCoverImageUrl(event.target.value)}
+                      placeholder="https://…"
+                      className={fieldClass}
+                    />
+                  </label>
+
+                  <label className="mt-4 block">
+                    <span className={fieldLabelClass}>Image alt text</span>
+                    <textarea
+                      name="coverImageAlt"
+                      value={coverImageAlt}
+                      onChange={(event) => setCoverImageAlt(event.target.value)}
+                      className={`${textAreaClass} min-h-20`}
+                    />
+                  </label>
+
+                  <div className="mt-6 rounded-xl border border-[#dce8e2] bg-[#f0f8f3] p-3">
+                    <p className="text-[10px] font-semibold text-[#1f6e52]">
+                      Generated from post data
+                    </p>
+                    <p className="mt-1 text-[9px] leading-4 text-[#5f6a70]">
+                      Prosewire adds the article URL, publication name, locale,
+                      author, category, and publish dates to public metadata.
+                    </p>
+                  </div>
+                </div>
+              ) : null}
             </div>
-            <label className="block text-[10px] font-bold uppercase tracking-[.1em] text-[#8a9397]">
-              Canonical URL
-              <input
-                name="canonicalUrl"
-                defaultValue={post.canonicalUrl}
-                placeholder="Optional"
-                className="mt-1.5 h-9 w-full rounded-lg border border-[#dcded8] bg-white px-2.5 text-xs font-normal tracking-normal text-[#172329] outline-none"
-              />
-            </label>
-            <label className="block text-[10px] font-bold uppercase tracking-[.1em] text-[#8a9397]">
-              Cover image URL
-              <input
-                name="coverImageUrl"
-                defaultValue={post.coverImageUrl}
-                placeholder="https://…"
-                className="mt-1.5 h-9 w-full rounded-lg border border-[#dcded8] bg-white px-2.5 text-xs font-normal tracking-normal text-[#172329] outline-none"
-              />
-            </label>
-            <label className="block text-[10px] font-bold uppercase tracking-[.1em] text-[#8a9397]">
-              Cover alt text
-              <input
-                name="coverImageAlt"
-                defaultValue={post.coverImageAlt}
-                className="mt-1.5 h-9 w-full rounded-lg border border-[#dcded8] bg-white px-2.5 text-xs font-normal tracking-normal text-[#172329] outline-none"
-              />
-            </label>
-            <label className="flex items-center gap-2 text-xs font-medium">
-              <input
-                name="featured"
-                type="checkbox"
-                defaultChecked={post.featured}
-                className="size-4 accent-[#ef6848]"
-              />
-              Pin on the blog homepage
-            </label>
-          </section>
-        </aside>
+          </aside>
+        ) : null}
       </div>
     </form>
   );

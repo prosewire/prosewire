@@ -10,7 +10,7 @@ missing.
 | Capability | Coverage |
 | --- | --- |
 | Draft, schedule, publish, archive, and republish | Implemented in the dashboard and management API |
-| Markdown editor, live preview, excerpt, and reading time | Implemented |
+| Tiptap rich-text editor, Markdown source, live preview, excerpt, and reading time | Implemented; Markdown remains the portable source of record |
 | Content and search checks | Implemented as deterministic guidance; not a guarantee of ranking or accessibility compliance |
 | Cover image URL and alt text | Implemented as metadata; no media library or upload workflow |
 | Featured or pinned posts | Implemented as one `featured` flag used by the public homepage |
@@ -29,7 +29,7 @@ missing.
 | Slugs and redirects | Slugs are unique per publication; changing a published slug creates a permanent redirect |
 | Search and categories | Implemented on the reader and public JSON list endpoint |
 | Related posts and table of contents | Implemented in the public article reader |
-| RSS, XML sitemap, canonical metadata, and JSON-LD | Implemented |
+| RSS, XML sitemap, canonical metadata, Open Graph and social cards, and JSON-LD | Implemented across the bundled, Next.js, and Astro readers |
 | Custom CSS | Implemented per publication for rendered surfaces |
 | Analytics | First-party view events, overview metrics, and raw-event retention are implemented; external analytics adapters are not |
 
