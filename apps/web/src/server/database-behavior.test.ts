@@ -1030,9 +1030,11 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
     const resource = openDb(databaseUrl);
     const organizationId = OrganizationId.make(`workspace-${randomUUID()}`);
     const blogId = BlogId.make(randomUUID());
+    const blogSlug = `blog-${randomUUID()}`;
     const authorId = AuthorId.make(randomUUID());
     const archivedPostId = PostId.make(randomUUID());
     const untouchedPostId = PostId.make(randomUUID());
+    const missingPostId = PostId.make(randomUUID());
     const keyId = ApiKeyId.make(randomUUID());
     const revokedKeyId = ApiKeyId.make(randomUUID());
 
@@ -1046,7 +1048,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
         id: blogId,
         organizationId,
         name: "API archive publication",
-        slug: `blog-${randomUUID()}`,
+        slug: blogSlug,
       });
       await resource.client.insert(schema.author).values({
         id: authorId,
@@ -1101,6 +1103,18 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
           { _tag: "Api", keyId },
         ),
       );
+      const missing = await Effect.runPromise(
+        Effect.flip(
+          service.archivePosts(
+            new ArchivePostsCommand({
+              blogId,
+              postIds: [untouchedPostId, missingPostId],
+              requireAll: true,
+            }),
+            { _tag: "Api", keyId },
+          ),
+        ),
+      );
       const revoked = await Effect.runPromise(
         Effect.flip(
           service.archivePosts(
@@ -1135,7 +1149,11 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
       });
       const byId = new Map(posts.map((post) => [post.id, post]));
 
-      expect(result).toEqual({ ok: true });
+      expect(result).toEqual({ archived: 1, blogSlug });
+      expect(missing).toMatchObject({
+        _tag: "PostNotFound",
+        postId: missingPostId,
+      });
       expect(revoked).toBeInstanceOf(ApiAccess.AuthenticationFailed);
       expect(byId.get(archivedPostId)?.status).toBe("archived");
       expect(byId.get(archivedPostId)?.archivedAt).toBeInstanceOf(Date);
