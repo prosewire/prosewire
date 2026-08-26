@@ -103,6 +103,10 @@ jobs:
                 sort -V |
                 tail -1
             )"
+            if [ -n "$previous_tag" ] && [ "$(git rev-list -n 1 "$previous_tag")" = "$commit_sha" ]; then
+              echo "$previous_tag already points to $commit_sha; the image release has no new commits" >&2
+              exit 1
+            fi
             echo "edge_required=false" >> "$GITHUB_OUTPUT"
           else
             test "$commit_sha" = "$PUSH_SHA"
@@ -291,7 +295,7 @@ jobs:
         with:
           context: .
           push: true
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           cache-from: type=gha,scope=prosewire-image
           cache-to: type=gha,mode=max,scope=prosewire-image
           sbom: true
@@ -320,15 +324,15 @@ jobs:
           SOURCE: ${{ github.server_url }}/${{ github.repository }}
         run: |
           reference="$IMAGE@$DIGEST"
-          node scripts/verify-image-manifest.mjs "$reference" "$REVISION" "$SOURCE" linux/amd64 linux/arm64
-          scripts/verify-image-runtime-files.sh "$reference" linux/amd64 linux/arm64
+          node scripts/verify-image-manifest.mjs "$reference" "$REVISION" "$SOURCE" linux/amd64
+          scripts/verify-image-runtime-files.sh "$reference" linux/amd64
           scripts/container-runtime-smoke.sh "$reference"
       - name: Verify anonymous stable pull
         env:
           IMAGE: ${{ needs.source.outputs.image }}
           DIGEST: ${{ steps.digest.outputs.digest }}
         run: scripts/verify-anonymous-image-pull.sh "$IMAGE@$DIGEST" linux/amd64
-      - name: Create immutable Git tag
+      - name: Create Git tag
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ inputs.version }}
@@ -362,19 +366,45 @@ jobs:
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DIGEST: ${{ steps.digest.outputs.digest }}
+          IMAGE: ${{ needs.source.outputs.image }}
           VERSION: ${{ inputs.version }}
           PREVIOUS_TAG: ${{ needs.source.outputs.previous-tag }}
         run: |
           if ! gh release view "v$VERSION" >/dev/null 2>&1; then
+            package_url="https://github.com/orgs/$GITHUB_REPOSITORY_OWNER/packages/container/package/${GITHUB_REPOSITORY#*/}"
+            release_notes="$(
+              printf '%s\n' \
+                '## Container image' \
+                '' \
+                "Package: [$IMAGE]($package_url)" \
+                '' \
+                'Pull by version:' \
+                '' \
+                "    docker pull $IMAGE:v$VERSION" \
+                '' \
+                'Pull by digest:' \
+                '' \
+                "    docker pull $IMAGE@$DIGEST" \
+                '' \
+                "Digest: $DIGEST" \
+                '' \
+                'Supported architecture: linux/amd64' \
+                '' \
+                'Published tags:' \
+                '' \
+                "- $IMAGE:v$VERSION" \
+                "- $IMAGE:$VERSION" \
+                "- $IMAGE:latest"
+            )"
             release_args=(
               "v$VERSION"
               --title "Prosewire v$VERSION"
-              --generate-notes
               --verify-tag
-              --fail-on-no-commits
+              --notes "$release_notes"
             )
             if [ -n "$PREVIOUS_TAG" ]; then
-              release_args+=(--notes-start-tag "$PREVIOUS_TAG")
+              release_args+=(--generate-notes --notes-start-tag "$PREVIOUS_TAG")
             fi
             gh release create "${release_args[@]}"
           fi
