@@ -19,24 +19,64 @@ const databaseUrl = process.env.DATABASE_URL;
 
 function invitationLookup(
   hasPending: RegistrationInvitationLookup["hasPending"],
+  hasInstallation: RegistrationInvitationLookup["hasInstallation"] = vi
+    .fn()
+    .mockResolvedValue(false),
 ): RegistrationInvitationLookup {
-  return { hasPending };
+  return { hasInstallation, hasPending };
 }
 
 describe("invitation-gated registration", () => {
   const now = new Date("2026-08-20T12:00:00.000Z");
 
-  it("allows explicitly open registration without an invitation lookup", async () => {
+  it("allows open cloud registration without an invitation lookup", async () => {
     const hasPending = vi.fn();
+    const hasInstallation = vi.fn();
 
     await expect(
-      requireRegistrationInvitation(invitationLookup(hasPending), {
+      requireRegistrationInvitation(
+        invitationLookup(hasPending, hasInstallation),
+        {
+          allowSignUp: true,
+          deployment: "cloud",
+          email: "person@example.com",
+          invitationId: null,
+          now,
+        },
+      ),
+    ).resolves.toBeUndefined();
+    expect(hasPending).not.toHaveBeenCalled();
+    expect(hasInstallation).not.toHaveBeenCalled();
+  });
+
+  it("allows self-hosted registration only before the first account exists", async () => {
+    const hasPending = vi.fn();
+    const hasInstallation = vi
+      .fn()
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+    const lookup = invitationLookup(hasPending, hasInstallation);
+
+    await expect(
+      requireRegistrationInvitation(lookup, {
         allowSignUp: true,
-        email: "person@example.com",
+        deployment: "self-hosted",
+        email: "owner@example.com",
         invitationId: null,
         now,
       }),
     ).resolves.toBeUndefined();
+
+    await expect(
+      requireRegistrationInvitation(lookup, {
+        allowSignUp: true,
+        deployment: "self-hosted",
+        email: "person@example.com",
+        invitationId: null,
+        now,
+      }),
+    ).rejects.toThrow("Registration requires a team invitation");
+    expect(hasInstallation).toHaveBeenCalledTimes(2);
     expect(hasPending).not.toHaveBeenCalled();
   });
 
@@ -46,11 +86,12 @@ describe("invitation-gated registration", () => {
     await expect(
       requireRegistrationInvitation(invitationLookup(hasPending), {
         allowSignUp: false,
+        deployment: "self-hosted",
         email: "person@example.com",
         invitationId: null,
         now,
       }),
-    ).rejects.toThrow("Registration requires a workspace invitation");
+    ).rejects.toThrow("Registration requires a team invitation");
     expect(hasPending).not.toHaveBeenCalled();
   });
 
@@ -60,11 +101,12 @@ describe("invitation-gated registration", () => {
     await expect(
       requireRegistrationInvitation(invitationLookup(hasPending), {
         allowSignUp: false,
+        deployment: "self-hosted",
         email: "person@example.com",
         invitationId: "wrong-invitation",
         now,
       }),
-    ).rejects.toThrow("Registration requires a workspace invitation");
+    ).rejects.toThrow("Registration requires a team invitation");
   });
 
   it("requires the token, normalized email, pending status, and future expiry", async () => {
@@ -73,6 +115,7 @@ describe("invitation-gated registration", () => {
     await expect(
       requireRegistrationInvitation(invitationLookup(hasPending), {
         allowSignUp: false,
+        deployment: "self-hosted",
         email: "Person@Example.com",
         invitationId: "invite-1",
         now,

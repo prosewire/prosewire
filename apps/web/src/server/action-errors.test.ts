@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-
+import { InvalidPasswordChange } from "./account-security.ts";
 import { actionErrorRedirect } from "./action-errors.ts";
 import { DatabaseError } from "./database.ts";
 import { PostId, PostRevisionId } from "./domain.ts";
 import { PostErrors } from "./post-errors.ts";
 import { SessionErrors } from "./session-errors.ts";
+import { SelfHostedWorkspaceAlreadyExists } from "./workspace-management.ts";
 
 describe("actionErrorRedirect", () => {
   it("maps authentication failures to sign-in", () => {
@@ -56,5 +57,33 @@ describe("actionErrorRedirect", () => {
         "/posts/new",
       ),
     ).toBeUndefined();
+  });
+
+  it("returns a self-hosted workspace conflict to onboarding", () => {
+    expect(
+      actionErrorRedirect(
+        new SelfHostedWorkspaceAlreadyExists({
+          message: "This instance already has a team",
+        }),
+        "/onboarding",
+      ),
+    ).toBe("/onboarding?error=This%20instance%20already%20has%20a%20team");
+  });
+
+  it("routes forced password changes and preserves existing query values", () => {
+    expect(
+      actionErrorRedirect(
+        new SessionErrors.PasswordChangeRequired({}),
+        "/dashboard",
+      ),
+    ).toBe("/change-password");
+    expect(
+      actionErrorRedirect(
+        new InvalidPasswordChange({ message: "Try another password" }),
+        "/change-password?returnTo=%2Fdashboard",
+      ),
+    ).toBe(
+      "/change-password?returnTo=%2Fdashboard&error=Try%20another%20password",
+    );
   });
 });

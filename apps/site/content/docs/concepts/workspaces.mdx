@@ -7,9 +7,11 @@ order: 3
 
 ## Workspace versus publication
 
-A workspace owns the team. A publication owns content, public reader URLs, API keys, analytics, authors, categories, redirects, and exports. One workspace can contain multiple publications, and one signed-in user can belong to multiple workspaces.
+A workspace owns the team. A publication owns content, public reader URLs, API keys, analytics, authors, categories, redirects, and exports. One workspace can contain multiple publications.
 
-The dashboard stores the active workspace in the authenticated session and the active publication in an HTTP-only cookie. Switching either value revalidates membership before the selection is accepted.
+Self-hosted Prosewire creates one implicit workspace for the installation. The dashboard presents it as the team, while owners switch between publications such as separate product blogs. Cloud exposes workspaces because one account can create or join multiple independent teams.
+
+The dashboard stores the active workspace in the authenticated session and the active publication in an HTTP-only cookie. Cloud users and upgraded self-hosted installations with legacy workspaces can switch workspaces. Every switch revalidates membership before accepting the selection.
 
 ## Role matrix
 

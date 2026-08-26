@@ -53,6 +53,7 @@ function configLayer(url: string) {
     databaseUrl: Redacted.make(url),
     authSecret: Redacted.make("test-secret-at-least-32-characters"),
     allowSignUp: false,
+    deployment: "cloud",
     environment: "test",
   });
 }
@@ -863,6 +864,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
       await expect(
         requireRegistrationInvitation(invitations, {
           allowSignUp: true,
+          deployment: "cloud",
           email,
           invitationId: null,
           now,
@@ -871,6 +873,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
       await expect(
         requireRegistrationInvitation(invitations, {
           allowSignUp: false,
+          deployment: "cloud",
           email,
           invitationId: null,
           now,
@@ -884,6 +887,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
         await expect(
           requireRegistrationInvitation(invitations, {
             allowSignUp: false,
+            deployment: "cloud",
             email: attemptedEmail,
             invitationId,
             now,
@@ -893,6 +897,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
       await expect(
         requireRegistrationInvitation(invitations, {
           allowSignUp: false,
+          deployment: "cloud",
           email: email.toUpperCase(),
           invitationId: pendingId,
           now,

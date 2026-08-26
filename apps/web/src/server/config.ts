@@ -9,6 +9,8 @@ import {
 } from "effect";
 import type { SocialProviderId } from "@/lib/auth-providers";
 
+export type ProsewireDeployment = "self-hosted" | "cloud";
+
 const localDevelopmentAuthSecret =
   "local-development-secret-change-before-production";
 const knownPlaceholderAuthSecrets = new Set([
@@ -29,6 +31,7 @@ export interface WebConfigShape {
   readonly databaseUrl: Redacted.Redacted<string>;
   readonly authSecret: Redacted.Redacted<string>;
   readonly allowSignUp: boolean;
+  readonly deployment: ProsewireDeployment;
   readonly environment: string;
   readonly cloudSocialProviders?: Partial<
     Record<
@@ -152,6 +155,7 @@ export class WebConfig extends Context.Service<WebConfig, WebConfigShape>()(
         databaseUrl,
         authSecret,
         allowSignUp,
+        deployment,
         environment,
         ...(cloudSocialProviders ? { cloudSocialProviders } : {}),
       };

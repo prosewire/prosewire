@@ -64,6 +64,7 @@ function dashboardLayer(
       databaseUrl: Redacted.make("postgres://test"),
       authSecret: Redacted.make("test-secret-at-least-32-characters"),
       allowSignUp: false,
+      deployment: "self-hosted",
       environment: "test",
     }),
   );

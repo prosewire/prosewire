@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { forbidden, redirect } from "next/navigation";
+import { changeRequiredPassword as runChangeRequiredPassword } from "./account-entrypoints.ts";
 import { actionErrorRedirect } from "./action-errors.ts";
 import { BlogAccessDenied, WorkspaceAccessDenied } from "./authorization.ts";
 import {
@@ -32,6 +33,11 @@ const publicationCookie = "prosewire-publication";
 function text(formData: FormData, name: string): string {
   const value = formData.get(name);
   return typeof value === "string" ? value.trim() : "";
+}
+
+function rawText(formData: FormData, name: string): string {
+  const value = formData.get(name);
+  return typeof value === "string" ? value : "";
 }
 
 function nullableText(formData: FormData, name: string): string | null {
@@ -186,16 +192,66 @@ export async function updateBlogSettings(formData: FormData): Promise<void> {
   redirect("/settings?saved=1");
 }
 
+export async function changeRequiredPassword(
+  formData: FormData,
+): Promise<void> {
+  const returnTo = internalPath(text(formData, "returnTo"), "/dashboard");
+  const newPassword = rawText(formData, "newPassword");
+  if (newPassword !== rawText(formData, "confirmPassword")) {
+    redirect(
+      `/change-password?returnTo=${encodeURIComponent(returnTo)}&error=${encodeURIComponent("The new passwords do not match")}`,
+    );
+  }
+  try {
+    await runChangeRequiredPassword({
+      currentPassword: rawText(formData, "currentPassword"),
+      newPassword,
+    });
+  } catch (error) {
+    redirectActionError(
+      error,
+      `/change-password?returnTo=${encodeURIComponent(returnTo)}`,
+    );
+  }
+  redirect(
+    `/sign-in?passwordChanged=1&returnTo=${encodeURIComponent(returnTo)}`,
+  );
+}
+
+async function createWorkspaceAndPublication(
+  input: Parameters<typeof runCreateWorkspace>[0],
+): Promise<never> {
+  let result: Awaited<ReturnType<typeof runCreateWorkspace>>;
+  try {
+    result = await runCreateWorkspace(input);
+  } catch (error) {
+    redirectActionError(error, "/onboarding");
+  }
+  await setPublicationCookie(result.blogId);
+  revalidatePath("/dashboard", "layout");
+  redirect("/dashboard");
+}
+
+export async function createInitialPublication(
+  formData: FormData,
+): Promise<void> {
+  const publicationName = text(formData, "publicationName");
+  const publicationSlug = text(formData, "publicationSlug");
+  await createWorkspaceAndPublication({
+    workspaceName: publicationName,
+    workspaceSlug: publicationSlug,
+    publicationName,
+    publicationSlug,
+  });
+}
+
 export async function createWorkspace(formData: FormData): Promise<void> {
-  const result = await runCreateWorkspace({
+  await createWorkspaceAndPublication({
     workspaceName: text(formData, "workspaceName"),
     workspaceSlug: text(formData, "workspaceSlug"),
     publicationName: text(formData, "publicationName"),
     publicationSlug: text(formData, "publicationSlug"),
   });
-  await setPublicationCookie(result.blogId);
-  revalidatePath("/dashboard", "layout");
-  redirect("/dashboard");
 }
 
 export async function createPublication(formData: FormData): Promise<void> {

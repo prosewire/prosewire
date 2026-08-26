@@ -55,6 +55,7 @@ export const disabledOrganizationMutationPaths = [
 ] as const;
 
 export interface RegistrationInvitationLookup {
+  readonly hasInstallation: () => Promise<boolean>;
   readonly hasPending: (input: {
     readonly invitationId: string;
     readonly email: string;
@@ -66,6 +67,16 @@ export function makeRegistrationInvitationLookup(
   database: Db,
 ): RegistrationInvitationLookup {
   return {
+    hasInstallation: async () => {
+      const user = await database.query.user.findFirst({
+        columns: { id: true },
+      });
+      if (user) return true;
+      const workspace = await database.query.organization.findFirst({
+        columns: { id: true },
+      });
+      return workspace !== undefined;
+    },
     hasPending: async (input) => {
       const invitation = await database.query.invitation.findFirst({
         where: and(
@@ -84,16 +95,24 @@ export async function requireRegistrationInvitation(
   invitations: RegistrationInvitationLookup,
   input: {
     readonly allowSignUp: boolean;
+    readonly deployment: WebConfigShape["deployment"];
     readonly email: string;
     readonly invitationId: string | null;
     readonly now: Date;
   },
 ): Promise<void> {
-  if (input.allowSignUp) return;
+  if (input.allowSignUp) {
+    if (input.deployment === "cloud") return;
+    if (!(await invitations.hasInstallation())) return;
+  }
+  const invitationMessage =
+    input.deployment === "cloud"
+      ? "Registration requires a workspace invitation"
+      : "Registration requires a team invitation";
   const invitationId = input.invitationId?.trim();
   if (!invitationId) {
     throw new APIError("FORBIDDEN", {
-      message: "Registration requires a workspace invitation",
+      message: invitationMessage,
     });
   }
   const pending = await invitations.hasPending({
@@ -103,7 +122,7 @@ export async function requireRegistrationInvitation(
   });
   if (!pending) {
     throw new APIError("FORBIDDEN", {
-      message: "Registration requires a workspace invitation",
+      message: invitationMessage,
     });
   }
 }
@@ -114,6 +133,7 @@ function buildAuth(
     readonly secret: string;
     readonly publicUrl: string;
     readonly allowSignUp: boolean;
+    readonly deployment: WebConfigShape["deployment"];
     readonly now: () => Date;
     readonly cloudSocialProviders: WebConfigShape["cloudSocialProviders"];
   },
@@ -172,6 +192,12 @@ function buildAuth(
           input: false,
         },
         disabledAt: { type: "date", required: false, input: false },
+        mustChangePassword: {
+          type: "boolean",
+          required: false,
+          defaultValue: false,
+          input: false,
+        },
       },
     },
     databaseHooks: {
@@ -180,6 +206,7 @@ function buildAuth(
           before: async (user, context) => {
             await requireRegistrationInvitation(invitations, {
               allowSignUp: config.allowSignUp,
+              deployment: config.deployment,
               email: user.email,
               invitationId:
                 context?.getHeader(invitationRegistrationHeader) ?? null,
@@ -233,6 +260,7 @@ export class Auth extends Context.Service<Auth, AuthShape>()(
                 publicUrl: config.publicUrl,
                 allowSignUp:
                   config.environment !== "production" || config.allowSignUp,
+                deployment: config.deployment,
                 now: () => new Date(clock.currentTimeMillisUnsafe()),
                 cloudSocialProviders: config.cloudSocialProviders,
               }),

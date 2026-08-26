@@ -29,7 +29,7 @@ export default async function SettingsPage({
     searchParams,
     loadDashboardSettings(),
   ]);
-  const { blog, context } = dashboardData(result);
+  const { blog, cloudDeployment, context } = dashboardData(result);
   const { error, saved } = query;
   const canUpdatePublication = hasPermission(
     context.role,
@@ -41,7 +41,7 @@ export default async function SettingsPage({
   );
   return (
     <main className="mx-auto max-w-[1000px] px-4 py-6 sm:px-7 lg:px-9 lg:py-8">
-      <p className="text-xs font-semibold text-[#ef6848]">Workspace</p>
+      <p className="text-xs font-semibold text-[#ef6848]">Publication</p>
       <h1 className="mt-1 text-3xl font-semibold tracking-[-.04em]">
         Blog settings
       </h1>
@@ -57,7 +57,7 @@ export default async function SettingsPage({
       {query.workspaceSaved === "1" ? (
         <div className="mt-5 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-semibold text-emerald-700">
           <CheckCircle className="size-4" />
-          Workspace settings saved.
+          {cloudDeployment ? "Workspace" : "Team"} settings saved.
         </div>
       ) : null}
       {error ? (
@@ -77,7 +77,7 @@ export default async function SettingsPage({
             value={context.workspace.id}
           />
           <label className="flex-1 text-xs font-semibold">
-            Workspace name
+            {cloudDeployment ? "Workspace" : "Team"} name
             <input
               name="name"
               defaultValue={context.workspace.name}
@@ -85,7 +85,7 @@ export default async function SettingsPage({
             />
           </label>
           <button className="h-10 rounded-xl border border-[#d9dbd5] bg-white px-4 text-sm font-semibold">
-            Save workspace
+            Save {cloudDeployment ? "workspace" : "team"}
           </button>
         </form>
       ) : null}

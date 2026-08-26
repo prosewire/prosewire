@@ -8,7 +8,7 @@ export default function Forbidden() {
       <div className="max-w-md text-center">
         <p className="text-xs font-semibold text-[#ef6848]">Access denied</p>
         <h1 className="mt-2 text-3xl font-semibold tracking-[-.04em]">
-          You do not have access to this workspace.
+          You do not have access to this area.
         </h1>
         <Link
           className="mt-6 inline-block text-sm font-semibold"

@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { requireDashboardSessionEffect } from "@/lib/session";
 import { type AppServices, runAppEffect } from "./app-runtime.ts";
 import { BlogAccess } from "./authorization.ts";
+import { WebConfig } from "./config.ts";
 import type { PublicPostOptions } from "./content-queries.ts";
 import { Dashboard } from "./dashboard.ts";
 import { BlogId, BlogSlug, OrganizationId, PostId, UserId } from "./domain.ts";
@@ -49,6 +50,7 @@ const parseBlogSlug = (value: string) => Schema.decodeOption(BlogSlug)(value);
 export type DashboardPageResult<A> =
   | { readonly _tag: "Success"; readonly value: A }
   | { readonly _tag: "Unauthorized" }
+  | { readonly _tag: "PasswordChangeRequired" }
   | { readonly _tag: "Forbidden" }
   | { readonly _tag: "NeedsOnboarding" };
 
@@ -62,6 +64,9 @@ async function runDashboardPage<A, E extends Error>(
   }
   if (result.failure instanceof SessionErrors.AuthenticationRequired) {
     return { _tag: "Unauthorized" };
+  }
+  if (result.failure instanceof SessionErrors.PasswordChangeRequired) {
+    return { _tag: "PasswordChangeRequired" };
   }
   if (
     result.failure instanceof BlogAccess.BlogAccessDenied ||
@@ -83,8 +88,16 @@ export function loadDashboardShell() {
     Effect.gen(function* () {
       const { session, actorId, selection } = yield* currentActor();
       const dashboard = yield* Dashboard.Service;
+      const config = yield* WebConfig;
       const context = yield* dashboard.shell(actorId, selection);
-      return { session, context, blog: context.publication };
+      return {
+        session,
+        context,
+        blog: context.publication,
+        canCreateWorkspace: config.deployment === "cloud",
+        showWorkspaceSwitcher:
+          config.deployment === "cloud" || context.workspaces.length > 1,
+      };
     }),
   );
 }
@@ -144,7 +157,12 @@ export function loadDashboardSettings() {
     Effect.gen(function* () {
       const { actorId, selection } = yield* currentActor();
       const dashboard = yield* Dashboard.Service;
-      return yield* dashboard.settings(actorId, selection);
+      const config = yield* WebConfig;
+      const settings = yield* dashboard.settings(actorId, selection);
+      return {
+        ...settings,
+        cloudDeployment: config.deployment === "cloud",
+      };
     }),
   );
 }
@@ -154,7 +172,9 @@ export function loadDashboardTeam() {
     Effect.gen(function* () {
       const { actorId, selection } = yield* currentActor();
       const dashboard = yield* Dashboard.Service;
-      return yield* dashboard.team(actorId, selection);
+      const config = yield* WebConfig;
+      const team = yield* dashboard.team(actorId, selection);
+      return { ...team, cloudDeployment: config.deployment === "cloud" };
     }),
   );
 }
@@ -164,7 +184,9 @@ export function loadDashboardAudit() {
     Effect.gen(function* () {
       const { actorId, selection } = yield* currentActor();
       const dashboard = yield* Dashboard.Service;
-      return yield* dashboard.audit(actorId, selection);
+      const config = yield* WebConfig;
+      const audit = yield* dashboard.audit(actorId, selection);
+      return { ...audit, cloudDeployment: config.deployment === "cloud" };
     }),
   );
 }

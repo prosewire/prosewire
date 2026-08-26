@@ -18,11 +18,22 @@ export default function DashboardLayout({
 }
 
 async function DashboardShell({ children }: { children: React.ReactNode }) {
-  const { session, context } = dashboardData(await loadDashboardShell());
+  const { canCreateWorkspace, context, session, showWorkspaceSwitcher } =
+    dashboardData(await loadDashboardShell());
   return (
     <div className="min-h-screen bg-[#f4f3ed]">
-      <DashboardSidebar userName={session.user.name} {...context} />
-      <MobileHeader userName={session.user.name} {...context} />
+      <DashboardSidebar
+        userName={session.user.name}
+        canCreateWorkspace={canCreateWorkspace}
+        showWorkspaceSwitcher={showWorkspaceSwitcher}
+        {...context}
+      />
+      <MobileHeader
+        userName={session.user.name}
+        canCreateWorkspace={canCreateWorkspace}
+        showWorkspaceSwitcher={showWorkspaceSwitcher}
+        {...context}
+      />
       <div className="lg:pl-[248px]">{children}</div>
     </div>
   );

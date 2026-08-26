@@ -20,6 +20,9 @@ export const user = pgTable(
     role: text("role", { enum: ["admin", "member"] })
       .notNull()
       .default("member"),
+    mustChangePassword: boolean("must_change_password")
+      .notNull()
+      .default(false),
     disabledAt: timestamp("disabled_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

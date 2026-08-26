@@ -32,6 +32,8 @@ const manage = [
 
 export function DashboardSidebar({
   userName,
+  canCreateWorkspace,
+  showWorkspaceSwitcher,
   role,
   workspace,
   workspaces,
@@ -48,29 +50,31 @@ export function DashboardSidebar({
       </div>
 
       <div className="mt-7 space-y-2 rounded-xl border border-[#dedfd9] bg-white p-2.5 shadow-sm">
-        <form action={switchWorkspace} className="flex items-center gap-2">
-          <label htmlFor="workspace-switcher" className="sr-only">
-            Active workspace
-          </label>
-          <select
-            id="workspace-switcher"
-            name="organizationId"
-            defaultValue={workspace.id}
-            className="min-w-0 flex-1 bg-transparent text-xs font-semibold outline-none"
-          >
-            {workspaces.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </select>
-          <button className="rounded-md border border-[#dedfd9] px-2 py-1 text-[10px] font-semibold text-[#687279]">
-            Switch
-          </button>
-        </form>
+        {showWorkspaceSwitcher ? (
+          <form action={switchWorkspace} className="flex items-center gap-2">
+            <label htmlFor="workspace-switcher" className="sr-only">
+              Active workspace
+            </label>
+            <select
+              id="workspace-switcher"
+              name="organizationId"
+              defaultValue={workspace.id}
+              className="min-w-0 flex-1 bg-transparent text-xs font-semibold outline-none"
+            >
+              {workspaces.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+            <button className="rounded-md border border-[#dedfd9] px-2 py-1 text-[10px] font-semibold text-[#687279]">
+              Switch
+            </button>
+          </form>
+        ) : null}
         <form
           action={switchPublication}
-          className="flex items-center gap-2 border-t border-[#ecece8] pt-2"
+          className={`flex items-center gap-2 ${showWorkspaceSwitcher ? "border-t border-[#ecece8] pt-2" : ""}`}
         >
           <label htmlFor="publication-switcher" className="sr-only">
             Active publication
@@ -91,12 +95,22 @@ export function DashboardSidebar({
             Open
           </button>
         </form>
-        <Link
-          href="/onboarding?newWorkspace=1"
-          className="block border-t border-[#ecece8] pt-2 text-center text-[10px] font-semibold text-[#687279] hover:text-[#172329]"
-        >
-          + New workspace
-        </Link>
+        {hasPermission(role, "publications:create") ? (
+          <Link
+            href="/onboarding"
+            className="block border-t border-[#ecece8] pt-2 text-center text-[10px] font-semibold text-[#687279] hover:text-[#172329]"
+          >
+            + New publication
+          </Link>
+        ) : null}
+        {canCreateWorkspace ? (
+          <Link
+            href="/onboarding?newWorkspace=1"
+            className="block border-t border-[#ecece8] pt-2 text-center text-[10px] font-semibold text-[#687279] hover:text-[#172329]"
+          >
+            + New workspace
+          </Link>
+        ) : null}
       </div>
 
       <nav className="mt-6 space-y-1">
@@ -109,7 +123,7 @@ export function DashboardSidebar({
       </nav>
 
       <div className="mt-6 px-3 text-[10px] font-bold uppercase tracking-[0.16em] text-[#9aa1a4]">
-        Workspace
+        Manage
       </div>
       <nav className="mt-2 space-y-1">
         {manage.map((item) => (

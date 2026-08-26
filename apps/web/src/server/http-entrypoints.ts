@@ -225,6 +225,9 @@ export async function exportPosts(
   if (result.failure instanceof SessionErrors.AuthenticationRequired) {
     return new Response("Unauthorized", { status: 401 });
   }
+  if (result.failure instanceof SessionErrors.PasswordChangeRequired) {
+    return new Response("Password change required", { status: 403 });
+  }
   if (result.failure instanceof BlogAccess.BlogAccessDenied) {
     return new Response("Forbidden", { status: 403 });
   }

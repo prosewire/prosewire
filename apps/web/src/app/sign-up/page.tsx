@@ -18,11 +18,15 @@ export default async function SignUpPage({
     /^\/accept-invitation\/([^/]+)$/,
   )?.[1];
   const state = await loadAuthenticationState(invitationId);
+  if (state.session?.user.mustChangePassword) {
+    redirect(`/change-password?returnTo=${encodeURIComponent(safeReturnTo)}`);
+  }
   if (state.session) redirect(safeReturnTo);
   if (!state.openRegistration && !state.invitation) notFound();
   return (
     <SignUpForm
       returnTo={safeReturnTo}
+      cloudDeployment={state.cloudDeployment}
       {...(state.invitation && invitationId
         ? {
             invitedEmail: state.invitation.email,

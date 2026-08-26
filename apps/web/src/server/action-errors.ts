@@ -4,6 +4,7 @@ import type { SessionErrors } from "./session-errors.ts";
 
 export type ActionBoundaryError =
   | SessionErrors.AuthenticationRequired
+  | SessionErrors.PasswordChangeRequired
   | PostErrors.InvalidPost
   | PostErrors.PostNotFound
   | PostErrors.PostRevisionNotFound
@@ -18,9 +19,14 @@ export function actionErrorRedirect(
   switch (error._tag) {
     case "AuthenticationRequired":
       return "/sign-in";
+    case "PasswordChangeRequired":
+      return "/change-password";
     case "InvalidPost":
     case "InvalidBlogSettings":
-      return `${fallbackPath}?error=${encodeURIComponent(error.message)}`;
+    case "InvalidPasswordChange":
+    case "InvalidWorkspaceInput":
+    case "SelfHostedWorkspaceAlreadyExists":
+      return `${fallbackPath.includes("?") ? `${fallbackPath}&` : `${fallbackPath}?`}error=${encodeURIComponent(error.message)}`;
     case "PostNotFound":
     case "PostRevisionNotFound":
     case "BlogNotFound":

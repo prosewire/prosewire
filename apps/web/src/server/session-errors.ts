@@ -19,6 +19,18 @@ export class SessionBoundaryError extends Schema.TaggedError<SessionBoundaryErro
   },
 ) {}
 
-export type Error = AuthenticationRequired | SessionBoundaryError;
+export class PasswordChangeRequired extends Schema.TaggedError<PasswordChangeRequired>()(
+  "PasswordChangeRequired",
+  {},
+) {
+  override get message(): string {
+    return "Change the temporary password before continuing";
+  }
+}
+
+export type Error =
+  | AuthenticationRequired
+  | PasswordChangeRequired
+  | SessionBoundaryError;
 
 export * as SessionErrors from "./session-errors";
