@@ -50,6 +50,29 @@ describe("private API request contract", () => {
     });
   });
 
+  it("decodes revision list and restore routes", async () => {
+    const postId = "11111111-1111-4111-8111-111111111111";
+    const revisionId = "22222222-2222-4222-8222-222222222222";
+
+    await expect(
+      decodePrivateApiRequest(
+        new Request(`http://localhost/api/v1/posts/${postId}/revisions`),
+      ),
+    ).resolves.toEqual({ _tag: "ListPostRevisions", id: postId });
+    await expect(
+      decodePrivateApiRequest(
+        new Request(
+          `http://localhost/api/v1/posts/${postId}/revisions/${revisionId}/restore`,
+          { method: "POST" },
+        ),
+      ),
+    ).resolves.toEqual({
+      _tag: "RestorePostRevision",
+      id: postId,
+      revisionId,
+    });
+  });
+
   it("owns malformed input and unknown-route failures", async () => {
     await expect(
       decodePrivateApiRequest(
@@ -59,5 +82,13 @@ describe("private API request contract", () => {
     await expect(
       decodePrivateApiRequest(new Request("http://localhost/api/v1/missing")),
     ).rejects.toBeInstanceOf(ApiPostNotFound);
+    await expect(
+      decodePrivateApiRequest(
+        new Request(
+          "http://localhost/api/v1/posts/11111111-1111-4111-8111-111111111111/revisions/not-a-uuid/restore",
+          { method: "POST" },
+        ),
+      ),
+    ).rejects.toBeInstanceOf(ApiInputRejected);
   });
 });

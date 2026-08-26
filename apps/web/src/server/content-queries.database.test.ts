@@ -231,7 +231,27 @@ async function seed(
     postId: firstPostId,
     editorId: ownerId,
     version: 1,
-    snapshot: { title: "Older Alpha" },
+    snapshot: {
+      authorId: primaryAuthorId,
+      title: "Older Alpha",
+      slug: "older-alpha",
+      excerpt: "Older excerpt",
+      contentMarkdown: "Older content",
+      contentHtml: "<p>Older content</p>",
+      coverImageUrl: null,
+      coverImageAlt: null,
+      status: "published",
+      locale: "en",
+      featured: false,
+      seoTitle: null,
+      seoDescription: null,
+      focusKeyword: null,
+      canonicalUrl: null,
+      scheduledAt: null,
+      publishedAt: new Date(now - 172_800_000).toISOString(),
+      archivedAt: null,
+      categoryIds: [categoryId],
+    },
   });
   await client.insert(schema.postView).values([
     {
@@ -555,8 +575,14 @@ describe.skipIf(!databaseUrl)("PostgreSQL content queries", () => {
       const post = await Effect.runPromise(
         api.getPost(fixture.blogId, fixture.firstPostId),
       );
+      const revisions = await Effect.runPromise(
+        api.listPostRevisions(fixture.blogId, fixture.firstPostId),
+      );
       const denied = await Effect.runPromise(
         Effect.flip(api.getPost(fixture.blogId, fixture.otherPostId)),
+      );
+      const deniedRevisions = await Effect.runPromise(
+        Effect.flip(api.listPostRevisions(fixture.blogId, fixture.otherPostId)),
       );
 
       expect(blogs).toEqual([
@@ -578,7 +604,23 @@ describe.skipIf(!databaseUrl)("PostgreSQL content queries", () => {
         author: { id: fixture.primaryAuthorId },
         categories: [expect.objectContaining({ id: fixture.categoryId })],
       });
+      expect(revisions).toEqual([
+        expect.objectContaining({
+          postId: fixture.firstPostId,
+          editorId: fixture.ownerId,
+          version: 1,
+          createdAt: expect.any(String),
+          snapshot: expect.objectContaining({
+            title: "Older Alpha",
+            categoryIds: [fixture.categoryId],
+          }),
+        }),
+      ]);
       expect(denied).toMatchObject({
+        _tag: "PostNotFound",
+        postId: fixture.otherPostId,
+      });
+      expect(deniedRevisions).toMatchObject({
         _tag: "PostNotFound",
         postId: fixture.otherPostId,
       });

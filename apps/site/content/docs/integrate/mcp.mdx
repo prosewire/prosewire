@@ -40,9 +40,9 @@ Restart the MCP client after changing the command or environment. If the server 
 
 | Tools | Classification | Behavior |
 | --- | --- | --- |
-| `publication_get`, `posts_list`, `posts_get` | Read-only | Retrieve publication or post data without persistence |
+| `publication_get`, `posts_list`, `posts_get`, `posts_revisions_list` | Read-only | Retrieve publication, post, or revision data without persistence |
 | `posts_create`, `posts_update` | Mutating | Write content and require client approval |
-| `posts_archive` | Destructive | Remove a post from public surfaces and require client approval |
+| `posts_revision_restore`, `posts_archive` | Destructive | Restore saved content or remove a post from public surfaces; both require client approval |
 
 The server advertises read-only, idempotent, destructive, and approval metadata to MCP clients. Client support for those annotations varies, so confirm the target post and intended change before approving any mutation, especially an archive.
 

@@ -21,6 +21,7 @@ import {
   BlogId,
   CategoryId,
   PostId,
+  PostRevisionId,
   UserId,
 } from "./domain.ts";
 import { PostErrors } from "./post-errors.ts";
@@ -28,6 +29,7 @@ import {
   ArchivePostsCommand,
   CreatePostCommand,
   Publishing,
+  RestorePostRevisionCommand,
   UpdatePostCommand,
 } from "./publishing.ts";
 
@@ -328,6 +330,201 @@ describe.skipIf(!databaseUrl)("Publishing transitions with PostgreSQL", () => {
         expect(persisted?.status).toBe("published");
         expect(revisions).toHaveLength(0);
       }).pipe(Effect.provide(layer())),
+  );
+
+  it.effect(
+    "restores content, categories, and redirects while preserving the replaced version",
+    () =>
+      Effect.gen(function* () {
+        const actorId = UserId.make("editor-1");
+        const firstCategoryId = CategoryId.make(categoryId);
+        const secondCategoryId = CategoryId.make(
+          "66666666-6666-4666-8666-666666666666",
+        );
+        yield* Effect.promise(async () => {
+          await seedPublication("editor", actorId);
+          await testDatabase.client.insert(schema.category).values([
+            {
+              id: firstCategoryId,
+              blogId,
+              name: "First",
+              slug: "first",
+            },
+            {
+              id: secondCategoryId,
+              blogId,
+              name: "Second",
+              slug: "second",
+            },
+          ]);
+          await seedPublishedPost(actorId);
+          await testDatabase.client.insert(schema.postCategory).values({
+            postId,
+            blogId,
+            categoryId: firstCategoryId,
+          });
+        });
+
+        const publishing = yield* Publishing.Service;
+        yield* publishing.updatePost(
+          new UpdatePostCommand({
+            postId: PostId.make(postId),
+            blogId: BlogId.make(blogId),
+            title: "Current post",
+            slug: "current-post",
+            excerpt: "Current excerpt",
+            contentMarkdown: "# Current",
+            status: "published",
+            categoryIds: [secondCategoryId],
+          }),
+          { _tag: "Dashboard", userId: actorId },
+        );
+        const firstRevision = yield* Effect.promise(() =>
+          testDatabase.client.query.postRevision.findFirst({
+            where: eq(schema.postRevision.postId, postId),
+          }),
+        );
+        if (!firstRevision) throw new Error("Expected an update revision");
+
+        yield* publishing.restorePostRevision(
+          new RestorePostRevisionCommand({
+            blogId: BlogId.make(blogId),
+            postId: PostId.make(postId),
+            revisionId: PostRevisionId.make(firstRevision.id),
+          }),
+          { _tag: "Dashboard", userId: actorId },
+        );
+
+        const persisted = yield* Effect.promise(() =>
+          testDatabase.client.query.post.findFirst({
+            where: eq(schema.post.id, postId),
+            with: { categories: true },
+          }),
+        );
+        const revisions = yield* Effect.promise(() =>
+          testDatabase.client.query.postRevision.findMany({
+            where: eq(schema.postRevision.postId, postId),
+          }),
+        );
+        const redirects = yield* Effect.promise(() =>
+          testDatabase.client.query.redirect.findMany({
+            where: eq(schema.redirect.blogId, blogId),
+          }),
+        );
+        const audits = yield* Effect.promise(() =>
+          testDatabase.client.query.auditLog.findMany({
+            where: eq(schema.auditLog.entityId, postId),
+          }),
+        );
+
+        expect(persisted).toMatchObject({
+          title: "Published post",
+          slug: "published-post",
+          contentMarkdown: "# Published",
+          status: "published",
+          categories: [{ postId, blogId, categoryId: firstCategoryId }],
+        });
+        expect(revisions).toHaveLength(2);
+        expect(revisions.map(({ version }) => version).sort()).toEqual([1, 2]);
+        expect(
+          revisions.find(({ version }) => version === 2)?.snapshot,
+        ).toMatchObject({
+          title: "Current post",
+          slug: "current-post",
+          categoryIds: [secondCategoryId],
+        });
+        expect(redirects).toEqual([
+          expect.objectContaining({
+            fromPath: "current-post",
+            toPath: "published-post",
+          }),
+        ]);
+        expect(audits.map(({ action }) => action).sort()).toEqual([
+          "post.revision_restored",
+          "post.updated",
+        ]);
+      }).pipe(Effect.provide(layer())),
+  );
+
+  it.effect("requires publish permission to restore a published revision", () =>
+    Effect.gen(function* () {
+      const actorId = UserId.make("author-1");
+      const revisionId = PostRevisionId.make(
+        "77777777-7777-4777-8777-777777777777",
+      );
+      yield* Effect.promise(async () => {
+        await seedPublication("author", actorId);
+        await testDatabase.client.insert(schema.post).values({
+          id: postId,
+          blogId,
+          authorId,
+          title: "Current draft",
+          slug: "current-draft",
+          contentMarkdown: "# Draft",
+          contentHtml: "<h1>Draft</h1>",
+          status: "draft",
+          createdById: actorId,
+          updatedById: actorId,
+        });
+        await testDatabase.client.insert(schema.postRevision).values({
+          id: revisionId,
+          postId,
+          version: 1,
+          snapshot: {
+            authorId,
+            title: "Earlier published post",
+            slug: "earlier-published-post",
+            excerpt: "",
+            contentMarkdown: "# Published",
+            contentHtml: "<h1>Published</h1>",
+            coverImageUrl: null,
+            coverImageAlt: null,
+            status: "published",
+            locale: "en",
+            featured: false,
+            seoTitle: null,
+            seoDescription: null,
+            focusKeyword: null,
+            canonicalUrl: null,
+            scheduledAt: null,
+            publishedAt: "2026-08-01T09:00:00.000Z",
+            archivedAt: null,
+            categoryIds: [],
+          },
+        });
+      });
+
+      const publishing = yield* Publishing.Service;
+      const error = yield* Effect.flip(
+        publishing.restorePostRevision(
+          new RestorePostRevisionCommand({
+            blogId: BlogId.make(blogId),
+            postId: PostId.make(postId),
+            revisionId,
+          }),
+          { _tag: "Dashboard", userId: actorId },
+        ),
+      );
+
+      expect(error).toBeInstanceOf(BlogAccess.BlogAccessDenied);
+      if (error instanceof BlogAccess.BlogAccessDenied) {
+        expect(error.capability).toBe("content:publish");
+      }
+      const persisted = yield* Effect.promise(() =>
+        testDatabase.client.query.post.findFirst({
+          where: eq(schema.post.id, postId),
+        }),
+      );
+      const revisions = yield* Effect.promise(() =>
+        testDatabase.client.query.postRevision.findMany(),
+      );
+      const audits = yield* Effect.promise(() =>
+        testDatabase.client.query.auditLog.findMany(),
+      );
+      expect(persisted?.title).toBe("Current draft");
+      expect(revisions).toHaveLength(1);
+      expect(audits).toHaveLength(0);
+    }).pipe(Effect.provide(layer())),
   );
 
   it.effect("records a revision before archiving through the API", () =>

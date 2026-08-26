@@ -12,7 +12,10 @@ import { nodeServicesLayer } from "./node-services.ts";
 import { version } from "./version.ts";
 
 export interface CliPrivateClient {
-  readonly posts: Pick<Client["posts"], "create" | "update" | "archive">;
+  readonly posts: Pick<
+    Client["posts"],
+    "create" | "update" | "archive" | "revisions" | "restore"
+  >;
 }
 
 interface CliDependencies {
@@ -209,8 +212,65 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
     }),
   ).pipe(Command.withDescription("Archive a post"));
 
+  const revisions = Command.make(
+    "revisions",
+    { id: Argument.string("id") },
+    Effect.fn("Cli.revisions")(function* ({ id }) {
+      const parent = yield* root;
+      const key =
+        Option.getOrUndefined(parent.key) ??
+        dependencies.env["PROSEWIRE_API_KEY"];
+      if (!key) {
+        return yield* userError("--key or PROSEWIRE_API_KEY is required");
+      }
+      const result = yield* fromPromise(() =>
+        dependencies
+          .createClient({ baseUrl: parent.url, apiKey: key })
+          .posts.revisions({ params: { id } }),
+      );
+      yield* Effect.sync(() => dependencies.output(result));
+    }),
+  ).pipe(Command.withDescription("List a post's revision history"));
+
+  const restore = Command.make(
+    "restore",
+    {
+      id: Argument.string("id"),
+      revisionId: Argument.string("revision-id"),
+      yes: Flag.boolean("yes").pipe(
+        Flag.withDescription("Confirm the restore operation"),
+      ),
+    },
+    Effect.fn("Cli.restore")(function* ({ id, revisionId, yes }) {
+      if (!yes) {
+        return yield* userError("--yes is required to restore a revision");
+      }
+      const parent = yield* root;
+      const key =
+        Option.getOrUndefined(parent.key) ??
+        dependencies.env["PROSEWIRE_API_KEY"];
+      if (!key) {
+        return yield* userError("--key or PROSEWIRE_API_KEY is required");
+      }
+      const result = yield* fromPromise(() =>
+        dependencies
+          .createClient({ baseUrl: parent.url, apiKey: key })
+          .posts.restore({ params: { id, revisionId } }),
+      );
+      yield* Effect.sync(() => dependencies.output(result));
+    }),
+  ).pipe(Command.withDescription("Restore a post revision"));
+
   return root.pipe(
-    Command.withSubcommands([posts, get, create, update, archive]),
+    Command.withSubcommands([
+      posts,
+      get,
+      create,
+      update,
+      archive,
+      revisions,
+      restore,
+    ]),
   );
 }
 

@@ -10,6 +10,8 @@ function privateClient(
       create: vi.fn(),
       update: vi.fn(),
       archive: vi.fn(),
+      revisions: vi.fn(),
+      restore: vi.fn(),
       ...overrides,
     },
   };
@@ -174,6 +176,18 @@ describe("Prosewire CLI", () => {
         { env: {}, readFile: vi.fn() },
       ),
     ).rejects.toThrow("--key or PROSEWIRE_API_KEY is required");
+
+    await expect(
+      runProgram(
+        [
+          "node",
+          "prosewire",
+          "revisions",
+          "11111111-1111-4111-8111-111111111111",
+        ],
+        { env: {} },
+      ),
+    ).rejects.toThrow("--key or PROSEWIRE_API_KEY is required");
   });
 
   it("requires a publication for public reads", async () => {
@@ -228,6 +242,56 @@ describe("Prosewire CLI", () => {
     expect(archive).toHaveBeenCalledWith({
       params: { id: "11111111-1111-4111-8111-111111111111" },
     });
+  });
+
+  it("lists and explicitly restores post revisions", async () => {
+    const postId = "11111111-1111-4111-8111-111111111111";
+    const revisionId = "22222222-2222-4222-8222-222222222222";
+    const revisions = vi.fn().mockResolvedValue([{ id: revisionId }]);
+    const restore = vi.fn().mockResolvedValue({ id: postId, title: "Earlier" });
+    const output = vi.fn();
+    const createClient = vi.fn(() => privateClient({ revisions, restore }));
+    const dependencies = { createClient, output, env: {} };
+
+    await runProgram(
+      ["node", "prosewire", "--key", "pw_test", "revisions", postId],
+      dependencies,
+    );
+    await runProgram(
+      [
+        "node",
+        "prosewire",
+        "--key",
+        "pw_test",
+        "restore",
+        postId,
+        revisionId,
+        "--yes",
+      ],
+      dependencies,
+    );
+
+    expect(revisions).toHaveBeenCalledWith({ params: { id: postId } });
+    expect(restore).toHaveBeenCalledWith({
+      params: { id: postId, revisionId },
+    });
+    expect(output).toHaveBeenCalledTimes(2);
+
+    await expect(
+      runProgram(
+        [
+          "node",
+          "prosewire",
+          "--key",
+          "pw_test",
+          "restore",
+          postId,
+          revisionId,
+        ],
+        dependencies,
+      ),
+    ).rejects.toThrow();
+    expect(restore).toHaveBeenCalledOnce();
   });
 
   it("writes JSON to stdout by default", async () => {

@@ -61,12 +61,14 @@ Authorization: Bearer pw_live_...
 | `GET` | `/api/v1/blogs` | `content:read` | Return the publication selected by the key |
 | `GET` | `/api/v1/posts` | `content:read` | List posts, including non-public states |
 | `GET` | `/api/v1/posts/:id` | `content:read` | Retrieve one post by UUID |
+| `GET` | `/api/v1/posts/:id/revisions` | `content:read` | List saved revisions, newest first |
 | `POST` | `/api/v1/posts` | `content:write` | Create a post |
 | `PATCH` | `/api/v1/posts/:id` | `content:write` | Update supplied fields |
+| `POST` | `/api/v1/posts/:id/revisions/:revisionId/restore` | `content:write` | Save the current version, then restore the selected revision |
 | `DELETE` | `/api/v1/posts/:id` | `content:write` | Archive the post; it does not delete the row |
 
 The private list accepts `search`, `status`, `page`, and `pageSize`. Create requires `blogId`, `authorId`, `title`, and `slug`; optional fields have the same limits enforced by the SDK and CLI. Slugs contain lowercase letters, numbers, and single hyphens, with a maximum length of 120 characters.
 
-Create and update operations render and sanitize Markdown before persistence. Mutations create audit records. Expect 400 for invalid input, 401 for a missing or invalid key, 403 for an insufficient scope or publication boundary, 404 for a missing post, and 500 when the service cannot complete the operation.
+Create and update operations render and sanitize Markdown before persistence. Restore applies content that Prosewire rendered and stored in an earlier revision. Every mutation creates an audit record. Expect 400 for invalid input, 401 for a missing or invalid key, 403 for an insufficient scope or publication boundary, 404 for a missing post or revision, and 500 when the service cannot complete the operation.
 
 Keep management tokens on trusted servers. Browser applications should use the public JSON or rendered endpoints unless they are backed by a server that holds the token.

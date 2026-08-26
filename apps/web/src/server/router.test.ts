@@ -39,4 +39,17 @@ describe("private API transport validation", () => {
     expect(result.status).toBe(400);
     expect(result.body._tag).toBe("ApiInputRejected");
   });
+
+  it("rejects malformed revision identifiers before the application runtime", async () => {
+    const result = await errorFor(
+      "/api/v1/posts/11111111-1111-4111-8111-111111111111/revisions/not-a-uuid/restore",
+      { method: "POST" },
+    );
+
+    expect(result.status).toBe(400);
+    expect(result.body).toMatchObject({
+      _tag: "ApiInputRejected",
+      message: "Invalid revision id",
+    });
+  });
 });

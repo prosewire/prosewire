@@ -5,6 +5,7 @@ import {
   privateApiPaths,
   privateApiPostId,
   privateApiPostListQuery,
+  privateApiRevisionId,
 } from "./router.ts";
 import {
   type PostCreateInput,
@@ -32,13 +33,19 @@ export type PrivateApiRequest =
   | { readonly _tag: "ListBlogs" }
   | { readonly _tag: "ListPosts"; readonly input: PostListRequest }
   | { readonly _tag: "GetPost"; readonly id: string }
+  | { readonly _tag: "ListPostRevisions"; readonly id: string }
   | { readonly _tag: "CreatePost"; readonly input: PostCreateInput }
   | {
       readonly _tag: "UpdatePost";
       readonly id: string;
       readonly input: PostUpdateInput;
     }
-  | { readonly _tag: "ArchivePost"; readonly id: string };
+  | { readonly _tag: "ArchivePost"; readonly id: string }
+  | {
+      readonly _tag: "RestorePostRevision";
+      readonly id: string;
+      readonly revisionId: string;
+    };
 
 async function decode<S extends Schema.ConstraintDecoder<unknown>>(
   schema: S,
@@ -74,6 +81,49 @@ async function identifier(pathname: string): Promise<string | undefined> {
   return decode(privateApiPostId, value, "Invalid post id");
 }
 
+async function revisionRoute(pathname: string): Promise<
+  | { readonly _tag: "List"; readonly id: string }
+  | {
+      readonly _tag: "Restore";
+      readonly id: string;
+      readonly revisionId: string;
+    }
+  | undefined
+> {
+  const prefix = `${postsPath}/`;
+  if (!pathname.startsWith(prefix)) return undefined;
+  const segments = pathname.slice(prefix.length).split("/");
+  const isList = segments.length === 2 && segments[1] === "revisions";
+  const isRestore =
+    segments.length === 4 &&
+    segments[1] === "revisions" &&
+    segments[3] === "restore";
+  if (!isList && !isRestore) return undefined;
+  let id: string;
+  try {
+    id = decodeURIComponent(segments[0] ?? "");
+  } catch {
+    throw new ApiInputRejected({ message: "Invalid post id" });
+  }
+  const decodedId = await decode(privateApiPostId, id, "Invalid post id");
+  if (isList) return { _tag: "List", id: decodedId };
+  let revisionId: string;
+  try {
+    revisionId = decodeURIComponent(segments[2] ?? "");
+  } catch {
+    throw new ApiInputRejected({ message: "Invalid revision id" });
+  }
+  return {
+    _tag: "Restore",
+    id: decodedId,
+    revisionId: await decode(
+      privateApiRevisionId,
+      revisionId,
+      "Invalid revision id",
+    ),
+  };
+}
+
 export async function decodePrivateApiRequest(
   request: Request,
 ): Promise<PrivateApiRequest> {
@@ -97,6 +147,18 @@ export async function decodePrivateApiRequest(
         page: query.page ?? 1,
         pageSize: query.pageSize ?? 20,
       },
+    };
+  }
+
+  const revision = await revisionRoute(pathname);
+  if (revision?._tag === "List" && request.method === "GET") {
+    return { _tag: "ListPostRevisions", id: revision.id };
+  }
+  if (revision?._tag === "Restore" && request.method === "POST") {
+    return {
+      _tag: "RestorePostRevision",
+      id: revision.id,
+      revisionId: revision.revisionId,
     };
   }
 

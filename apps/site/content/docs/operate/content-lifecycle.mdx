@@ -17,7 +17,9 @@ order: 7
 
 Prosewire creates revisions before destructive content changes. Slugs are unique within a blog, and when a published slug changes, the old public URL redirects to the new canonical URL.
 
-Revision snapshots retain the actor and version for auditability. The current dashboard does not provide revision browsing or one-click revision restore. Changing an archived post back to a working status does not delete its revision history.
+Revision snapshots retain the actor and version for auditability. The dashboard can inspect and restore them. Restore is also available through the management API, SDK, CLI, and MCP. Prosewire saves the current post as a new revision before a restore, so the operation remains reversible.
+
+New snapshots include category relationships. Older snapshots created before category capture leave the post's current categories unchanged when restored. Changing an archived post back to a working status does not delete its revision history.
 
 ## Portable exports
 

@@ -14,7 +14,7 @@ missing.
 | Content and search checks | Implemented as deterministic guidance; not a guarantee of ranking or accessibility compliance |
 | Cover image URL and alt text | Implemented as metadata; no media library or upload workflow |
 | Featured or pinned posts | Implemented as one `featured` flag used by the public homepage |
-| Revisions | Snapshots and actor/version data are stored; history browsing and one-click restore UI are not implemented |
+| Revisions | History browsing and confirmed restore are implemented in the dashboard, management API, SDK, CLI, and MCP; each restore first saves the version it replaces |
 | Bulk operations | Bulk archive is implemented; bulk editing of other fields is not |
 | Reusable snippets | Stored and visible in the content library; editor insertion UI is not implemented |
 | Localization | Publication and post locale fields are implemented; translation management is not |
@@ -51,7 +51,7 @@ missing.
 | JavaScript embed | Implemented without an iframe; loads a publication index or one article |
 | Rendered HTML API | Implemented with sanitized post content and stable `pw-*` classes |
 | Public JSON API | Implemented for published lists and individual posts |
-| Private management API | Implemented for health, publication listing, and post list/get/create/update/archive |
+| Private management API | Implemented for health, publication listing, post list/get/create/update/archive, and revision list/restore |
 | TypeScript SDK | Promise and Effect clients are published as pre-1.0 packages |
 | CLI | Public read commands and authenticated create/update/archive commands are published |
 | MCP server | Read, mutating, and destructive tools are published with operation metadata and approval requirements |

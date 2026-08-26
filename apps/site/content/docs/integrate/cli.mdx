@@ -39,13 +39,12 @@ export PROSEWIRE_API_KEY=pw_live_...
 
 prosewire create --data post.json
 prosewire update 00000000-0000-4000-8000-000000000000 --data changes.json
+prosewire revisions 00000000-0000-4000-8000-000000000000
+prosewire restore 00000000-0000-4000-8000-000000000000 00000000-0000-4000-8000-000000000001 --yes
 prosewire archive 00000000-0000-4000-8000-000000000000 --yes
 ```
 
-`create` and `update` are mutating. `archive` is destructive because it removes
-the post from public surfaces; it refuses to run without explicit `--yes`
-confirmation. All private commands are limited to the publication and scopes of
-the supplied key.
+`revisions` reads private history and requires `content:read`. `create` and `update` are mutating. `restore` and `archive` are destructive and refuse to run without explicit `--yes` confirmation. Restore saves the current post first. Archive removes the post from public surfaces. All private commands are limited to the publication and scopes of the supplied key.
 
 ## JSON request files
 
