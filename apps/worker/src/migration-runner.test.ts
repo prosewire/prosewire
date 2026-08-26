@@ -21,8 +21,13 @@ describe("production migration runner", () => {
         events.push("migrate");
         return Promise.resolve();
       },
+      migrateWorkflowStorage: (databaseUrl) => {
+        expect(databaseUrl).toBe("postgres://test");
+        events.push("workflow");
+        return Promise.resolve();
+      },
     });
 
-    expect(events).toEqual(["lock", "migrate", "unlock"]);
+    expect(events).toEqual(["lock", "migrate", "workflow", "unlock"]);
   });
 });

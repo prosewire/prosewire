@@ -1,68 +1,83 @@
 import { describe, expect, it } from "@effect/vitest";
 import { Effect, Layer } from "effect";
 import * as PersistedQueue from "effect/unstable/persistence/PersistedQueue";
-import * as EmailQueue from "./email-queue.ts";
-import { EmailDeliveryJob } from "./email-queue.ts";
+import {
+  DurableQueue,
+  Workflow,
+  WorkflowEngine,
+} from "effect/unstable/workflow";
+import { EmailDeliveryError, EmailDeliveryJob, queue } from "./email-queue.ts";
 
-const queueLayer = EmailQueue.layer.pipe(
-  Layer.provide(
-    PersistedQueue.layer.pipe(Layer.provide(PersistedQueue.layerStoreMemory)),
-  ),
+const EmailTestWorkflow = Workflow.make("EmailTestWorkflow", {
+  payload: EmailDeliveryJob,
+  error: EmailDeliveryError,
+  idempotencyKey: ({ outboxId }) => outboxId,
+});
+
+const infrastructureLayer = Layer.merge(
+  WorkflowEngine.layerMemory,
+  PersistedQueue.layer.pipe(Layer.provide(PersistedQueue.layerStoreMemory)),
 );
 
+const workflowLayer = EmailTestWorkflow.toLayer((message) =>
+  DurableQueue.process(queue, message),
+).pipe(Layer.provideMerge(infrastructureLayer));
+
 const job = new EmailDeliveryJob({
+  outboxId: "outbox-1",
   recipient: "person@example.com",
   subject: "Invitation",
   text: "Join the workspace",
   html: "<p>Join the workspace</p>",
 });
 
-describe("EmailQueue", () => {
-  it.effect("encodes and delivers a complete typed email payload", () =>
-    Effect.gen(function* () {
-      const queue = yield* EmailQueue.Service;
-      let taken: EmailDeliveryJob | undefined;
+describe("Email durable queue", () => {
+  it.effect("completes the waiting workflow with a typed payload", () => {
+    const delivered: Array<EmailDeliveryJob> = [];
 
-      yield* queue.offer(job);
-      yield* queue.take((message) =>
+    return Effect.gen(function* () {
+      yield* DurableQueue.makeWorker(queue, (message) =>
         Effect.sync(() => {
-          taken = message;
+          delivered.push(message);
         }),
+      ).pipe(Effect.forkChild);
+
+      yield* EmailTestWorkflow.execute(job);
+      expect(delivered).toEqual([job]);
+    }).pipe(Effect.provide(workflowLayer));
+  });
+
+  it.effect("returns a typed worker failure to the workflow", () => {
+    const failure = new EmailDeliveryError({
+      recipient: job.recipient,
+      cause: new Error("SMTP unavailable"),
+    });
+
+    return Effect.gen(function* () {
+      yield* DurableQueue.makeWorker(queue, () => Effect.fail(failure)).pipe(
+        Effect.forkChild,
       );
 
-      expect(taken).toEqual(job);
-    }).pipe(Effect.provide(queueLayer)),
-  );
+      const error = yield* Effect.flip(EmailTestWorkflow.execute(job));
+      expect(error).toEqual(failure);
+    }).pipe(Effect.provide(workflowLayer));
+  });
 
-  it.effect("preserves errors raised by the delivery handler", () =>
-    Effect.gen(function* () {
-      const queue = yield* EmailQueue.Service;
-      const failure = new Error("SMTP unavailable");
+  it.effect("deduplicates concurrent executions by outbox id", () => {
+    let deliveries = 0;
 
-      yield* queue.offer(job);
-      const error = yield* Effect.flip(queue.take(() => Effect.fail(failure)));
+    return Effect.gen(function* () {
+      yield* DurableQueue.makeWorker(queue, () =>
+        Effect.sync(() => {
+          deliveries += 1;
+        }),
+      ).pipe(Effect.forkChild);
 
-      expect(error).toBe(failure);
-    }).pipe(Effect.provide(queueLayer)),
-  );
-
-  it.effect("deduplicates offers with the same durable id", () =>
-    Effect.gen(function* () {
-      const queue = yield* EmailQueue.Service;
-      const duplicate = new EmailDeliveryJob({
-        ...job,
-        subject: "Duplicate invitation",
-      });
-      const next = new EmailDeliveryJob({ ...job, subject: "Next invitation" });
-      const taken: Array<EmailDeliveryJob> = [];
-
-      yield* queue.offer(job, { id: "outbox-1" });
-      yield* queue.offer(duplicate, { id: "outbox-1" });
-      yield* queue.offer(next, { id: "outbox-2" });
-      yield* queue.take((message) => Effect.sync(() => taken.push(message)));
-      yield* queue.take((message) => Effect.sync(() => taken.push(message)));
-
-      expect(taken).toEqual([job, next]);
-    }).pipe(Effect.provide(queueLayer)),
-  );
+      yield* Effect.all(
+        [EmailTestWorkflow.execute(job), EmailTestWorkflow.execute(job)],
+        { concurrency: "unbounded", discard: true },
+      );
+      expect(deliveries).toBe(1);
+    }).pipe(Effect.provide(workflowLayer));
+  });
 });

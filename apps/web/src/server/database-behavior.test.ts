@@ -22,7 +22,11 @@ import {
   UserId,
 } from "./domain.ts";
 import { PlatformCrypto } from "./platform-crypto.ts";
-import { Publishing, SavePostInput } from "./publishing.ts";
+import {
+  ArchivePostsCommand,
+  Publishing,
+  UpdatePostCommand,
+} from "./publishing.ts";
 import {
   InvitationMutationInput,
   InviteMemberInput,
@@ -436,16 +440,17 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
 
       const service = await publishing(resource.client);
       await Effect.runPromise(
-        service.savePost(
-          new SavePostInput({
-            id: postId,
+        service.updatePost(
+          new UpdatePostCommand({
+            postId,
             blogId,
             authorId,
+            categoryIds: [],
             title: "Published post, edited",
-            requestedSlug: "published-post",
+            slug: "published-post",
             excerpt: "Edited",
             contentMarkdown: "# Edited",
-            requestedStatus: "published",
+            status: "published",
             featured: false,
             locale: "en",
             coverImageUrl: null,
@@ -456,7 +461,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
             canonicalUrl: null,
             scheduledAt: null,
           }),
-          actorId,
+          { _tag: "Dashboard", userId: actorId },
         ),
       );
 
@@ -960,16 +965,17 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
       const service = await publishing(resource.client);
       const denied = await Effect.runPromise(
         Effect.flip(
-          service.savePost(
-            new SavePostInput({
-              id: postId,
+          service.updatePost(
+            new UpdatePostCommand({
+              postId,
               blogId,
               authorId,
+              categoryIds: [],
               title: "Back to draft",
-              requestedSlug: "back-to-draft",
+              slug: "back-to-draft",
               excerpt: "",
               contentMarkdown: "# Draft",
-              requestedStatus: "draft",
+              status: "draft",
               featured: false,
               locale: "en",
               coverImageUrl: null,
@@ -980,7 +986,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
               canonicalUrl: null,
               scheduledAt: null,
             }),
-            actorId,
+            { _tag: "Dashboard", userId: actorId },
           ),
         ),
       );
@@ -1086,14 +1092,25 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
 
       const service = await publishing(resource.client);
       const result = await Effect.runPromise(
-        service.archiveApiPost(archivedPostId, { blogId, keyId }),
+        service.archivePosts(
+          new ArchivePostsCommand({
+            blogId,
+            postIds: [archivedPostId],
+            requireAll: true,
+          }),
+          { _tag: "Api", keyId },
+        ),
       );
       const revoked = await Effect.runPromise(
         Effect.flip(
-          service.archiveApiPost(untouchedPostId, {
-            blogId,
-            keyId: revokedKeyId,
-          }),
+          service.archivePosts(
+            new ArchivePostsCommand({
+              blogId,
+              postIds: [untouchedPostId],
+              requireAll: true,
+            }),
+            { _tag: "Api", keyId: revokedKeyId },
+          ),
         ),
       );
       const posts = await resource.client

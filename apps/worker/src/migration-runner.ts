@@ -1,4 +1,5 @@
 import { runMigrations, withDatabaseAdvisoryLock } from "@prosewire/db";
+import { migrateWorkflowStorage } from "./workflow-storage.ts";
 
 export interface MigrationDependencies {
   readonly runMigrations: (
@@ -9,11 +10,13 @@ export interface MigrationDependencies {
     databaseUrl: string,
     evaluate: () => Promise<A>,
   ) => Promise<A>;
+  readonly migrateWorkflowStorage: (databaseUrl: string) => Promise<void>;
 }
 
 const defaultDependencies: MigrationDependencies = {
   runMigrations,
   withDatabaseAdvisoryLock,
+  migrateWorkflowStorage,
 };
 
 export function migrateDatabase(
@@ -21,7 +24,8 @@ export function migrateDatabase(
   migrationsDir?: string,
   dependencies: MigrationDependencies = defaultDependencies,
 ): Promise<void> {
-  return dependencies.withDatabaseAdvisoryLock(databaseUrl, () =>
-    dependencies.runMigrations(databaseUrl, migrationsDir),
-  );
+  return dependencies.withDatabaseAdvisoryLock(databaseUrl, async () => {
+    await dependencies.runMigrations(databaseUrl, migrationsDir);
+    await dependencies.migrateWorkflowStorage(databaseUrl);
+  });
 }

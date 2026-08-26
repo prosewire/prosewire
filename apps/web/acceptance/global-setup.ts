@@ -2,16 +2,19 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { openDb } from "@prosewire/db/client";
+import * as schema from "@prosewire/db/schema";
 import { hashPassword } from "better-auth/crypto";
 import { sql } from "drizzle-orm";
 import { Client } from "pg";
-import { openDb } from "@prosewire/db/client";
-import * as schema from "@prosewire/db/schema";
 import { acceptance } from "./fixtures.ts";
 
-const resolvedRepositoryRoot = [process.cwd(), path.resolve(process.cwd(), "../..")]
-  .find((candidate) => existsSync(path.join(candidate, "packages/db/drizzle")));
-if (!resolvedRepositoryRoot) throw new Error("Could not resolve the repository root");
+const resolvedRepositoryRoot = [
+  process.cwd(),
+  path.resolve(process.cwd(), "../.."),
+].find((candidate) => existsSync(path.join(candidate, "packages/db/drizzle")));
+if (!resolvedRepositoryRoot)
+  throw new Error("Could not resolve the repository root");
 const repositoryRoot: string = resolvedRepositoryRoot;
 const apiKeyHash = (value: string) =>
   createHash("sha256").update(value).digest("hex");
@@ -19,14 +22,19 @@ const apiKeyHash = (value: string) =>
 export default async function globalSetup(): Promise<void> {
   const databaseUrl = process.env["DATABASE_URL"];
   if (!databaseUrl) {
-    throw new Error("DATABASE_URL is required for Postgres-backed acceptance tests");
+    throw new Error(
+      "DATABASE_URL is required for Postgres-backed acceptance tests",
+    );
   }
   const parsedDatabaseUrl = new URL(databaseUrl);
   const databaseName = parsedDatabaseUrl.pathname.slice(1);
   const searchPath = parsedDatabaseUrl.searchParams
     .get("options")
     ?.match(/search_path(?:=|%3D)([a-zA-Z0-9_]+)/i)?.[1];
-  if (!/(acceptance|test)/i.test(databaseName) && !/(acceptance|test)/i.test(searchPath ?? "")) {
+  if (
+    !/(acceptance|test)/i.test(databaseName) &&
+    !/(acceptance|test)/i.test(searchPath ?? "")
+  ) {
     throw new Error(
       `Refusing to reset non-test database ${databaseName}; use a test database or an acceptance search_path`,
     );
@@ -45,7 +53,9 @@ export default async function globalSetup(): Promise<void> {
     );
     if (!existing.rows[0]?.exists) {
       if (!/^[a-zA-Z0-9_]+$/.test(databaseName)) {
-        throw new Error("Acceptance database name contains unsupported characters");
+        throw new Error(
+          "Acceptance database name contains unsupported characters",
+        );
       }
       await administrativeClient.query(`create database "${databaseName}"`);
     }
@@ -60,17 +70,27 @@ export default async function globalSetup(): Promise<void> {
     if (!/^[a-zA-Z0-9_]+$/.test(schemaName)) {
       throw new Error("Acceptance schema name contains unsupported characters");
     }
-    await database.execute(sql.raw(`drop schema if exists "${schemaName}" cascade`));
+    await database.execute(
+      sql.raw(`drop schema if exists "${schemaName}" cascade`),
+    );
     await database.execute(sql.raw(`create schema "${schemaName}"`));
-    const migrationsDirectory = path.join(repositoryRoot, "packages/db/drizzle");
+    const migrationsDirectory = path.join(
+      repositoryRoot,
+      "packages/db/drizzle",
+    );
     const journal = JSON.parse(
-      await readFile(path.join(migrationsDirectory, "meta/_journal.json"), "utf8"),
+      await readFile(
+        path.join(migrationsDirectory, "meta/_journal.json"),
+        "utf8",
+      ),
     ) as { entries: ReadonlyArray<{ tag: string }> };
     for (const entry of journal.entries) {
-      const migration = (await readFile(
-        path.join(migrationsDirectory, `${entry.tag}.sql`),
-        "utf8",
-      )).replaceAll('"public".', `"${schemaName}".`);
+      const migration = (
+        await readFile(
+          path.join(migrationsDirectory, `${entry.tag}.sql`),
+          "utf8",
+        )
+      ).replaceAll('"public".', `"${schemaName}".`);
       for (const statement of migration.split("--> statement-breakpoint")) {
         if (statement.trim()) await database.execute(sql.raw(statement));
       }
@@ -188,12 +208,20 @@ export default async function globalSetup(): Promise<void> {
         slug: "other-author",
       },
     ]);
-    await database.insert(schema.category).values({
-      id: acceptance.category.id,
-      blogId: acceptance.blog.id,
-      name: "Engineering",
-      slug: acceptance.category.slug,
-    });
+    await database.insert(schema.category).values([
+      {
+        id: acceptance.category.id,
+        blogId: acceptance.blog.id,
+        name: "Engineering",
+        slug: acceptance.category.slug,
+      },
+      {
+        id: acceptance.secondCategory.id,
+        blogId: acceptance.blog.id,
+        name: "Product",
+        slug: acceptance.secondCategory.slug,
+      },
+    ]);
     await database.insert(schema.apiKey).values([
       {
         blogId: acceptance.blog.id,
@@ -230,7 +258,7 @@ export default async function globalSetup(): Promise<void> {
         slug: "acceptance-draft",
         excerpt: "Private draft fixture.",
         contentMarkdown: "## Draft only",
-        contentHtml: "<h2 id=\"draft-only\">Draft only</h2>",
+        contentHtml: '<h2 id="draft-only">Draft only</h2>',
         status: "draft",
       },
       {
@@ -242,7 +270,7 @@ export default async function globalSetup(): Promise<void> {
         slug: "acceptance-scheduled",
         excerpt: "Future scheduled fixture.",
         contentMarkdown: "## Scheduled later",
-        contentHtml: "<h2 id=\"scheduled-later\">Scheduled later</h2>",
+        contentHtml: '<h2 id="scheduled-later">Scheduled later</h2>',
         status: "scheduled",
         scheduledAt: future,
       },
@@ -255,7 +283,8 @@ export default async function globalSetup(): Promise<void> {
         slug: "acceptance-published",
         excerpt: "The one public fixture with portable search terms.",
         contentMarkdown: "## Portable publishing\n\nVisible on every surface.",
-        contentHtml: "<h2 id=\"portable-publishing\">Portable publishing</h2><p>Visible on every surface.</p>",
+        contentHtml:
+          '<h2 id="portable-publishing">Portable publishing</h2><p>Visible on every surface.</p>',
         status: "published",
         featured: true,
         publishedAt: past,
@@ -304,6 +333,7 @@ export default async function globalSetup(): Promise<void> {
     await database.insert(schema.postCategory).values({
       postId: acceptance.posts.published,
       categoryId: acceptance.category.id,
+      blogId: acceptance.blog.id,
     });
   } finally {
     await resource.close();

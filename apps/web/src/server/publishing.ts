@@ -1,25 +1,24 @@
 import { Context, Effect, Layer } from "effect";
 import { PublishingRepository } from "./publishing-repository.ts";
 
-export type { ApiActor } from "./publishing-repository.ts";
+export type { Actor } from "./post-commands.ts";
 export {
-  ApiCreatePostInput,
-  ApiUpdatePostInput,
-  BulkArchiveInput,
+  ArchivePostsCommand,
+  CreatePostCommand,
+  UpdatePostCommand,
+} from "./post-commands.ts";
+export {
   PersistenceError,
-  SavePostInput,
   UpdateBlogSettingsInput,
 } from "./publishing-repository.ts";
 
 export const create = Effect.fn("Publishing.create")(function* () {
   const repository = yield* PublishingRepository.Service;
   return {
-    savePost: repository.savePost,
-    bulkArchive: repository.bulkArchive,
+    createPost: repository.createPost,
+    updatePost: repository.updatePost,
+    archivePosts: repository.archivePosts,
     updateBlogSettings: repository.updateBlogSettings,
-    createApiPost: repository.createApiPost,
-    updateApiPost: repository.updateApiPost,
-    archiveApiPost: repository.archiveApiPost,
   };
 });
 

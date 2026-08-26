@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
-import { EmailQueueError } from "@prosewire/jobs/email-queue";
+import { EmailDeliveryError } from "@prosewire/jobs/email-queue";
 import { Effect } from "effect";
 import { type Item, make, type Queue, type Store } from "./email-outbox.ts";
 
@@ -75,11 +75,11 @@ function deduplicatingQueue(
 ): Queue {
   const ids = new Set<string>();
   return {
-    offer: (job, { id }) =>
+    offer: (job) =>
       Effect.sync(() => {
-        if (ids.has(id)) return;
-        ids.add(id);
-        offered.push({ id, subject: job.subject });
+        if (ids.has(job.outboxId)) return;
+        ids.add(job.outboxId);
+        offered.push({ id: job.outboxId, subject: job.subject });
       }),
   };
 }
@@ -93,8 +93,8 @@ describe("EmailOutbox", () => {
         if (!fail) return Effect.void;
         fail = false;
         return Effect.fail(
-          new EmailQueueError({
-            operation: "offer email delivery",
+          new EmailDeliveryError({
+            recipient: item.recipient,
             cause: new Error("Redis unavailable"),
           }),
         );

@@ -3,7 +3,6 @@ import type { DispatchResult } from "./email-outbox.ts";
 
 export const publishingInterval = Duration.seconds(30);
 export const emailOutboxInterval = Duration.seconds(30);
-export const emailRetryInterval = Duration.seconds(30);
 export const analyticsRetentionInterval = Duration.days(1);
 
 export const publishingSchedule = Schedule.spaced(publishingInterval);

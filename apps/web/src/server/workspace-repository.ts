@@ -624,6 +624,7 @@ export const create = Effect.fn("WorkspaceRepository.create")(function* () {
           });
           const workspaceName = authorization.workspace.name;
           const email = new EmailDeliveryJob({
+            outboxId: invitationId,
             recipient,
             subject: `Join ${workspaceName} on Prosewire`,
             text: `${actor.name} invited you to join ${workspaceName} as ${input.role}. Accept the invitation: ${invitationUrl}`,

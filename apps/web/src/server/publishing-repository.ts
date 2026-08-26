@@ -1,17 +1,15 @@
-import type { Post as ApiPost } from "@prosewire/contract";
 import {
   canUpdatePost,
   createExcerpt,
   hasPermission,
   renderMarkdown,
-  slugify,
+  type TeamRole,
 } from "@prosewire/core";
 import type { Db } from "@prosewire/db/client";
 import * as schema from "@prosewire/db/schema";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { Clock, Context, Effect, Layer, Result, Schema } from "effect";
 import { ApiAccess, hasScope } from "./api-access.ts";
-import { toApiPost } from "./api-content-models.ts";
 import { BlogAccess } from "./authorization.ts";
 import { BlogErrors } from "./blog-errors.ts";
 import { Database } from "./database.ts";
@@ -19,49 +17,27 @@ import {
   type ApiKeyId,
   AuthorId,
   BlogId,
-  CategoryId,
+  type CategoryId,
   OrganizationId,
   PostId,
   UserId,
 } from "./domain.ts";
 import { promiseEffect } from "./external-effect.ts";
 import { operationError } from "./operation-error.ts";
+import type {
+  Actor,
+  ArchivePostsCommand,
+  ArchiveResult,
+  CreatePostCommand,
+  MutationResult,
+  UpdatePostCommand,
+} from "./post-commands.ts";
 import { PostErrors } from "./post-errors.ts";
 import {
   lockApiKey,
   lockBlogAuthorization,
   type TransactionClient,
 } from "./transactional-access.ts";
-
-export class SavePostInput extends Schema.Class<SavePostInput>(
-  "Publishing.SavePostInput",
-)({
-  id: Schema.optional(PostId),
-  blogId: BlogId,
-  authorId: AuthorId,
-  categoryId: Schema.optional(CategoryId),
-  title: Schema.String,
-  requestedSlug: Schema.String,
-  excerpt: Schema.String,
-  contentMarkdown: Schema.String,
-  requestedStatus: Schema.Literals(["draft", "scheduled", "published"]),
-  featured: Schema.Boolean,
-  locale: Schema.String,
-  coverImageUrl: Schema.NullOr(Schema.String),
-  coverImageAlt: Schema.NullOr(Schema.String),
-  seoTitle: Schema.NullOr(Schema.String),
-  seoDescription: Schema.NullOr(Schema.String),
-  focusKeyword: Schema.NullOr(Schema.String),
-  canonicalUrl: Schema.NullOr(Schema.String),
-  scheduledAt: Schema.NullOr(Schema.DateFromString),
-}) {}
-
-export class BulkArchiveInput extends Schema.Class<BulkArchiveInput>(
-  "Publishing.BulkArchiveInput",
-)({
-  blogId: BlogId,
-  postIds: Schema.Array(PostId),
-}) {}
 
 export class UpdateBlogSettingsInput extends Schema.Class<UpdateBlogSettingsInput>(
   "Publishing.UpdateBlogSettingsInput",
@@ -75,64 +51,25 @@ export class UpdateBlogSettingsInput extends Schema.Class<UpdateBlogSettingsInpu
   customCss: Schema.String,
 }) {}
 
-export interface ApiActor {
-  readonly blogId: BlogId;
-  readonly keyId: ApiKeyId;
-}
-
-const PostStatus = Schema.Literals([
-  "draft",
-  "scheduled",
-  "published",
-  "archived",
-]);
-
-export class ApiCreatePostInput extends Schema.Class<ApiCreatePostInput>(
-  "Publishing.ApiCreatePostInput",
-)({
-  authorId: AuthorId,
-  title: Schema.String,
-  slug: Schema.String,
-  excerpt: Schema.optional(Schema.String),
-  contentMarkdown: Schema.String,
-  coverImageUrl: Schema.optional(Schema.NullOr(Schema.String)),
-  coverImageAlt: Schema.optional(Schema.NullOr(Schema.String)),
-  status: PostStatus,
-  locale: Schema.String,
-  featured: Schema.Boolean,
-  seoTitle: Schema.optional(Schema.NullOr(Schema.String)),
-  seoDescription: Schema.optional(Schema.NullOr(Schema.String)),
-  focusKeyword: Schema.optional(Schema.NullOr(Schema.String)),
-  canonicalUrl: Schema.optional(Schema.NullOr(Schema.String)),
-  scheduledAt: Schema.optional(Schema.NullOr(Schema.DateFromString)),
-  categoryIds: Schema.Array(CategoryId),
-}) {}
-
-export class ApiUpdatePostInput extends Schema.Class<ApiUpdatePostInput>(
-  "Publishing.ApiUpdatePostInput",
-)({
-  authorId: Schema.optional(AuthorId),
-  title: Schema.optional(Schema.String),
-  slug: Schema.optional(Schema.String),
-  excerpt: Schema.optional(Schema.String),
-  contentMarkdown: Schema.optional(Schema.String),
-  coverImageUrl: Schema.optional(Schema.NullOr(Schema.String)),
-  coverImageAlt: Schema.optional(Schema.NullOr(Schema.String)),
-  status: Schema.optional(PostStatus),
-  locale: Schema.optional(Schema.String),
-  featured: Schema.optional(Schema.Boolean),
-  seoTitle: Schema.optional(Schema.NullOr(Schema.String)),
-  seoDescription: Schema.optional(Schema.NullOr(Schema.String)),
-  focusKeyword: Schema.optional(Schema.NullOr(Schema.String)),
-  canonicalUrl: Schema.optional(Schema.NullOr(Schema.String)),
-  scheduledAt: Schema.optional(Schema.NullOr(Schema.DateFromString)),
-  categoryIds: Schema.optional(Schema.Array(CategoryId)),
-}) {}
-
 export class PersistenceError extends Schema.TaggedError<PersistenceError>()(
   "PublishingRepositoryPersistenceError",
   { operation: Schema.String, cause: Schema.Defect() },
 ) {}
+
+type LockedActor =
+  | {
+      readonly _tag: "Dashboard";
+      readonly organizationId: OrganizationId;
+      readonly blogSlug: string;
+      readonly userId: UserId;
+      readonly role: TeamRole;
+    }
+  | {
+      readonly _tag: "Api";
+      readonly organizationId: OrganizationId;
+      readonly blogSlug: string;
+      readonly keyId: ApiKeyId;
+    };
 
 export const create = Effect.fn("PublishingRepository.create")(function* () {
   const database = yield* Database;
@@ -159,14 +96,11 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
 
   const lockApiWrite = async (
     transaction: TransactionClient,
-    actor: ApiActor,
+    blogId: BlogId,
+    keyId: ApiKeyId,
     now: Date,
   ) => {
-    const authorization = await lockApiKey(
-      transaction,
-      actor.blogId,
-      actor.keyId,
-    );
+    const authorization = await lockApiKey(transaction, blogId, keyId);
     if (
       !authorization ||
       (authorization.key.expiresAt && authorization.key.expiresAt <= now)
@@ -184,319 +118,564 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
     }
     return {
       organizationId: OrganizationId.make(authorization.organizationId),
+      blogSlug: authorization.blogSlug,
     } as const;
   };
 
-  const savePost = Effect.fn("Publishing.savePost")(function* (
-    input: SavePostInput,
-    actorId: UserId,
+  const lockActor = async (
+    tx: TransactionClient,
+    blogId: BlogId,
+    actor: Actor,
+    capability: "content:create" | "content:read",
+    now: Date,
+  ): Promise<
+    Result.Result<
+      LockedActor,
+      | BlogAccess.BlogAccessDenied
+      | ApiAccess.AuthenticationFailed
+      | ApiAccess.ScopeDenied
+    >
+  > => {
+    if (actor._tag === "Dashboard") {
+      const authorization = await lockBlogAuthorization(
+        tx,
+        blogId,
+        actor.userId,
+        capability,
+      );
+      if (!authorization) {
+        return Result.fail(
+          new BlogAccess.BlogAccessDenied({
+            blogId,
+            userId: actor.userId,
+            capability,
+          }),
+        );
+      }
+      return Result.succeed({
+        _tag: "Dashboard",
+        organizationId: authorization.workspace.id,
+        blogSlug: authorization.blog.slug,
+        userId: actor.userId,
+        role: authorization.role,
+      });
+    }
+
+    const authorization = await lockApiWrite(tx, blogId, actor.keyId, now);
+    if ("error" in authorization) return Result.fail(authorization.error);
+    return Result.succeed({
+      _tag: "Api",
+      organizationId: authorization.organizationId,
+      blogSlug: authorization.blogSlug,
+      keyId: actor.keyId,
+    });
+  };
+
+  const validatePublicationLinks = async (
+    tx: TransactionClient,
+    blogId: BlogId,
+    authorId: AuthorId,
+    categoryIds: ReadonlyArray<CategoryId>,
+  ): Promise<PostErrors.InvalidPost | undefined> => {
+    const [author] = await tx
+      .select({ id: schema.author.id })
+      .from(schema.author)
+      .where(
+        and(eq(schema.author.id, authorId), eq(schema.author.blogId, blogId)),
+      );
+    if (!author) {
+      return new PostErrors.InvalidPost({
+        message: "Author does not belong to this blog",
+      });
+    }
+    if (categoryIds.length === 0) return undefined;
+    const categories = await tx
+      .select({ id: schema.category.id })
+      .from(schema.category)
+      .where(
+        and(
+          eq(schema.category.blogId, blogId),
+          inArray(schema.category.id, categoryIds),
+        ),
+      );
+    if (categories.length !== categoryIds.length) {
+      return new PostErrors.InvalidPost({
+        message: "A category does not belong to this blog",
+      });
+    }
+    return undefined;
+  };
+
+  const createPost = Effect.fn("Publishing.createPost")(function* (
+    command: CreatePostCommand,
+    actor: Actor,
   ) {
-    if (!input.title.trim()) {
+    if (!command.title.trim()) {
       return yield* new PostErrors.InvalidPost({
         message: "Title is required",
       });
     }
-    const scheduledAt = input.scheduledAt;
-    const status =
-      input.requestedStatus === "scheduled" && !scheduledAt
-        ? "draft"
-        : input.requestedStatus;
-    const slug = slugify(input.requestedSlug || input.title);
+    if (!command.slug.trim()) {
+      return yield* new PostErrors.InvalidPost({ message: "Slug is required" });
+    }
+    if (command.status === "scheduled" && !command.scheduledAt) {
+      return yield* new PostErrors.InvalidPost({
+        message: "Scheduled posts require a schedule time",
+      });
+    }
+    const categoryIds = [...new Set(command.categoryIds)];
     const now = new Date(yield* Clock.currentTimeMillis);
     const contentHtml = yield* promiseEffect(
-      "markdown.renderPost",
-      () => renderMarkdown(input.contentMarkdown),
+      "markdown.renderPostCreate",
+      () => renderMarkdown(command.contentMarkdown),
       (cause) =>
-        new PostErrors.PostRenderingFailed({ operation: "save", cause }),
+        new PostErrors.PostRenderingFailed({ operation: "create", cause }),
     );
-    const values = {
-      title: input.title,
-      slug,
-      excerpt: input.excerpt || createExcerpt(input.contentMarkdown),
-      contentMarkdown: input.contentMarkdown,
-      contentHtml,
-      authorId: input.authorId,
-      status,
-      featured: input.featured,
-      locale: input.locale || "en",
-      coverImageUrl: input.coverImageUrl,
-      coverImageAlt: input.coverImageAlt,
-      seoTitle: input.seoTitle,
-      seoDescription: input.seoDescription,
-      focusKeyword: input.focusKeyword,
-      canonicalUrl: input.canonicalUrl,
-      scheduledAt: status === "scheduled" ? scheduledAt : null,
-      archivedAt: null,
-      updatedById: actorId,
-      updatedAt: now,
-    } satisfies Partial<typeof schema.post.$inferInsert>;
 
     return yield* executeResult<
-      { readonly savedId: string; readonly blogSlug: string },
+      MutationResult,
+      | PostErrors.InvalidPost
+      | PersistenceError
+      | BlogAccess.BlogAccessDenied
+      | ApiAccess.AuthenticationFailed
+      | ApiAccess.ScopeDenied
+    >("post.create", (client) =>
+      client.transaction(async (tx) => {
+        const authorization = await lockActor(
+          tx,
+          command.blogId,
+          actor,
+          "content:create",
+          now,
+        );
+        if (Result.isFailure(authorization)) {
+          return Result.fail(authorization.failure);
+        }
+        const locked = authorization.success;
+        if (
+          locked._tag === "Dashboard" &&
+          (command.status === "scheduled" || command.status === "published") &&
+          !hasPermission(locked.role, "content:publish")
+        ) {
+          return Result.fail(
+            new BlogAccess.BlogAccessDenied({
+              blogId: command.blogId,
+              userId: locked.userId,
+              capability: "content:publish",
+            }),
+          );
+        }
+        if (
+          locked._tag === "Dashboard" &&
+          command.status === "archived" &&
+          !hasPermission(locked.role, "content:archive")
+        ) {
+          return Result.fail(
+            new BlogAccess.BlogAccessDenied({
+              blogId: command.blogId,
+              userId: locked.userId,
+              capability: "content:archive",
+            }),
+          );
+        }
+        const invalidLink = await validatePublicationLinks(
+          tx,
+          command.blogId,
+          command.authorId,
+          categoryIds,
+        );
+        if (invalidLink) return Result.fail(invalidLink);
+
+        const [created] = await tx
+          .insert(schema.post)
+          .values({
+            blogId: command.blogId,
+            authorId: command.authorId,
+            title: command.title,
+            slug: command.slug,
+            excerpt: command.excerpt || createExcerpt(command.contentMarkdown),
+            contentMarkdown: command.contentMarkdown,
+            contentHtml,
+            coverImageUrl: command.coverImageUrl ?? null,
+            coverImageAlt: command.coverImageAlt ?? null,
+            status: command.status,
+            locale: command.locale || "en",
+            featured: command.featured,
+            seoTitle: command.seoTitle ?? null,
+            seoDescription: command.seoDescription ?? null,
+            focusKeyword: command.focusKeyword ?? null,
+            canonicalUrl: command.canonicalUrl ?? null,
+            scheduledAt:
+              command.status === "scheduled"
+                ? (command.scheduledAt ?? null)
+                : null,
+            publishedAt: command.status === "published" ? now : null,
+            archivedAt: command.status === "archived" ? now : null,
+            createdById: locked._tag === "Dashboard" ? locked.userId : null,
+            updatedById: locked._tag === "Dashboard" ? locked.userId : null,
+          })
+          .returning({ id: schema.post.id });
+        if (!created) {
+          return Result.fail(
+            new PersistenceError({
+              operation: "post.create returned no row",
+              cause: new Error("Unable to create post"),
+            }),
+          );
+        }
+        const postId = PostId.make(created.id);
+        if (categoryIds.length > 0) {
+          await tx.insert(schema.postCategory).values(
+            categoryIds.map((categoryId) => ({
+              postId,
+              categoryId,
+              blogId: command.blogId,
+            })),
+          );
+        }
+        await tx.insert(schema.auditLog).values({
+          organizationId: locked.organizationId,
+          blogId: command.blogId,
+          actorId: locked._tag === "Dashboard" ? locked.userId : null,
+          action: "post.created",
+          entityType: "post",
+          entityId: postId,
+          after: {
+            source: locked._tag === "Dashboard" ? "dashboard" : "api",
+            ...(locked._tag === "Api" ? { apiKeyId: locked.keyId } : {}),
+            title: command.title,
+            slug: command.slug,
+            status: command.status,
+            categoryIds,
+          },
+        });
+        return Result.succeed({ postId, blogSlug: locked.blogSlug });
+      }),
+    );
+  });
+
+  const updatePost = Effect.fn("Publishing.updatePost")(function* (
+    command: UpdatePostCommand,
+    actor: Actor,
+  ) {
+    if (command.title !== undefined && !command.title.trim()) {
+      return yield* new PostErrors.InvalidPost({
+        message: "Title is required",
+      });
+    }
+    if (command.slug !== undefined && !command.slug.trim()) {
+      return yield* new PostErrors.InvalidPost({ message: "Slug is required" });
+    }
+    const renderedHtml =
+      command.contentMarkdown === undefined
+        ? undefined
+        : yield* promiseEffect(
+            "markdown.renderPostUpdate",
+            () => renderMarkdown(command.contentMarkdown as string),
+            (cause) =>
+              new PostErrors.PostRenderingFailed({
+                operation: "update",
+                cause,
+              }),
+          );
+    const categoryIds =
+      command.categoryIds === undefined
+        ? undefined
+        : [...new Set(command.categoryIds)];
+    const now = new Date(yield* Clock.currentTimeMillis);
+
+    return yield* executeResult<
+      MutationResult,
       | PostErrors.InvalidPost
       | PostErrors.PostNotFound
       | BlogAccess.BlogAccessDenied
-      | PersistenceError
-    >("post.save", (client) =>
+      | ApiAccess.AuthenticationFailed
+      | ApiAccess.ScopeDenied
+    >("post.update", (client) =>
       client.transaction(async (tx) => {
-        const authorization = await lockBlogAuthorization(
+        const authorization = await lockActor(
           tx,
-          input.blogId,
-          actorId,
-          input.id ? "content:read" : "content:create",
+          command.blogId,
+          actor,
+          "content:read",
+          now,
         );
-        if (!authorization) {
-          return Result.fail(
-            new BlogAccess.BlogAccessDenied({
-              blogId: input.blogId,
-              userId: actorId,
-              capability: input.id ? "content:update:any" : "content:create",
-            }),
-          );
+        if (Result.isFailure(authorization)) {
+          return Result.fail(authorization.failure);
         }
-        const [author] = await tx
-          .select({ id: schema.author.id })
-          .from(schema.author)
+        const locked = authorization.success;
+        const [existing] = await tx
+          .select()
+          .from(schema.post)
           .where(
             and(
-              eq(schema.author.id, input.authorId),
-              eq(schema.author.blogId, input.blogId),
+              eq(schema.post.id, command.postId),
+              eq(schema.post.blogId, command.blogId),
             ),
+          )
+          .for("update");
+        if (!existing) {
+          return Result.fail(
+            new PostErrors.PostNotFound({ postId: command.postId }),
           );
-        if (!author) {
+        }
+
+        const nextStatus = command.status ?? existing.status;
+        const nextScheduledAt =
+          command.scheduledAt === undefined
+            ? existing.scheduledAt
+            : command.scheduledAt;
+        if (nextStatus === "scheduled" && !nextScheduledAt) {
           return Result.fail(
             new PostErrors.InvalidPost({
-              message: "Author does not belong to this blog",
+              message: "Scheduled posts require a schedule time",
             }),
           );
         }
-        if (input.categoryId) {
-          const [category] = await tx
-            .select({ id: schema.category.id })
-            .from(schema.category)
-            .where(
-              and(
-                eq(schema.category.id, input.categoryId),
-                eq(schema.category.blogId, input.blogId),
-              ),
-            );
-          if (!category) {
-            return Result.fail(
-              new PostErrors.InvalidPost({
-                message: "Category does not belong to this blog",
-              }),
-            );
-          }
-        }
-        let resolvedId = input.id;
-        if (input.id) {
-          const [existing] = await tx
-            .select()
-            .from(schema.post)
-            .where(
-              and(
-                eq(schema.post.id, input.id),
-                eq(schema.post.blogId, input.blogId),
-              ),
-            )
-            .for("update");
-          if (!existing) {
-            return Result.fail(
-              new PostErrors.PostNotFound({ postId: input.id }),
-            );
-          }
+        if (locked._tag === "Dashboard") {
           const createdById = existing.createdById
             ? UserId.make(existing.createdById)
             : null;
-          if (!canUpdatePost(authorization.role, createdById, actorId)) {
+          if (!canUpdatePost(locked.role, createdById, locked.userId)) {
             return Result.fail(
               new BlogAccess.BlogAccessDenied({
-                blogId: input.blogId,
-                userId: actorId,
+                blogId: command.blogId,
+                userId: locked.userId,
                 capability: "content:update:any",
               }),
             );
           }
           if (
-            existing.status === "archived" &&
-            (!hasPermission(authorization.role, "content:archive") ||
-              !canUpdatePost(authorization.role, createdById, actorId))
+            (existing.status === "archived" || nextStatus === "archived") &&
+            !hasPermission(locked.role, "content:archive")
           ) {
             return Result.fail(
               new BlogAccess.BlogAccessDenied({
-                blogId: input.blogId,
-                userId: actorId,
+                blogId: command.blogId,
+                userId: locked.userId,
                 capability: "content:archive",
               }),
             );
           }
           if (
-            (status === "scheduled" ||
-              status === "published" ||
-              (existing.status !== status &&
-                (existing.status === "scheduled" ||
-                  existing.status === "published"))) &&
-            !hasPermission(authorization.role, "content:publish")
+            (nextStatus === "scheduled" ||
+              nextStatus === "published" ||
+              existing.status === "scheduled" ||
+              existing.status === "published") &&
+            !hasPermission(locked.role, "content:publish")
           ) {
             return Result.fail(
               new BlogAccess.BlogAccessDenied({
-                blogId: input.blogId,
-                userId: actorId,
+                blogId: command.blogId,
+                userId: locked.userId,
                 capability: "content:publish",
               }),
             );
           }
-          const latest = await tx.query.postRevision.findFirst({
-            where: eq(schema.postRevision.postId, input.id),
-            orderBy: [desc(schema.postRevision.version)],
-          });
-          await tx.insert(schema.postRevision).values({
-            postId: input.id,
-            editorId: actorId,
-            version: (latest?.version ?? 0) + 1,
-            snapshot: existing,
-          });
-          if (existing.slug !== slug) {
-            await tx
-              .insert(schema.redirect)
-              .values({
-                blogId: input.blogId,
-                fromPath: existing.slug,
-                toPath: slug,
-              })
-              .onConflictDoUpdate({
-                target: [schema.redirect.blogId, schema.redirect.fromPath],
-                set: { toPath: slug },
-              });
-          }
+        }
+
+        const nextAuthorId =
+          command.authorId ?? AuthorId.make(existing.authorId);
+        const invalidLink = await validatePublicationLinks(
+          tx,
+          command.blogId,
+          nextAuthorId,
+          categoryIds ?? [],
+        );
+        if (invalidLink) return Result.fail(invalidLink);
+
+        const latest = await tx.query.postRevision.findFirst({
+          where: eq(schema.postRevision.postId, existing.id),
+          orderBy: [desc(schema.postRevision.version)],
+        });
+        await tx.insert(schema.postRevision).values({
+          postId: existing.id,
+          editorId: locked._tag === "Dashboard" ? locked.userId : null,
+          version: (latest?.version ?? 0) + 1,
+          snapshot: existing,
+        });
+
+        const nextSlug = command.slug ?? existing.slug;
+        if (nextSlug !== existing.slug) {
           await tx
-            .update(schema.post)
-            .set({
-              ...values,
-              publishedAt:
-                status === "published" ? (existing.publishedAt ?? now) : null,
+            .insert(schema.redirect)
+            .values({
+              blogId: command.blogId,
+              fromPath: existing.slug,
+              toPath: nextSlug,
             })
-            .where(
-              and(
-                eq(schema.post.id, input.id),
-                eq(schema.post.blogId, input.blogId),
-              ),
-            );
+            .onConflictDoUpdate({
+              target: [schema.redirect.blogId, schema.redirect.fromPath],
+              set: { toPath: nextSlug },
+            });
+        }
+        const nextMarkdown =
+          command.contentMarkdown ?? existing.contentMarkdown;
+        const nextExcerpt =
+          command.excerpt === undefined
+            ? existing.excerpt
+            : command.excerpt || createExcerpt(nextMarkdown);
+        await tx
+          .update(schema.post)
+          .set({
+            authorId: nextAuthorId,
+            title: command.title ?? existing.title,
+            slug: nextSlug,
+            excerpt: nextExcerpt,
+            contentMarkdown: nextMarkdown,
+            contentHtml: renderedHtml ?? existing.contentHtml,
+            coverImageUrl:
+              command.coverImageUrl === undefined
+                ? existing.coverImageUrl
+                : command.coverImageUrl,
+            coverImageAlt:
+              command.coverImageAlt === undefined
+                ? existing.coverImageAlt
+                : command.coverImageAlt,
+            status: nextStatus,
+            locale: command.locale ?? existing.locale,
+            featured: command.featured ?? existing.featured,
+            seoTitle:
+              command.seoTitle === undefined
+                ? existing.seoTitle
+                : command.seoTitle,
+            seoDescription:
+              command.seoDescription === undefined
+                ? existing.seoDescription
+                : command.seoDescription,
+            focusKeyword:
+              command.focusKeyword === undefined
+                ? existing.focusKeyword
+                : command.focusKeyword,
+            canonicalUrl:
+              command.canonicalUrl === undefined
+                ? existing.canonicalUrl
+                : command.canonicalUrl,
+            scheduledAt: nextStatus === "scheduled" ? nextScheduledAt : null,
+            publishedAt:
+              nextStatus === "published" ? (existing.publishedAt ?? now) : null,
+            archivedAt:
+              nextStatus === "archived" ? (existing.archivedAt ?? now) : null,
+            updatedById:
+              locked._tag === "Dashboard"
+                ? locked.userId
+                : existing.updatedById,
+            updatedAt: now,
+          })
+          .where(eq(schema.post.id, existing.id));
+        if (categoryIds !== undefined) {
           await tx
             .delete(schema.postCategory)
-            .where(eq(schema.postCategory.postId, input.id));
-        } else {
-          const [created] = await tx
-            .insert(schema.post)
-            .values({
-              ...values,
-              blogId: input.blogId,
-              authorId: input.authorId,
-              createdById: actorId,
-              publishedAt: status === "published" ? now : null,
-            })
-            .returning({ id: schema.post.id });
-          if (!created) {
-            return Result.fail(
-              new PersistenceError({
-                operation: "post.save returned no row",
-                cause: new Error("Unable to create post"),
-              }),
+            .where(eq(schema.postCategory.postId, existing.id));
+          if (categoryIds.length > 0) {
+            await tx.insert(schema.postCategory).values(
+              categoryIds.map((categoryId) => ({
+                postId: existing.id,
+                categoryId,
+                blogId: command.blogId,
+              })),
             );
           }
-          resolvedId = PostId.make(created.id);
-        }
-        if (!resolvedId) {
-          return Result.fail(
-            new PersistenceError({
-              operation: "post.save resolved no id",
-              cause: new Error("Unable to resolve the saved post id"),
-            }),
-          );
-        }
-        if (input.categoryId) {
-          await tx.insert(schema.postCategory).values({
-            postId: resolvedId,
-            categoryId: input.categoryId,
-          });
         }
         await tx.insert(schema.auditLog).values({
-          organizationId: authorization.workspace.id,
-          blogId: input.blogId,
-          actorId,
-          action: input.id ? "post.updated" : "post.created",
+          organizationId: locked.organizationId,
+          blogId: command.blogId,
+          actorId: locked._tag === "Dashboard" ? locked.userId : null,
+          action: "post.updated",
           entityType: "post",
-          entityId: resolvedId,
-          after: { title: input.title, slug, status },
+          entityId: existing.id,
+          before: existing,
+          after: {
+            source: locked._tag === "Dashboard" ? "dashboard" : "api",
+            ...(locked._tag === "Api" ? { apiKeyId: locked.keyId } : {}),
+            title: command.title ?? existing.title,
+            slug: nextSlug,
+            status: nextStatus,
+            ...(categoryIds === undefined ? {} : { categoryIds }),
+          },
         });
         return Result.succeed({
-          savedId: resolvedId,
-          blogSlug: authorization.blog.slug,
+          postId: PostId.make(existing.id),
+          blogSlug: locked.blogSlug,
         });
       }),
     );
   });
 
-  const bulkArchive = Effect.fn("Publishing.bulkArchive")(function* (
-    input: BulkArchiveInput,
-    actorId: UserId,
+  const archivePosts = Effect.fn("Publishing.archivePosts")(function* (
+    command: ArchivePostsCommand,
+    actor: Actor,
   ) {
-    if (input.postIds.length === 0) return false;
+    const postIds = [...new Set(command.postIds)];
+    if (postIds.length === 0) {
+      return { archived: 0, blogSlug: "" } satisfies ArchiveResult;
+    }
     const now = new Date(yield* Clock.currentTimeMillis);
-    const archivedCount = yield* executeResult<
-      number,
-      BlogAccess.BlogAccessDenied
-    >("post.bulkArchive", (client) =>
+    return yield* executeResult<
+      ArchiveResult,
+      | PostErrors.PostNotFound
+      | BlogAccess.BlogAccessDenied
+      | ApiAccess.AuthenticationFailed
+      | ApiAccess.ScopeDenied
+    >("post.archive", (client) =>
       client.transaction(async (tx) => {
-        const authorization = await lockBlogAuthorization(
+        const authorization = await lockActor(
           tx,
-          input.blogId,
-          actorId,
+          command.blogId,
+          actor,
           "content:read",
+          now,
         );
-        if (
-          !authorization ||
-          !hasPermission(authorization.role, "content:archive")
-        ) {
-          return Result.fail(
-            new BlogAccess.BlogAccessDenied({
-              blogId: input.blogId,
-              userId: actorId,
-              capability: "content:archive",
-            }),
-          );
+        if (Result.isFailure(authorization)) {
+          return Result.fail(authorization.failure);
         }
-        const candidates = (
-          await tx
-            .select()
-            .from(schema.post)
-            .where(
-              and(
-                inArray(schema.post.id, input.postIds),
-                eq(schema.post.blogId, input.blogId),
-              ),
-            )
-            .for("update")
-        ).filter((post) => post.status !== "archived");
-        if (
-          candidates.some(
-            (post) =>
-              !canUpdatePost(
-                authorization.role,
-                post.createdById ? UserId.make(post.createdById) : null,
-                actorId,
-              ),
+        const locked = authorization.success;
+        const requested = await tx
+          .select()
+          .from(schema.post)
+          .where(
+            and(
+              inArray(schema.post.id, postIds),
+              eq(schema.post.blogId, command.blogId),
+            ),
           )
-        ) {
-          return Result.fail(
-            new BlogAccess.BlogAccessDenied({
-              blogId: input.blogId,
-              userId: actorId,
-              capability: "content:archive",
-            }),
-          );
+          .for("update");
+        if (command.requireAll && requested.length !== postIds.length) {
+          const found = new Set(requested.map(({ id }) => id));
+          const missing = postIds.find((postId) => !found.has(postId));
+          if (missing) {
+            return Result.fail(
+              new PostErrors.PostNotFound({ postId: missing }),
+            );
+          }
         }
-        if (candidates.length === 0) return Result.succeed(0);
+        const candidates = requested.filter(
+          ({ status }) => status !== "archived",
+        );
+        if (locked._tag === "Dashboard") {
+          if (
+            !hasPermission(locked.role, "content:archive") ||
+            candidates.some(
+              (post) =>
+                !canUpdatePost(
+                  locked.role,
+                  post.createdById ? UserId.make(post.createdById) : null,
+                  locked.userId,
+                ),
+            )
+          ) {
+            return Result.fail(
+              new BlogAccess.BlogAccessDenied({
+                blogId: command.blogId,
+                userId: locked.userId,
+                capability: "content:archive",
+              }),
+            );
+          }
+        }
+        if (candidates.length === 0) {
+          return Result.succeed({ archived: 0, blogSlug: locked.blogSlug });
+        }
 
         const candidateIds = candidates.map(({ id }) => id);
         const revisions = await tx.query.postRevision.findMany({
@@ -512,38 +691,43 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
         await tx.insert(schema.postRevision).values(
           candidates.map((post) => ({
             postId: post.id,
-            editorId: actorId,
+            editorId: locked._tag === "Dashboard" ? locked.userId : null,
             version: (latestVersion.get(post.id) ?? 0) + 1,
             snapshot: post,
           })),
         );
-
         const archived = await tx
           .update(schema.post)
           .set({
             status: "archived",
             archivedAt: now,
-            updatedById: actorId,
+            updatedById:
+              locked._tag === "Dashboard" ? locked.userId : undefined,
             updatedAt: now,
           })
           .where(inArray(schema.post.id, candidateIds))
           .returning({ id: schema.post.id });
-        if (archived.length > 0) {
-          await tx.insert(schema.auditLog).values(
-            archived.map(({ id }) => ({
-              organizationId: authorization.workspace.id,
-              blogId: input.blogId,
-              actorId,
-              action: "post.archived",
-              entityType: "post",
-              entityId: id,
-            })),
-          );
-        }
-        return Result.succeed(archived.length);
+        await tx.insert(schema.auditLog).values(
+          archived.map(({ id }) => ({
+            organizationId: locked.organizationId,
+            blogId: command.blogId,
+            actorId: locked._tag === "Dashboard" ? locked.userId : null,
+            action: "post.archived",
+            entityType: "post",
+            entityId: id,
+            after: {
+              source: locked._tag === "Dashboard" ? "dashboard" : "api",
+              ...(locked._tag === "Api" ? { apiKeyId: locked.keyId } : {}),
+              status: "archived",
+            },
+          })),
+        );
+        return Result.succeed({
+          archived: archived.length,
+          blogSlug: locked.blogSlug,
+        });
       }),
     );
-    return archivedCount > 0;
   });
 
   const updateBlogSettings = Effect.fn("Publishing.updateBlogSettings")(
@@ -603,429 +787,11 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
     },
   );
 
-  const createApiPost = Effect.fn("Publishing.createApiPost")(function* (
-    input: ApiCreatePostInput,
-    actor: ApiActor,
-  ) {
-    if (input.status === "scheduled" && !input.scheduledAt) {
-      return yield* new PostErrors.InvalidPost({
-        message: "Scheduled posts require a schedule time",
-      });
-    }
-    const now = new Date(yield* Clock.currentTimeMillis);
-    const contentHtml = yield* promiseEffect(
-      "markdown.renderApiPost",
-      () => renderMarkdown(input.contentMarkdown),
-      (cause) =>
-        new PostErrors.PostRenderingFailed({ operation: "API create", cause }),
-    );
-    const categoryIds = [...new Set(input.categoryIds)];
-    return yield* executeResult<
-      ApiPost,
-      | PostErrors.InvalidPost
-      | PersistenceError
-      | ApiAccess.AuthenticationFailed
-      | ApiAccess.ScopeDenied
-    >("post.createApi", (client) =>
-      client.transaction(async (tx) => {
-        const apiAuthorization = await lockApiWrite(tx, actor, now);
-        if ("error" in apiAuthorization) {
-          return Result.fail(apiAuthorization.error);
-        }
-        const { organizationId } = apiAuthorization;
-        const [author] = await tx
-          .select({ id: schema.author.id })
-          .from(schema.author)
-          .where(
-            and(
-              eq(schema.author.id, input.authorId),
-              eq(schema.author.blogId, actor.blogId),
-            ),
-          );
-        if (!author) {
-          return Result.fail(
-            new PostErrors.InvalidPost({
-              message: "Author does not belong to this blog",
-            }),
-          );
-        }
-        if (categoryIds.length > 0) {
-          const categories = await tx
-            .select({ id: schema.category.id })
-            .from(schema.category)
-            .where(
-              and(
-                eq(schema.category.blogId, actor.blogId),
-                inArray(schema.category.id, categoryIds),
-              ),
-            );
-          if (categories.length !== categoryIds.length) {
-            return Result.fail(
-              new PostErrors.InvalidPost({
-                message: "A category does not belong to this blog",
-              }),
-            );
-          }
-        }
-        const [created] = await tx
-          .insert(schema.post)
-          .values({
-            blogId: actor.blogId,
-            authorId: input.authorId,
-            title: input.title,
-            slug: input.slug,
-            excerpt: input.excerpt ?? createExcerpt(input.contentMarkdown),
-            contentMarkdown: input.contentMarkdown,
-            contentHtml,
-            coverImageUrl: input.coverImageUrl ?? null,
-            coverImageAlt: input.coverImageAlt ?? null,
-            status: input.status,
-            locale: input.locale,
-            featured: input.featured,
-            seoTitle: input.seoTitle ?? null,
-            seoDescription: input.seoDescription ?? null,
-            focusKeyword: input.focusKeyword ?? null,
-            canonicalUrl: input.canonicalUrl ?? null,
-            scheduledAt:
-              input.status === "scheduled" ? (input.scheduledAt ?? null) : null,
-            publishedAt: input.status === "published" ? now : null,
-            archivedAt: input.status === "archived" ? now : null,
-          })
-          .returning({ id: schema.post.id });
-        if (!created) {
-          return Result.fail(
-            new PersistenceError({
-              operation: "post.createApi returned no row",
-              cause: new Error("Unable to create post"),
-            }),
-          );
-        }
-        if (categoryIds.length > 0) {
-          await tx.insert(schema.postCategory).values(
-            categoryIds.map((categoryId) => ({
-              postId: created.id,
-              categoryId,
-            })),
-          );
-        }
-        await tx.insert(schema.auditLog).values({
-          organizationId,
-          blogId: actor.blogId,
-          action: "post.created",
-          entityType: "post",
-          entityId: created.id,
-          after: {
-            source: "api",
-            apiKeyId: actor.keyId,
-            title: input.title,
-            slug: input.slug,
-            status: input.status,
-          },
-        });
-        const createdPost = await tx.query.post.findFirst({
-          where: and(
-            eq(schema.post.id, created.id),
-            eq(schema.post.blogId, actor.blogId),
-          ),
-          with: { author: true, categories: { with: { category: true } } },
-        });
-        if (!createdPost) {
-          return Result.fail(
-            new PersistenceError({
-              operation: "post.createApi response projection",
-              cause: new Error("Created post could not be projected"),
-            }),
-          );
-        }
-        return Result.succeed(toApiPost(createdPost));
-      }),
-    );
-  });
-
-  const updateApiPost = Effect.fn("Publishing.updateApiPost")(function* (
-    postId: PostId,
-    patch: ApiUpdatePostInput,
-    actor: ApiActor,
-  ) {
-    const contentMarkdown = patch.contentMarkdown;
-    const contentHtml =
-      contentMarkdown === undefined
-        ? undefined
-        : yield* promiseEffect(
-            "markdown.renderApiPostUpdate",
-            () => renderMarkdown(contentMarkdown),
-            (cause) =>
-              new PostErrors.PostRenderingFailed({
-                operation: "API update",
-                cause,
-              }),
-          );
-    const now = new Date(yield* Clock.currentTimeMillis);
-    const categoryIds = patch.categoryIds
-      ? [...new Set(patch.categoryIds)]
-      : undefined;
-    return yield* executeResult<
-      ApiPost,
-      | PostErrors.InvalidPost
-      | PostErrors.PostNotFound
-      | PersistenceError
-      | ApiAccess.AuthenticationFailed
-      | ApiAccess.ScopeDenied
-    >("post.updateApi", (client) =>
-      client.transaction(async (tx) => {
-        const apiAuthorization = await lockApiWrite(tx, actor, now);
-        if ("error" in apiAuthorization) {
-          return Result.fail(apiAuthorization.error);
-        }
-        const { organizationId } = apiAuthorization;
-        const [existing] = await tx
-          .select()
-          .from(schema.post)
-          .where(
-            and(
-              eq(schema.post.id, postId),
-              eq(schema.post.blogId, actor.blogId),
-            ),
-          )
-          .for("update");
-        if (!existing) {
-          return Result.fail(new PostErrors.PostNotFound({ postId }));
-        }
-        const nextStatus = patch.status ?? existing.status;
-        const nextScheduledAt =
-          patch.scheduledAt === undefined
-            ? existing.scheduledAt
-            : patch.scheduledAt;
-        if (nextStatus === "scheduled" && !nextScheduledAt) {
-          return Result.fail(
-            new PostErrors.InvalidPost({
-              message: "Scheduled posts require a schedule time",
-            }),
-          );
-        }
-        if (patch.authorId) {
-          const [author] = await tx
-            .select({ id: schema.author.id })
-            .from(schema.author)
-            .where(
-              and(
-                eq(schema.author.id, patch.authorId),
-                eq(schema.author.blogId, actor.blogId),
-              ),
-            );
-          if (!author) {
-            return Result.fail(
-              new PostErrors.InvalidPost({
-                message: "Author does not belong to this blog",
-              }),
-            );
-          }
-        }
-        if (categoryIds && categoryIds.length > 0) {
-          const categories = await tx
-            .select({ id: schema.category.id })
-            .from(schema.category)
-            .where(
-              and(
-                eq(schema.category.blogId, actor.blogId),
-                inArray(schema.category.id, categoryIds),
-              ),
-            );
-          if (categories.length !== categoryIds.length) {
-            return Result.fail(
-              new PostErrors.InvalidPost({
-                message: "A category does not belong to this blog",
-              }),
-            );
-          }
-        }
-        const latest = await tx.query.postRevision.findFirst({
-          where: eq(schema.postRevision.postId, existing.id),
-          orderBy: [desc(schema.postRevision.version)],
-        });
-        await tx.insert(schema.postRevision).values({
-          postId: existing.id,
-          version: (latest?.version ?? 0) + 1,
-          snapshot: existing,
-        });
-        if (patch.slug && patch.slug !== existing.slug) {
-          await tx
-            .insert(schema.redirect)
-            .values({
-              blogId: existing.blogId,
-              fromPath: existing.slug,
-              toPath: patch.slug,
-            })
-            .onConflictDoUpdate({
-              target: [schema.redirect.blogId, schema.redirect.fromPath],
-              set: { toPath: patch.slug },
-            });
-        }
-        await tx
-          .update(schema.post)
-          .set({
-            ...(patch.authorId ? { authorId: patch.authorId } : {}),
-            ...(patch.title ? { title: patch.title } : {}),
-            ...(patch.slug ? { slug: patch.slug } : {}),
-            ...(patch.excerpt !== undefined ? { excerpt: patch.excerpt } : {}),
-            ...(patch.contentMarkdown !== undefined
-              ? { contentMarkdown: patch.contentMarkdown, contentHtml }
-              : {}),
-            ...(patch.coverImageUrl !== undefined
-              ? { coverImageUrl: patch.coverImageUrl }
-              : {}),
-            ...(patch.coverImageAlt !== undefined
-              ? { coverImageAlt: patch.coverImageAlt }
-              : {}),
-            ...(patch.status
-              ? {
-                  status: patch.status,
-                  publishedAt:
-                    patch.status === "published"
-                      ? (existing.publishedAt ?? now)
-                      : existing.publishedAt,
-                  archivedAt: patch.status === "archived" ? now : null,
-                }
-              : {}),
-            ...(patch.locale ? { locale: patch.locale } : {}),
-            ...(patch.featured !== undefined
-              ? { featured: patch.featured }
-              : {}),
-            ...(patch.seoTitle !== undefined
-              ? { seoTitle: patch.seoTitle }
-              : {}),
-            ...(patch.seoDescription !== undefined
-              ? { seoDescription: patch.seoDescription }
-              : {}),
-            ...(patch.focusKeyword !== undefined
-              ? { focusKeyword: patch.focusKeyword }
-              : {}),
-            ...(patch.canonicalUrl !== undefined
-              ? { canonicalUrl: patch.canonicalUrl }
-              : {}),
-            ...(patch.status !== undefined || patch.scheduledAt !== undefined
-              ? {
-                  scheduledAt:
-                    nextStatus === "scheduled" ? nextScheduledAt : null,
-                }
-              : {}),
-            updatedAt: now,
-          })
-          .where(eq(schema.post.id, existing.id));
-        if (categoryIds) {
-          await tx
-            .delete(schema.postCategory)
-            .where(eq(schema.postCategory.postId, existing.id));
-          if (categoryIds.length > 0) {
-            await tx.insert(schema.postCategory).values(
-              categoryIds.map((categoryId) => ({
-                postId: existing.id,
-                categoryId,
-              })),
-            );
-          }
-        }
-        await tx.insert(schema.auditLog).values({
-          organizationId,
-          blogId: actor.blogId,
-          action: "post.updated",
-          entityType: "post",
-          entityId: existing.id,
-          before: existing,
-          after: { source: "api", apiKeyId: actor.keyId, patch },
-        });
-        const updatedPost = await tx.query.post.findFirst({
-          where: and(
-            eq(schema.post.id, existing.id),
-            eq(schema.post.blogId, actor.blogId),
-          ),
-          with: { author: true, categories: { with: { category: true } } },
-        });
-        if (!updatedPost) {
-          return Result.fail(
-            new PersistenceError({
-              operation: "post.updateApi response projection",
-              cause: new Error("Updated post could not be projected"),
-            }),
-          );
-        }
-        return Result.succeed(toApiPost(updatedPost));
-      }),
-    );
-  });
-
-  const archiveApiPost = Effect.fn("Publishing.archiveApiPost")(function* (
-    postId: PostId,
-    actor: ApiActor,
-  ) {
-    const now = new Date(yield* Clock.currentTimeMillis);
-    yield* executeResult<
-      string,
-      | PostErrors.PostNotFound
-      | ApiAccess.AuthenticationFailed
-      | ApiAccess.ScopeDenied
-    >("post.archiveApi", (client) =>
-      client.transaction(async (tx) => {
-        const apiAuthorization = await lockApiWrite(tx, actor, now);
-        if ("error" in apiAuthorization) {
-          return Result.fail(apiAuthorization.error);
-        }
-        const { organizationId } = apiAuthorization;
-        const [existing] = await tx
-          .select()
-          .from(schema.post)
-          .where(
-            and(
-              eq(schema.post.id, postId),
-              eq(schema.post.blogId, actor.blogId),
-            ),
-          )
-          .for("update");
-        if (!existing) {
-          return Result.fail(new PostErrors.PostNotFound({ postId }));
-        }
-        if (existing.status === "archived") {
-          return Result.succeed(existing.id);
-        }
-        const latest = await tx.query.postRevision.findFirst({
-          where: eq(schema.postRevision.postId, existing.id),
-          orderBy: [desc(schema.postRevision.version)],
-        });
-        await tx.insert(schema.postRevision).values({
-          postId: existing.id,
-          version: (latest?.version ?? 0) + 1,
-          snapshot: existing,
-        });
-        await tx
-          .update(schema.post)
-          .set({ status: "archived", archivedAt: now, updatedAt: now })
-          .where(eq(schema.post.id, existing.id));
-        await tx.insert(schema.auditLog).values({
-          organizationId,
-          blogId: actor.blogId,
-          action: "post.archived",
-          entityType: "post",
-          entityId: existing.id,
-          before: existing,
-          after: {
-            source: "api",
-            apiKeyId: actor.keyId,
-            status: "archived",
-          },
-        });
-        return Result.succeed(existing.id);
-      }),
-    );
-    return { ok: true as const };
-  });
-
   return {
-    savePost,
-    bulkArchive,
+    createPost,
+    updatePost,
+    archivePosts,
     updateBlogSettings,
-    createApiPost,
-    updateApiPost,
-    archiveApiPost,
   };
 });
 

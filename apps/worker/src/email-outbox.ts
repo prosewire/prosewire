@@ -1,13 +1,8 @@
 import type { Db } from "@prosewire/db/client";
 import * as schema from "@prosewire/db/schema";
-import {
-  EmailDeliveryJob,
-  Service as EmailQueue,
-  type EmailQueueError,
-} from "@prosewire/jobs/email-queue";
+import { EmailDeliveryJob } from "@prosewire/jobs/email-queue";
 import { and, asc, eq, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
-import { Context, Effect, Layer, Schema } from "effect";
-import { WorkerDatabase } from "./database.ts";
+import { Context, Effect, Schema } from "effect";
 
 const defaultBatchSize = 25;
 const defaultLeaseDurationMs = 5 * 60 * 1000;
@@ -51,10 +46,7 @@ export interface Store {
 }
 
 export interface Queue {
-  readonly offer: (
-    job: EmailDeliveryJob,
-    options: { readonly id: string },
-  ) => Effect.Effect<void, EmailQueueError>;
+  readonly offer: (job: EmailDeliveryJob) => Effect.Effect<void, unknown>;
 }
 
 export interface DispatchResult {
@@ -204,12 +196,12 @@ export function make(
         queue
           .offer(
             new EmailDeliveryJob({
+              outboxId: item.id,
               recipient: item.recipient,
               subject: item.subject,
               text: item.text,
               html: item.html,
             }),
-            { id: item.id },
           )
           .pipe(
             Effect.matchEffect({
@@ -240,15 +232,5 @@ export function make(
 export class Service extends Context.Service<Service, Interface>()(
   "@prosewire/worker/EmailOutbox",
 ) {}
-
-export const layer = Layer.effect(
-  Service,
-  Effect.gen(function* () {
-    const database = yield* WorkerDatabase.Service;
-    const queue = yield* EmailQueue;
-    const workerId = crypto.randomUUID();
-    return Service.of(make(drizzleStore(database.client), queue, workerId));
-  }),
-);
 
 export * as EmailOutbox from "./email-outbox.js";

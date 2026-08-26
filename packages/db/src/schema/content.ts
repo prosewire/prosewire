@@ -2,6 +2,7 @@ import { relations, sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -9,6 +10,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
@@ -55,6 +57,7 @@ export const author = pgTable(
     ...timestamps,
   },
   (table) => [
+    unique("author_id_blog_id_unique").on(table.id, table.blogId),
     uniqueIndex("author_blog_slug_unique").on(table.blogId, table.slug),
   ],
 );
@@ -72,6 +75,7 @@ export const category = pgTable(
     ...timestamps,
   },
   (table) => [
+    unique("category_id_blog_id_unique").on(table.id, table.blogId),
     uniqueIndex("category_blog_slug_unique").on(table.blogId, table.slug),
   ],
 );
@@ -83,9 +87,7 @@ export const post = pgTable(
     blogId: uuid("blog_id")
       .notNull()
       .references(() => blog.id, { onDelete: "cascade" }),
-    authorId: uuid("author_id")
-      .notNull()
-      .references(() => author.id, { onDelete: "restrict" }),
+    authorId: uuid("author_id").notNull(),
     title: text("title").notNull(),
     slug: text("slug").notNull(),
     excerpt: text("excerpt").notNull().default(""),
@@ -116,6 +118,12 @@ export const post = pgTable(
     ...timestamps,
   },
   (table) => [
+    unique("post_id_blog_id_unique").on(table.id, table.blogId),
+    foreignKey({
+      name: "post_author_blog_fk",
+      columns: [table.authorId, table.blogId],
+      foreignColumns: [author.id, author.blogId],
+    }).onDelete("restrict"),
     uniqueIndex("post_blog_slug_unique").on(table.blogId, table.slug),
     index("post_blog_status_published_idx").on(
       table.blogId,
@@ -140,14 +148,24 @@ export const post = pgTable(
 export const postCategory = pgTable(
   "post_category",
   {
-    postId: uuid("post_id")
-      .notNull()
-      .references(() => post.id, { onDelete: "cascade" }),
-    categoryId: uuid("category_id")
-      .notNull()
-      .references(() => category.id, { onDelete: "cascade" }),
+    postId: uuid("post_id").notNull(),
+    categoryId: uuid("category_id").notNull(),
+    blogId: uuid("blog_id").notNull(),
   },
-  (table) => [primaryKey({ columns: [table.postId, table.categoryId] })],
+  (table) => [
+    primaryKey({ columns: [table.postId, table.categoryId] }),
+    foreignKey({
+      name: "post_category_post_blog_fk",
+      columns: [table.postId, table.blogId],
+      foreignColumns: [post.id, post.blogId],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "post_category_category_blog_fk",
+      columns: [table.categoryId, table.blogId],
+      foreignColumns: [category.id, category.blogId],
+    }).onDelete("cascade"),
+    index("post_category_blog_category_idx").on(table.blogId, table.categoryId),
+  ],
 );
 
 export const postRevision = pgTable(
@@ -334,17 +352,23 @@ export const categoryRelations = relations(category, ({ one, many }) => ({
 
 export const postRelations = relations(post, ({ one, many }) => ({
   blog: one(blog, { fields: [post.blogId], references: [blog.id] }),
-  author: one(author, { fields: [post.authorId], references: [author.id] }),
+  author: one(author, {
+    fields: [post.authorId, post.blogId],
+    references: [author.id, author.blogId],
+  }),
   categories: many(postCategory),
   revisions: many(postRevision),
   views: many(postView),
 }));
 
 export const postCategoryRelations = relations(postCategory, ({ one }) => ({
-  post: one(post, { fields: [postCategory.postId], references: [post.id] }),
+  post: one(post, {
+    fields: [postCategory.postId, postCategory.blogId],
+    references: [post.id, post.blogId],
+  }),
   category: one(category, {
-    fields: [postCategory.categoryId],
-    references: [category.id],
+    fields: [postCategory.categoryId, postCategory.blogId],
+    references: [category.id, category.blogId],
   }),
 }));
 

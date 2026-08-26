@@ -418,6 +418,29 @@ test.describe
           owner.getByText("Other Tenant Secret", { exact: true }),
         ).toHaveCount(0);
 
+        await owner.setViewportSize({ width: 1440, height: 900 });
+        await owner.goto("/posts/new");
+        const categorySummary = owner.getByText("1 category", {
+          exact: true,
+        });
+        await expect(categorySummary).toBeVisible();
+        await categorySummary.click();
+        await expect(
+          owner.getByLabel("Engineering", { exact: true }),
+        ).toBeChecked();
+        await owner.getByLabel("Product", { exact: true }).check();
+        await expect(
+          owner.getByText("2 categories", { exact: true }),
+        ).toBeVisible();
+
+        await owner.setViewportSize({ width: 390, height: 844 });
+        await expect(
+          owner.getByText("2 categories", { exact: true }),
+        ).toBeVisible();
+        await expect(
+          owner.getByRole("button", { name: "Save draft" }),
+        ).toBeVisible();
+
         const viewer = await withSignedInPage(
           viewerContext,
           acceptance.viewer.email,

@@ -12,16 +12,16 @@ Keep production configuration in the deployment platform's secret store. Do not 
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `DATABASE_URL` | Yes | Postgres connection used by migrations, web, and worker |
-| `REDIS_URL` | Worker | Redis connection used by workers for the Effect persisted email queue |
+| `REDIS_URL` | Worker | Redis connection used by Effect `DurableQueue` for email delivery |
 | `PROSEWIRE_PUBLIC_URL` | Production | External origin used by the server for links such as invitations |
 | `NEXT_PUBLIC_PROSEWIRE_PUBLIC_URL` | Production | Matching browser-visible origin used by the authentication client |
 | `PROSEWIRE_DEFAULT_BLOG` | No | Development default publication slug; defaults to `fieldnotes` |
 | `PROSEWIRE_MIGRATIONS_DIR` | Container default | Override the directory containing committed Drizzle migrations |
 | `POSTGRES_PASSWORD` | Default Compose only | Password interpolated into the bundled Postgres service and application URL |
 
-Use the same `DATABASE_URL` for the migration, web, and worker processes. Each worker replica reserves one dedicated Postgres connection for email outbox notifications. Every worker replica must use the same `REDIS_URL`; the web process writes email intents to Postgres and does not connect to Redis. In Compose, choose a URL-safe `POSTGRES_PASSWORD` because it is interpolated into a connection URL.
+Use the same `DATABASE_URL` for the migration, web, and worker processes. The worker reserves one Postgres connection for email outbox notifications and opens a small Effect SQL pool for workflow storage. Run exactly one worker process for each database. The web process writes email intents to Postgres and does not connect to Redis. In Compose, choose a URL-safe `POSTGRES_PASSWORD` because it is interpolated into a connection URL.
 
-The Redis account must permit `SCRIPT LOAD`, `EVALSHA`, publish, subscribe, list, set, hash, string, and expiry commands. Use AOF persistence, replication, backups, and `maxmemory-policy noeviction` in production. Postgres retains the original email intent; Redis owns delivery processing, retries, and terminal failures after dispatch. Back up both systems because losing Redis after Postgres marks an intent dispatched can still lose an undelivered queue job.
+The Redis account must permit `SCRIPT LOAD`, `EVALSHA`, publish, subscribe, list, set, hash, string, and expiry commands. Use AOF persistence, replication, backups, and `maxmemory-policy noeviction` in production. Postgres retains the original email intent and the workflow result. Redis owns the queued delivery payload while the workflow waits. Back up both systems because losing Redis after Postgres marks an intent dispatched can leave an email workflow waiting for a queue item that no longer exists.
 
 The two public URL values should be the same external HTTPS origin seen by users. Do not include a path suffix.
 
@@ -54,9 +54,11 @@ Use an immutable version, commit, or digest as `NEXT_DEPLOYMENT_ID`. Change it w
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `PROSEWIRE_ANALYTICS_RETENTION_DAYS` | No | Positive integer controlling raw page-view retention; defaults to 365 |
-| `PROSEWIRE_EMAIL_WORKER_CONCURRENCY` | No | Redis email consumers per worker process; defaults to 4 |
+| `PROSEWIRE_EMAIL_WORKER_CONCURRENCY` | No | Concurrent email deliveries inside the single worker; defaults to 4 |
 
-The worker removes raw view events older than the configured period. For email, it listens for Postgres outbox notifications and normally dispatches committed intents to Redis immediately. A 30-second scan catches notifications missed while the listener reconnects, and expired leases resume safely after a restart. Each worker process runs the configured number of competing email consumers. Total email concurrency is the value multiplied by the number of worker replicas. Failed deliveries are retried by the Effect queue and retained in Redis after the attempt limit. Aggregate metrics and your infrastructure's backup retention are separate concerns.
+The worker starts durable workflows for scheduled publishing, raw-view retention, outbox draining, and email delivery. Postgres `LISTEN/NOTIFY` normally starts the outbox workflow immediately. A 30-second scan catches notifications missed while the listener reconnects, and expired leases resume safely after a restart. The email workflow waits for an Effect `DurableQueue` worker in Redis. Delivery failures use exponential retry with a five-minute cap and finish as a typed workflow failure after 100 attempts.
+
+The pinned Effect SQL runner supports durable single-process execution. Do not scale the worker command above one replica for the same database. Increase `PROSEWIRE_EMAIL_WORKER_CONCURRENCY` if SMTP capacity allows more parallel delivery. The migration role and worker database role need access to the Effect-owned `cluster_*` tables. The migration command creates them first, and worker startup repeats Effect's idempotent migration check.
 
 ## Development seed only
 
