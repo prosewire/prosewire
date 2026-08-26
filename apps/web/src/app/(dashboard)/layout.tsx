@@ -1,8 +1,7 @@
 import { hasPermission } from "@prosewire/core";
-import { cookies } from "next/headers";
 import { Suspense } from "react";
 import type { DashboardShellProps } from "@/components/dashboard-shell-types";
-import { DashboardSidebarFrame } from "@/components/dashboard-sidebar-frame";
+import { DashboardSidebar } from "@/components/dashboard-sidebar";
 import { DashboardShellSkeleton } from "@/components/loading-states";
 import { MobileHeader } from "@/components/mobile-header";
 import { loadDashboardShell } from "@/server/page-entrypoints";
@@ -23,8 +22,6 @@ export default function DashboardLayout({
 async function DashboardShell({ children }: { children: React.ReactNode }) {
   const { canCreateWorkspace, context, session, showWorkspaceSwitcher } =
     dashboardData(await loadDashboardShell());
-  const sidebarCollapsed =
-    (await cookies()).get("prosewire-sidebar")?.value === "collapsed";
   const shellProps = {
     userName: session.user.name,
     canCreatePublication: hasPermission(context.role, "publications:create"),
@@ -42,14 +39,16 @@ async function DashboardShell({ children }: { children: React.ReactNode }) {
   } satisfies DashboardShellProps;
 
   return (
-    <div className="min-h-screen bg-[#f4f3ed]">
+    <div
+      id="dashboard-shell"
+      className="group/sidebar min-h-screen bg-[#f4f3ed]"
+      data-collapsed="false"
+    >
       <MobileHeader {...shellProps} />
-      <DashboardSidebarFrame
-        {...shellProps}
-        defaultCollapsed={sidebarCollapsed}
-      >
+      <DashboardSidebar {...shellProps} />
+      <div className="transition-[padding] duration-200 ease-linear lg:pl-[248px] group-data-[collapsed=true]/sidebar:lg:pl-[72px]">
         {children}
-      </DashboardSidebarFrame>
+      </div>
     </div>
   );
 }

@@ -56,7 +56,6 @@ function MenuPopup({
 export function DashboardSelectionMenu({
   action,
   canCreate,
-  collapsed = false,
   createHref,
   current,
   items,
@@ -67,7 +66,6 @@ export function DashboardSelectionMenu({
 }: {
   readonly action: (formData: FormData) => Promise<void>;
   readonly canCreate: boolean;
-  readonly collapsed?: boolean;
   readonly createHref: string;
   readonly current: NamedSelection;
   readonly items: ReadonlyArray<NamedSelection>;
@@ -76,27 +74,34 @@ export function DashboardSelectionMenu({
   readonly name: "organizationId" | "publicationId";
   readonly placement?: MenuPlacement;
 }) {
-  const compact = collapsed && placement === "desktop";
   const SelectionIcon = kind === "workspace" ? Buildings : Newspaper;
 
   return (
     <Menu.Root>
       <Menu.Trigger
         aria-label={`Switch ${label.toLowerCase()}. Current: ${current.name}`}
-        title={compact ? `${label}: ${current.name}` : undefined}
+        title={
+          placement === "desktop" ? `${label}: ${current.name}` : undefined
+        }
         className={cn(
           "group flex h-10 min-w-0 items-center rounded-xl text-left outline-none transition-colors",
           "hover:bg-white focus-visible:ring-2 focus-visible:ring-[var(--accent)]/25 data-popup-open:bg-white",
           placement === "mobile" &&
             "w-full border border-[var(--line)] bg-[var(--surface)] px-2.5 shadow-sm",
-          placement === "desktop" && !compact && "w-full gap-2.5 px-2",
-          compact && "mx-auto size-10 justify-center",
+          placement === "desktop" &&
+            "w-full gap-2.5 px-2 group-data-[collapsed=true]/sidebar:mx-auto group-data-[collapsed=true]/sidebar:size-10 group-data-[collapsed=true]/sidebar:justify-center group-data-[collapsed=true]/sidebar:gap-0 group-data-[collapsed=true]/sidebar:px-0",
         )}
       >
         <span className="grid size-7 shrink-0 place-items-center rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--muted)] shadow-sm">
           <SelectionIcon className="size-3.5" aria-hidden />
         </span>
-        <span className={compact ? "sr-only" : "min-w-0 flex-1"}>
+        <span
+          className={cn(
+            "min-w-0 flex-1",
+            placement === "desktop" &&
+              "group-data-[collapsed=true]/sidebar:sr-only",
+          )}
+        >
           <span className="block text-[10px] leading-none text-[var(--muted)]">
             {label}
           </span>
@@ -104,12 +109,14 @@ export function DashboardSelectionMenu({
             {current.name}
           </span>
         </span>
-        {compact ? null : (
-          <CaretUpDown
-            className="size-3.5 shrink-0 text-[var(--muted)]"
-            aria-hidden
-          />
-        )}
+        <CaretUpDown
+          className={cn(
+            "size-3.5 shrink-0 text-[var(--muted)]",
+            placement === "desktop" &&
+              "group-data-[collapsed=true]/sidebar:hidden",
+          )}
+          aria-hidden
+        />
       </Menu.Trigger>
 
       <MenuPopup
@@ -165,19 +172,16 @@ export function DashboardSelectionMenu({
 }
 
 export function DashboardUserMenu({
-  collapsed = false,
   placement = "desktop",
   role,
   userName,
 }: {
-  readonly collapsed?: boolean;
   readonly placement?: MenuPlacement;
   readonly role: string;
   readonly userName: string;
 }) {
   const router = useRouter();
   const [signingOut, setSigningOut] = useState(false);
-  const compact = collapsed && placement === "desktop";
   const initial = userName.slice(0, 1).toUpperCase();
 
   const handleSignOut = async () => {
@@ -195,19 +199,25 @@ export function DashboardUserMenu({
     <Menu.Root>
       <Menu.Trigger
         aria-label={`Open user menu for ${userName}`}
-        title={compact ? userName : undefined}
+        title={placement === "desktop" ? userName : undefined}
         className={cn(
           "flex h-11 min-w-0 items-center rounded-xl text-left outline-none transition-colors",
           "hover:bg-white focus-visible:ring-2 focus-visible:ring-[var(--accent)]/25 data-popup-open:bg-white",
           placement === "mobile" && "w-auto max-w-full gap-2 px-2",
-          placement === "desktop" && !compact && "w-full gap-2.5 px-2",
-          compact && "mx-auto size-10 justify-center",
+          placement === "desktop" &&
+            "w-full gap-2.5 px-2 group-data-[collapsed=true]/sidebar:mx-auto group-data-[collapsed=true]/sidebar:size-10 group-data-[collapsed=true]/sidebar:justify-center group-data-[collapsed=true]/sidebar:gap-0 group-data-[collapsed=true]/sidebar:px-0",
         )}
       >
         <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-[#20343a] text-xs font-semibold text-white">
           {initial}
         </span>
-        <span className={compact ? "sr-only" : "min-w-0 flex-1"}>
+        <span
+          className={cn(
+            "min-w-0 flex-1",
+            placement === "desktop" &&
+              "group-data-[collapsed=true]/sidebar:sr-only",
+          )}
+        >
           <span className="block truncate text-xs font-semibold">
             {userName}
           </span>
@@ -215,12 +225,14 @@ export function DashboardUserMenu({
             {role}
           </span>
         </span>
-        {compact ? null : (
-          <CaretUpDown
-            className="size-3.5 shrink-0 text-[var(--muted)]"
-            aria-hidden
-          />
-        )}
+        <CaretUpDown
+          className={cn(
+            "size-3.5 shrink-0 text-[var(--muted)]",
+            placement === "desktop" &&
+              "group-data-[collapsed=true]/sidebar:hidden",
+          )}
+          aria-hidden
+        />
       </Menu.Trigger>
 
       <MenuPopup align="end" placement={placement}>

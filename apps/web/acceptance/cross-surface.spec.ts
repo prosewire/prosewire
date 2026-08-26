@@ -479,23 +479,19 @@ test.describe
 
         await owner.setViewportSize({ width: 1440, height: 900 });
         await owner.goto("/posts/new");
-        const categorySummary = owner.getByText("1 category", {
-          exact: true,
-        });
-        await expect(categorySummary).toBeVisible();
-        await categorySummary.click();
+        await owner.getByRole("tab", { name: "post", exact: true }).click();
         await expect(
           owner.getByLabel("Engineering", { exact: true }),
         ).toBeChecked();
         await owner.getByLabel("Product", { exact: true }).check();
         await expect(
-          owner.getByText("2 categories", { exact: true }),
-        ).toBeVisible();
+          owner.getByLabel("Product", { exact: true }),
+        ).toBeChecked();
 
         await owner.setViewportSize({ width: 390, height: 844 });
         await expect(
-          owner.getByText("2 categories", { exact: true }),
-        ).toBeVisible();
+          owner.getByLabel("Product", { exact: true }),
+        ).toBeChecked();
         await expect(
           owner.getByRole("button", { name: "Save draft" }),
         ).toBeVisible();

@@ -1,16 +1,13 @@
-"use client";
-
 import {
   ChartBar,
   ClockCounterClockwise,
   Code,
   FileText,
   GearSix,
-  SidebarSimple,
   SquaresFour,
   Stack,
   UsersThree,
-} from "@phosphor-icons/react";
+} from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 import { switchPublication, switchWorkspace } from "@/server/actions";
 import { DashboardNavLink } from "./dashboard-nav-link";
@@ -19,6 +16,7 @@ import {
   DashboardSelectionMenu,
   DashboardUserMenu,
 } from "./dashboard-sidebar-menus";
+import { DashboardSidebarToggle } from "./dashboard-sidebar-toggle";
 import { Logo } from "./logo";
 import { ThemeToggle } from "./theme-toggle";
 
@@ -46,41 +44,24 @@ export function DashboardSidebar({
   workspaces,
   publication,
   publications,
-  collapsed,
-  onToggle,
-}: DashboardShellProps & {
-  readonly collapsed: boolean;
-  readonly onToggle: () => void;
-}) {
+}: DashboardShellProps) {
   return (
     <aside
       id="dashboard-sidebar"
-      data-collapsed={collapsed ? "true" : "false"}
-      className={`fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-[#dedfd9] bg-[#f8f7f2] py-5 transition-[width,padding] duration-200 ease-linear lg:flex ${
-        collapsed ? "w-[72px] px-3" : "w-[248px] px-4"
-      }`}
+      className="fixed inset-y-0 left-0 z-30 hidden w-[248px] flex-col border-r border-[#dedfd9] bg-[#f8f7f2] px-4 py-5 transition-[width,padding] duration-200 ease-linear group-data-[collapsed=true]/sidebar:w-[72px] group-data-[collapsed=true]/sidebar:px-3 lg:flex"
     >
-      <div
-        className={`flex h-8 items-center ${collapsed ? "justify-center" : "justify-between px-2"}`}
-      >
-        {collapsed ? null : (
-          <Link href="/dashboard">
-            <Logo className="text-lg" />
-          </Link>
-        )}
+      <div className="flex h-8 items-center justify-between px-2 group-data-[collapsed=true]/sidebar:justify-center group-data-[collapsed=true]/sidebar:px-0">
+        <Link
+          href="/dashboard"
+          className="group-data-[collapsed=true]/sidebar:hidden"
+        >
+          <Logo className="text-lg" />
+        </Link>
         <div className="flex items-center gap-1.5">
-          {collapsed ? null : <ThemeToggle className="size-8 rounded-lg" />}
-          <button
-            type="button"
-            aria-controls="dashboard-sidebar"
-            aria-expanded={!collapsed}
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            onClick={onToggle}
-            className="grid size-8 shrink-0 place-items-center rounded-lg text-[#687279] outline-none transition-colors hover:bg-white hover:text-[#172329] focus-visible:ring-2 focus-visible:ring-[var(--accent)]/25"
-          >
-            <SidebarSimple className="size-4" aria-hidden />
-          </button>
+          <span className="group-data-[collapsed=true]/sidebar:hidden">
+            <ThemeToggle className="size-8 rounded-lg" />
+          </span>
+          <DashboardSidebarToggle />
         </div>
       </div>
 
@@ -89,7 +70,6 @@ export function DashboardSidebar({
           <DashboardSelectionMenu
             action={switchWorkspace}
             canCreate={canCreateWorkspace}
-            collapsed={collapsed}
             createHref="/onboarding?newWorkspace=1"
             current={workspace}
             items={workspaces}
@@ -101,7 +81,6 @@ export function DashboardSidebar({
         <DashboardSelectionMenu
           action={switchPublication}
           canCreate={canCreatePublication}
-          collapsed={collapsed}
           createHref="/onboarding"
           current={publication}
           items={publications}
@@ -113,51 +92,32 @@ export function DashboardSidebar({
 
       <nav className="mt-6 space-y-1">
         {primary.map((item) => (
-          <DashboardNavLink
-            key={item.href}
-            href={item.href}
-            collapsed={collapsed}
-            label={item.label}
-          >
+          <DashboardNavLink key={item.href} href={item.href} label={item.label}>
             <item.icon className="size-4 shrink-0" aria-hidden />
-            <span className={collapsed ? "sr-only" : "truncate"}>
+            <span className="truncate group-data-[collapsed=true]/sidebar:sr-only">
               {item.label}
             </span>
           </DashboardNavLink>
         ))}
       </nav>
 
-      <div
-        className={
-          collapsed
-            ? "mx-2 mt-6 h-px bg-[#dedfd9]"
-            : "mt-6 px-3 text-[10px] font-bold uppercase tracking-[0.16em] text-[#9aa1a4]"
-        }
-      >
-        {collapsed ? null : "Manage"}
+      <div className="mt-6 px-3 text-[10px] font-bold uppercase tracking-[0.16em] text-[#9aa1a4] group-data-[collapsed=true]/sidebar:hidden">
+        Manage
       </div>
-      <nav className={`${collapsed ? "mt-4" : "mt-2"} space-y-1`}>
+      <div className="mx-2 mt-6 hidden h-px bg-[#dedfd9] group-data-[collapsed=true]/sidebar:block" />
+      <nav className="mt-2 space-y-1 group-data-[collapsed=true]/sidebar:mt-4">
         {manage.map((item) => (
-          <DashboardNavLink
-            key={item.href}
-            href={item.href}
-            collapsed={collapsed}
-            label={item.label}
-          >
+          <DashboardNavLink key={item.href} href={item.href} label={item.label}>
             <item.icon className="size-4 shrink-0" aria-hidden />
-            <span className={collapsed ? "sr-only" : "truncate"}>
+            <span className="truncate group-data-[collapsed=true]/sidebar:sr-only">
               {item.label}
             </span>
           </DashboardNavLink>
         ))}
         {canReadAudit ? (
-          <DashboardNavLink
-            href="/audit"
-            collapsed={collapsed}
-            label="Audit history"
-          >
+          <DashboardNavLink href="/audit" label="Audit history">
             <ClockCounterClockwise className="size-4 shrink-0" aria-hidden />
-            <span className={collapsed ? "sr-only" : "truncate"}>
+            <span className="truncate group-data-[collapsed=true]/sidebar:sr-only">
               Audit history
             </span>
           </DashboardNavLink>
@@ -165,22 +125,10 @@ export function DashboardSidebar({
       </nav>
 
       <div className="mt-auto border-t border-[#dedfd9] pt-4">
-        <DashboardUserMenu
-          collapsed={collapsed}
-          role={role}
-          userName={userName}
-        />
+        <DashboardUserMenu role={role} userName={userName} />
       </div>
 
-      <button
-        type="button"
-        tabIndex={-1}
-        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        onClick={onToggle}
-        className="group absolute inset-y-0 -right-1.5 hidden w-3 cursor-ew-resize lg:block"
-      >
-        <span className="absolute inset-y-0 left-1/2 w-px bg-transparent transition-colors group-hover:bg-[var(--accent)]/60" />
-      </button>
+      <DashboardSidebarToggle rail />
     </aside>
   );
 }
