@@ -27,8 +27,8 @@ export function DashboardNavLink({
       aria-current={active ? "page" : undefined}
       className={
         compact
-          ? `rounded-lg px-3 py-2.5 text-xs font-semibold transition ${stateClass}`
-          : `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${stateClass}`
+          ? `rounded-lg px-3 py-2.5 text-xs font-semibold hover:transition-colors ${stateClass}`
+          : `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium hover:transition-colors ${stateClass}`
       }
     >
       {children}
