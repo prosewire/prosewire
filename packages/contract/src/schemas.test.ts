@@ -48,7 +48,6 @@ describe("post mutation schemas", () => {
     ).toMatchObject({
       contentMarkdown: "",
       status: "draft",
-      locale: "en",
       featured: false,
       categoryIds: [],
     });

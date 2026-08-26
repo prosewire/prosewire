@@ -22,6 +22,7 @@ export default async function NewPostPage({
       error={query.error}
       authors={authors.map(({ id, name }) => ({ id, name }))}
       categories={categories.map(({ id, name }) => ({ id, name }))}
+      locales={blog.locales}
       post={{
         blogId: blog.id,
         authorId: author.id,

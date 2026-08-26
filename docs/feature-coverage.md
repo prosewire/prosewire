@@ -17,7 +17,7 @@ missing.
 | Revisions | History browsing and confirmed restore are implemented in the dashboard, management API, SDK, CLI, and MCP; each restore first saves the version it replaces |
 | Bulk operations | Bulk archive is implemented; bulk editing of other fields is not |
 | Reusable snippets | Stored and visible in the content library; editor insertion UI is not implemented |
-| Localization | Publication and post locale fields are implemented; translation management is not |
+| Localization | Publication language lists, default-language selection, and post locale assignment are implemented; translation management is not |
 | Import | Not implemented |
 
 ## Publishing and discovery

@@ -33,6 +33,7 @@ export class Blog extends Schema.Class<Blog>("Content.Blog")({
   slug: BlogSlug,
   description: Schema.String,
   locale: Schema.String,
+  locales: Schema.Array(Schema.String),
   accentColor: Schema.String,
   customCss: Schema.String,
   publicUrl: nullableString,
