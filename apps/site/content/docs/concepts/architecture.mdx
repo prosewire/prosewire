@@ -29,10 +29,12 @@ Read [Choose an integration](/docs/integrate/) for authentication and rendering 
 
 ## Own the runtime
 
-The web app and worker run against your Postgres database and share an Effect `PersistedQueue` in Redis. After an invitation transaction commits, the web app enqueues the complete typed email payload in Redis. Any worker replica can claim and deliver it; Redis holds the pending job, processing lock, attempt count, and terminal failure state.
+The web app writes each invitation and its complete typed email intent in one Postgres transaction. That transaction also calls `pg_notify`; Postgres emits the notification only after the transaction commits. The request no longer depends on Redis, and a committed invitation cannot exist without a recoverable delivery intent.
 
-Postgres stores the invitation, but it is not an email queue. An unavailable Redis instance makes the invite request fail visibly after the invitation has been created, and loss of Redis persistence can lose queued email. Run Redis with durable storage and replication appropriate to your recovery requirements.
+The worker keeps a dedicated Postgres `LISTEN` connection. A notification starts an email-outbox workflow as soon as the invitation transaction commits. A 30-second scan starts the same workflow path for notifications missed during a disconnect or restart. The outbox workflow leases rows with `FOR UPDATE SKIP LOCKED` and starts one idempotent email workflow per outbox ID. It marks the row dispatched only after the workflow engine has accepted that execution.
 
-The worker still checks Postgres for due scheduled posts and expired raw analytics events because those are time-based database operations, not queued messages. Atomic Postgres transactions coordinate concurrent worker replicas. Content remains exportable, and the built-in public reader remains readable without client-side JavaScript.
+Each email workflow submits its SMTP payload to Effect `DurableQueue` in Redis and waits for the queue worker to record the result. SMTP retries stay attached to that workflow. Postgres stores workflow messages and results in Effect-owned `cluster_*` tables. Redis remains the delivery queue, so it still needs AOF persistence, backups, and replication.
 
-Production uses a separate one-shot migration process before web and worker replicas start. The web process does not migrate or seed in production.
+Scheduled publishing and analytics retention also run as named workflows. Their source records remain in Postgres, so a restart can safely run another scan without creating a second content state. Content remains exportable, and the built-in public reader remains readable without client-side JavaScript.
+
+Effect's SQL workflow runner in this release is single-process. Run exactly one Prosewire worker for each database and set email concurrency inside that process. The supervisor should restart it after a crash. The one-shot migration command applies both committed Drizzle migrations and Effect's internal workflow-storage migrations before the web and worker start. The worker repeats Effect's idempotent `cluster_*` migration check when it connects. The web process does not migrate, seed, or connect to Redis in production.

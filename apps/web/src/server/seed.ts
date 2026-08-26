@@ -380,6 +380,7 @@ export const create = Effect.fn("Seed.create")(function* () {
             await tx.insert(schema.postCategory).values({
               postId: createdPost.id,
               categoryId: selectedCategory.id,
+              blogId: createdBlog.id,
             });
           }
         }

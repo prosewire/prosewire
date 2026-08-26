@@ -91,13 +91,12 @@ function redirectActionError(error: unknown, fallbackPath: string): never {
 
 function savePostInput(formData: FormData): SavePostBoundaryInput {
   const id = text(formData, "id");
-  const categoryId = text(formData, "categoryId");
   const scheduledAtValue = text(formData, "scheduledAt");
   return {
     ...(id ? { id } : {}),
     blogId: text(formData, "blogId"),
     authorId: text(formData, "authorId"),
-    ...(categoryId ? { categoryId } : {}),
+    categoryIds: formData.getAll("categoryId").map(String).filter(Boolean),
     title: text(formData, "title"),
     requestedSlug: text(formData, "slug"),
     excerpt: text(formData, "excerpt"),

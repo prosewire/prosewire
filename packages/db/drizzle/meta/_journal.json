@@ -71,6 +71,20 @@
       "when": 1787547704436,
       "tag": "0009_noisy_talisman",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1787663729521,
+      "tag": "0010_careless_dexter_bennett",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1787676198613,
+      "tag": "0011_flaky_bug",
+      "breakpoints": true
     }
   ]
 }

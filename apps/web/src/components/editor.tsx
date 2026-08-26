@@ -28,7 +28,7 @@ interface EditorPost {
   id?: string;
   blogId: string;
   authorId: string;
-  categoryId: string;
+  categoryIds: ReadonlyArray<string>;
   title: string;
   slug: string;
   excerpt: string;
@@ -100,6 +100,9 @@ export function Editor({
   const [markdown, setMarkdown] = useState(post.contentMarkdown);
   const [description, setDescription] = useState(post.seoDescription);
   const [focusKeyword, setFocusKeyword] = useState(post.focusKeyword);
+  const [categoryIds, setCategoryIds] = useState(
+    () => new Set(post.categoryIds),
+  );
   const [tab, setTab] = useState<"write" | "preview">("write");
   const [previewHtml, setPreviewHtml] = useState(post.contentHtml);
   const textarea = useRef<HTMLTextAreaElement>(null);
@@ -223,18 +226,45 @@ export function Editor({
                   </option>
                 ))}
               </select>
-              <select
-                name="categoryId"
-                defaultValue={post.categoryId}
-                className="rounded-lg border border-[#e0e1dc] bg-[#fafaf7] px-2.5 py-1.5 outline-none"
-              >
-                <option value="">No category</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
+              <details className="relative rounded-lg border border-[#e0e1dc] bg-[#fafaf7] px-2.5 py-1.5">
+                <summary className="cursor-pointer select-none">
+                  {categoryIds.size === 0
+                    ? "No categories"
+                    : `${categoryIds.size} ${categoryIds.size === 1 ? "category" : "categories"}`}
+                </summary>
+                <fieldset className="absolute left-0 top-full z-10 mt-1 max-h-56 min-w-52 space-y-1 overflow-y-auto rounded-xl border border-[#d9dbd5] bg-white p-2 shadow-lg">
+                  <legend className="sr-only">Categories</legend>
+                  {categories.length === 0 ? (
+                    <p className="px-2 py-1 text-[11px] text-[#7b8589]">
+                      No categories available
+                    </p>
+                  ) : (
+                    categories.map((category) => (
+                      <label
+                        key={category.id}
+                        className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-[#f4f3ee]"
+                      >
+                        <input
+                          type="checkbox"
+                          name="categoryId"
+                          value={category.id}
+                          checked={categoryIds.has(category.id)}
+                          onChange={(event) => {
+                            setCategoryIds((current) => {
+                              const next = new Set(current);
+                              if (event.target.checked) next.add(category.id);
+                              else next.delete(category.id);
+                              return next;
+                            });
+                          }}
+                          className="size-3.5 accent-[#ef6848]"
+                        />
+                        <span>{category.name}</span>
+                      </label>
+                    ))
+                  )}
+                </fieldset>
+              </details>
               <span>
                 {analysis.wordCount} words · {analysis.readingMinutes} min read
               </span>

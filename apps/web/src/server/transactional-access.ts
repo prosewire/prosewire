@@ -104,7 +104,11 @@ export async function lockApiKey(
   keyId: ApiKeyId,
 ) {
   const rows = await transaction
-    .select({ key: schema.apiKey, organizationId: schema.blog.organizationId })
+    .select({
+      key: schema.apiKey,
+      organizationId: schema.blog.organizationId,
+      blogSlug: schema.blog.slug,
+    })
     .from(schema.apiKey)
     .innerJoin(schema.blog, eq(schema.apiKey.blogId, schema.blog.id))
     .where(and(eq(schema.apiKey.id, keyId), eq(schema.apiKey.blogId, blogId)))

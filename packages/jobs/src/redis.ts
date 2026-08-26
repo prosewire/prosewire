@@ -1,5 +1,5 @@
 import { createClient } from "@redis/client";
-import { Context, Effect, Layer, Redacted, Schema } from "effect";
+import { Context, Effect, Layer, Redacted, Schema, type Scope } from "effect";
 import * as PersistenceRedis from "effect/unstable/persistence/Redis";
 import * as JobQueueConfig from "./config.ts";
 
@@ -17,6 +17,14 @@ export interface Interface {
     command: string,
     ...args: ReadonlyArray<string>
   ) => Effect.Effect<A, PersistenceRedis.RedisError>;
+  readonly subscribe: (
+    channel: string,
+    onMessage: (message: PersistenceRedis.RedisMessage) => void,
+  ) => Effect.Effect<
+    Effect.Effect<void, PersistenceRedis.RedisError>,
+    PersistenceRedis.RedisError,
+    Scope.Scope
+  >;
 }
 
 export class Service extends Context.Service<Service, Interface>()(
@@ -64,7 +72,41 @@ export const layer = Layer.effect(
       ),
     );
 
-    return Service.of({ ping, send });
+    const subscribe: Interface["subscribe"] = (channel, onMessage) =>
+      Effect.gen(function* () {
+        const subscriber = client.duplicate();
+        const onError = (cause: unknown) => {
+          console.error("Redis subscriber error", cause);
+        };
+        subscriber.on("error", onError);
+
+        yield* Effect.addFinalizer(() =>
+          Effect.tryPromise({
+            try: async () => {
+              subscriber.off("error", onError);
+              if (!subscriber.isOpen) return;
+              await subscriber.unsubscribe(channel);
+              await subscriber.close();
+            },
+            catch: (cause) => new PersistenceRedis.RedisError({ cause }),
+          }).pipe(Effect.ignore),
+        );
+
+        yield* Effect.tryPromise({
+          try: async () => {
+            await subscriber.connect();
+            await subscriber.subscribe(channel, (message, receivedChannel) =>
+              onMessage({
+                channel: receivedChannel,
+                message,
+              }),
+            );
+          },
+          catch: (cause) => new PersistenceRedis.RedisError({ cause }),
+        });
+      }).pipe(Effect.as(Effect.never));
+
+    return Service.of({ ping, send, subscribe });
   }),
 );
 
@@ -72,6 +114,9 @@ export const persistenceLayer = Layer.effect(
   PersistenceRedis.Redis,
   Effect.gen(function* () {
     const redis = yield* Service;
-    return yield* PersistenceRedis.make({ send: redis.send });
+    return yield* PersistenceRedis.make({
+      send: redis.send,
+      subscribe: redis.subscribe,
+    });
   }),
 );

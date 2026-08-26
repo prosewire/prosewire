@@ -209,12 +209,20 @@ export default async function globalSetup(): Promise<void> {
         slug: "other-author",
       },
     ]);
-    await database.insert(schema.category).values({
-      id: acceptance.category.id,
-      blogId: acceptance.blog.id,
-      name: "Engineering",
-      slug: acceptance.category.slug,
-    });
+    await database.insert(schema.category).values([
+      {
+        id: acceptance.category.id,
+        blogId: acceptance.blog.id,
+        name: "Engineering",
+        slug: acceptance.category.slug,
+      },
+      {
+        id: acceptance.secondCategory.id,
+        blogId: acceptance.blog.id,
+        name: "Product",
+        slug: acceptance.secondCategory.slug,
+      },
+    ]);
     await database.insert(schema.apiKey).values([
       {
         blogId: acceptance.blog.id,
@@ -326,6 +334,7 @@ export default async function globalSetup(): Promise<void> {
     await database.insert(schema.postCategory).values({
       postId: acceptance.posts.published,
       categoryId: acceptance.category.id,
+      blogId: acceptance.blog.id,
     });
   } finally {
     await resource.close();

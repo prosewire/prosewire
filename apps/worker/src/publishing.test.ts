@@ -40,10 +40,10 @@ describe("publishScheduledPosts", () => {
 
     return Effect.gen(function* () {
       const publishing = yield* Publishing.Service;
-      const result = yield* publishing.publishScheduled();
+      const result = yield* publishing.publishScheduled(now);
 
       expect(result).toEqual(expected);
-      expect(requestedAt).toBeInstanceOf(Date);
+      expect(requestedAt).toEqual(now);
     }).pipe(Effect.provide(Publishing.layer.pipe(Layer.provide(repository))));
   });
 
@@ -54,7 +54,7 @@ describe("publishScheduledPosts", () => {
 
     return Effect.gen(function* () {
       const publishing = yield* Publishing.Service;
-      const result = yield* publishing.publishScheduled();
+      const result = yield* publishing.publishScheduled(now);
 
       expect(result).toEqual([]);
     }).pipe(Effect.provide(Publishing.layer.pipe(Layer.provide(repository))));

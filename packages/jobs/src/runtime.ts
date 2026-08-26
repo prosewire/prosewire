@@ -1,7 +1,6 @@
 import { Layer } from "effect";
 import * as PersistedQueue from "effect/unstable/persistence/PersistedQueue";
 import type * as JobQueueConfig from "./config.ts";
-import * as EmailQueue from "./email-queue.ts";
 import * as JobRedis from "./redis.ts";
 
 export const layer = <E, R>(
@@ -17,9 +16,6 @@ export const layer = <E, R>(
   const factoryLayer = PersistedQueue.layer.pipe(
     Layer.provideMerge(storeLayer),
   );
-  const emailQueueLayer = EmailQueue.layer.pipe(
-    Layer.provideMerge(factoryLayer),
-  );
 
   return Layer.mergeAll(
     configLayer,
@@ -27,6 +23,5 @@ export const layer = <E, R>(
     persistenceLayer,
     storeLayer,
     factoryLayer,
-    emailQueueLayer,
   );
 };

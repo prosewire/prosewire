@@ -225,6 +225,7 @@ async function seed(
   await client.insert(schema.postCategory).values({
     postId: firstPostId,
     categoryId,
+    blogId,
   });
   await client.insert(schema.postRevision).values({
     postId: firstPostId,

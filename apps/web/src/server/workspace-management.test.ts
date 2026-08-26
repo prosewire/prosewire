@@ -8,9 +8,7 @@ import {
 } from "@effect/vitest";
 import * as schema from "@prosewire/db/schema";
 import { openTestDatabase, type TestDatabase } from "@prosewire/db/testing";
-import type { EmailDeliveryJob } from "@prosewire/jobs/email-queue";
-import * as EmailQueue from "@prosewire/jobs/email-queue";
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { Effect, Layer, Redacted } from "effect";
 import { BlogAccess } from "./authorization.ts";
 import { WebConfig } from "./config.ts";
@@ -99,26 +97,17 @@ describe.skipIf(!databaseUrl)(
       });
     };
 
-    const layer = (queued: Array<EmailDeliveryJob> = []) =>
+    const layer = () =>
       WorkspaceManagement.live.pipe(
         Layer.provide(
           Layer.mergeAll(
             databaseLayer(testDatabase.client),
             Layer.mock(BlogAccess.Service, {}),
             PlatformCrypto.layer,
-            Layer.mock(EmailQueue.Service, {
-              offer: (job) =>
-                Effect.sync(() => {
-                  queued.push(job);
-                }),
-              take: () =>
-                Effect.die("Email consumption is unavailable in web tests"),
-            }),
             Layer.succeed(WebConfig, {
               defaultBlog: "fieldnotes",
               publicUrl: "http://localhost:3000",
               databaseUrl: Redacted.make(testDatabase.url),
-              redisUrl: Redacted.make("redis://test"),
               authSecret: Redacted.make("test-secret-at-least-32-characters"),
               allowSignUp: false,
               environment: "test",
@@ -130,7 +119,6 @@ describe.skipIf(!databaseUrl)(
     it.effect(
       "serializes invite creation and escapes untrusted email HTML",
       () => {
-        const queued: Array<EmailDeliveryJob> = [];
         return Effect.gen(function* () {
           yield* Effect.promise(() =>
             seedWorkspace({ actorIsOwner: true, name: "Studio & Partners" }),
@@ -140,7 +128,7 @@ describe.skipIf(!databaseUrl)(
             name: "A <script>alert(1)</script>",
           };
           const management = yield* WorkspaceManagement.Service;
-          yield* Effect.all(
+          const invitationIds = yield* Effect.all(
             [
               management.inviteMember(
                 new InviteMemberInput({
@@ -174,16 +162,68 @@ describe.skipIf(!databaseUrl)(
           expect(
             invitations.filter(({ status }) => status === "canceled"),
           ).toHaveLength(1);
-          expect(queued).toHaveLength(2);
-          for (const message of queued) {
+          const outbox = yield* Effect.promise(() =>
+            testDatabase.client.query.emailDeliveryOutbox.findMany(),
+          );
+          expect(outbox).toHaveLength(2);
+          expect(outbox.map(({ id }) => id).sort()).toEqual(
+            [...invitationIds].sort(),
+          );
+          for (const message of outbox) {
             expect(message.html).toContain(
               "A &lt;script&gt;alert(1)&lt;/script&gt;",
             );
             expect(message.html).toContain("Studio &amp; Partners");
             expect(message.html).not.toContain("<script>");
           }
-        }).pipe(Effect.provide(layer(queued)));
+        }).pipe(Effect.provide(layer()));
       },
+    );
+
+    it.effect(
+      "rolls back the invitation and audit when its outbox intent cannot persist",
+      () =>
+        Effect.gen(function* () {
+          yield* Effect.promise(async () => {
+            await seedWorkspace({ actorIsOwner: true });
+            await testDatabase.client.execute(
+              sql`alter table ${schema.emailDeliveryOutbox} add constraint email_delivery_outbox_test_reject check (${schema.emailDeliveryOutbox.recipient} <> 'rollback@example.com')`,
+            );
+          });
+          const management = yield* WorkspaceManagement.Service;
+
+          const error = yield* Effect.flip(
+            management.inviteMember(
+              new InviteMemberInput({
+                organizationId,
+                email: "rollback@example.com",
+                role: "viewer",
+              }),
+              actor,
+            ),
+          );
+          expect(error._tag).toBe("WorkspaceRepositoryPersistenceError");
+
+          const invitations = yield* Effect.promise(() =>
+            testDatabase.client.query.invitation.findMany({
+              where: eq(schema.invitation.email, "rollback@example.com"),
+            }),
+          );
+          const audits = yield* Effect.promise(() =>
+            testDatabase.client.query.auditLog.findMany({
+              where: and(
+                eq(schema.auditLog.organizationId, organizationId),
+                eq(schema.auditLog.action, "invitation.created"),
+              ),
+            }),
+          );
+          const outbox = yield* Effect.promise(() =>
+            testDatabase.client.query.emailDeliveryOutbox.findMany(),
+          );
+          expect(invitations).toHaveLength(0);
+          expect(audits).toHaveLength(0);
+          expect(outbox).toHaveLength(0);
+        }).pipe(Effect.provide(layer())),
     );
 
     it.effect(

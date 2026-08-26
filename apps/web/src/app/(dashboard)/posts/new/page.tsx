@@ -19,12 +19,12 @@ export default async function NewPostPage({
       canPublish={hasPermission(context.role, "content:publish")}
       saved={false}
       error={query.error}
-      authors={authors}
-      categories={categories}
+      authors={authors.map(({ id, name }) => ({ id, name }))}
+      categories={categories.map(({ id, name }) => ({ id, name }))}
       post={{
         blogId: blog.id,
         authorId: author.id,
-        categoryId: categories[0]?.id ?? "",
+        categoryIds: categories[0] ? [categories[0].id] : [],
         title: "",
         slug: "",
         excerpt: "",

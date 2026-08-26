@@ -24,7 +24,12 @@ import {
   UserId,
 } from "./domain.ts";
 import { PostErrors } from "./post-errors.ts";
-import { ApiCreatePostInput, Publishing, SavePostInput } from "./publishing.ts";
+import {
+  ArchivePostsCommand,
+  CreatePostCommand,
+  Publishing,
+  UpdatePostCommand,
+} from "./publishing.ts";
 
 const databaseUrl = process.env.DATABASE_URL;
 const blogId = "11111111-1111-4111-8111-111111111111";
@@ -38,7 +43,6 @@ function configLayer(url = "postgres://test") {
     defaultBlog: "fieldnotes",
     publicUrl: "http://localhost:3000",
     databaseUrl: Redacted.make(url),
-    redisUrl: Redacted.make("redis://test"),
     authSecret: Redacted.make("test-secret-at-least-32-characters"),
     allowSignUp: false,
     environment: "test",
@@ -50,7 +54,8 @@ describe("Publishing inputs", () => {
     "decodes external identifiers and dates into the domain command",
     () =>
       Effect.gen(function* () {
-        const command = yield* Schema.decodeUnknownEffect(ApiCreatePostInput)({
+        const command = yield* Schema.decodeUnknownEffect(CreatePostCommand)({
+          blogId,
           authorId,
           title: "Scheduled post",
           slug: "scheduled-post",
@@ -73,7 +78,8 @@ describe("Publishing inputs", () => {
   it.effect("rejects malformed persistent identities at the boundary", () =>
     Effect.gen(function* () {
       const error = yield* Effect.flip(
-        Schema.decodeUnknownEffect(ApiCreatePostInput)({
+        Schema.decodeUnknownEffect(CreatePostCommand)({
+          blogId,
           authorId: "not-a-uuid",
           title: "Invalid post",
           slug: "invalid-post",
@@ -109,8 +115,9 @@ describe("Publishing validation", () => {
       return Effect.gen(function* () {
         const publishing = yield* Publishing.Service;
         const error = yield* Effect.flip(
-          publishing.createApiPost(
-            new ApiCreatePostInput({
+          publishing.createPost(
+            new CreatePostCommand({
+              blogId: BlogId.make(blogId),
               authorId: AuthorId.make(authorId),
               title: "Unscheduled post",
               slug: "unscheduled-post",
@@ -121,7 +128,7 @@ describe("Publishing validation", () => {
               categoryIds: [],
             }),
             {
-              blogId: BlogId.make(blogId),
+              _tag: "Api",
               keyId: ApiKeyId.make(keyId),
             },
           ),
@@ -230,16 +237,17 @@ describe.skipIf(!databaseUrl)("Publishing transitions with PostgreSQL", () => {
         });
 
         const publishing = yield* Publishing.Service;
-        yield* publishing.savePost(
-          new SavePostInput({
-            id: PostId.make(postId),
+        yield* publishing.updatePost(
+          new UpdatePostCommand({
+            postId: PostId.make(postId),
             blogId: BlogId.make(blogId),
             authorId: AuthorId.make(authorId),
+            categoryIds: [],
             title: "Published post, edited",
-            requestedSlug: "published-post",
+            slug: "published-post",
             excerpt: "Edited",
             contentMarkdown: "# Edited",
-            requestedStatus: "published",
+            status: "published",
             featured: false,
             locale: "en",
             coverImageUrl: null,
@@ -250,7 +258,7 @@ describe.skipIf(!databaseUrl)("Publishing transitions with PostgreSQL", () => {
             canonicalUrl: null,
             scheduledAt: null,
           }),
-          actorId,
+          { _tag: "Dashboard", userId: actorId },
         );
 
         const persisted = yield* Effect.promise(() =>
@@ -280,16 +288,17 @@ describe.skipIf(!databaseUrl)("Publishing transitions with PostgreSQL", () => {
 
         const publishing = yield* Publishing.Service;
         const error = yield* Effect.flip(
-          publishing.savePost(
-            new SavePostInput({
-              id: PostId.make(postId),
+          publishing.updatePost(
+            new UpdatePostCommand({
+              postId: PostId.make(postId),
               blogId: BlogId.make(blogId),
               authorId: AuthorId.make(authorId),
+              categoryIds: [],
               title: "Back to draft",
-              requestedSlug: "back-to-draft",
+              slug: "back-to-draft",
               excerpt: "",
               contentMarkdown: "# Draft",
-              requestedStatus: "draft",
+              status: "draft",
               featured: false,
               locale: "en",
               coverImageUrl: null,
@@ -300,7 +309,7 @@ describe.skipIf(!databaseUrl)("Publishing transitions with PostgreSQL", () => {
               canonicalUrl: null,
               scheduledAt: null,
             }),
-            actorId,
+            { _tag: "Dashboard", userId: actorId },
           ),
         );
 
@@ -337,12 +346,16 @@ describe.skipIf(!databaseUrl)("Publishing transitions with PostgreSQL", () => {
       });
 
       const publishing = yield* Publishing.Service;
-      const result = yield* publishing.archiveApiPost(PostId.make(postId), {
-        blogId: BlogId.make(blogId),
-        keyId: ApiKeyId.make(keyId),
-      });
+      const result = yield* publishing.archivePosts(
+        new ArchivePostsCommand({
+          blogId: BlogId.make(blogId),
+          postIds: [PostId.make(postId)],
+          requireAll: true,
+        }),
+        { _tag: "Api", keyId: ApiKeyId.make(keyId) },
+      );
 
-      expect(result).toEqual({ ok: true });
+      expect(result).toEqual({ archived: 1, blogSlug: "fieldnotes" });
       const persisted = yield* Effect.promise(() =>
         testDatabase.client.query.post.findFirst({
           where: eq(schema.post.id, postId),
@@ -373,10 +386,14 @@ describe.skipIf(!databaseUrl)("Publishing transitions with PostgreSQL", () => {
 
         const publishing = yield* Publishing.Service;
         const error = yield* Effect.flip(
-          publishing.archiveApiPost(PostId.make(postId), {
-            blogId: BlogId.make(blogId),
-            keyId: ApiKeyId.make(keyId),
-          }),
+          publishing.archivePosts(
+            new ArchivePostsCommand({
+              blogId: BlogId.make(blogId),
+              postIds: [PostId.make(postId)],
+              requireAll: true,
+            }),
+            { _tag: "Api", keyId: ApiKeyId.make(keyId) },
+          ),
         );
 
         expect(error).toBeInstanceOf(ApiAccess.AuthenticationFailed);

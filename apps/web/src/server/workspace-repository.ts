@@ -6,8 +6,10 @@ import {
 } from "@prosewire/core";
 import type { Db } from "@prosewire/db/client";
 import * as schema from "@prosewire/db/schema";
-import * as EmailQueue from "@prosewire/jobs/email-queue";
-import { EmailDeliveryJob } from "@prosewire/jobs/email-queue";
+import {
+  EmailDeliveryJob,
+  emailOutboxNotificationChannel,
+} from "@prosewire/jobs/email-queue";
 import { and, eq, gt, sql } from "drizzle-orm";
 import { Clock, Context, Crypto, Effect, Layer, Result, Schema } from "effect";
 import { BlogAccess } from "./authorization.ts";
@@ -148,7 +150,6 @@ export class PersistenceError extends Schema.TaggedError<PersistenceError>()(
 
 export type Error =
   | PersistenceError
-  | EmailQueue.EmailQueueError
   | BlogAccess.Error
   | InvalidWorkspaceInput
   | InvitationNotFound
@@ -222,7 +223,6 @@ function escapeHtml(value: string): string {
 
 export const create = Effect.fn("WorkspaceRepository.create")(function* () {
   const database = yield* Database;
-  const emailQueue = yield* EmailQueue.Service;
   const crypto = yield* Crypto.Crypto;
   const config = yield* WebConfig;
 
@@ -574,67 +574,75 @@ export const create = Effect.fn("WorkspaceRepository.create")(function* () {
     const now = new Date(yield* Clock.currentTimeMillis);
     const expiresAt = new Date(now.getTime() + 48 * 60 * 60 * 1000);
     const invitationUrl = `${config.publicUrl}/accept-invitation/${invitationId}`;
-    const email = yield* executeResult<
-      EmailDeliveryJob,
-      BlogAccess.WorkspaceAccessDenied
-    >("invitation.create", (client) =>
-      client.transaction(async (tx) => {
-        const authorization = await lockWorkspaceAuthorization(
-          tx,
-          input.organizationId,
-          actor.id,
-          "members:manage",
-        );
-        if (!authorization) {
-          return Result.fail(
-            new BlogAccess.WorkspaceAccessDenied({
-              organizationId: input.organizationId,
-              userId: actor.id,
-              capability: "members:manage",
-            }),
+    yield* executeResult<void, BlogAccess.WorkspaceAccessDenied>(
+      "invitation.create",
+      (client) =>
+        client.transaction(async (tx) => {
+          const authorization = await lockWorkspaceAuthorization(
+            tx,
+            input.organizationId,
+            actor.id,
+            "members:manage",
           );
-        }
-        await tx.execute(
-          sql`select pg_advisory_xact_lock(hashtextextended(${`${input.organizationId}:${recipient}`}, 0))`,
-        );
-        await tx
-          .update(schema.invitation)
-          .set({ status: "canceled" })
-          .where(
-            and(
-              eq(schema.invitation.organizationId, input.organizationId),
-              eq(schema.invitation.email, recipient),
-              eq(schema.invitation.status, "pending"),
-            ),
+          if (!authorization) {
+            return Result.fail(
+              new BlogAccess.WorkspaceAccessDenied({
+                organizationId: input.organizationId,
+                userId: actor.id,
+                capability: "members:manage",
+              }),
+            );
+          }
+          await tx.execute(
+            sql`select pg_advisory_xact_lock(hashtextextended(${`${input.organizationId}:${recipient}`}, 0))`,
           );
-        await tx.insert(schema.invitation).values({
-          id: invitationId,
-          organizationId: input.organizationId,
-          email: recipient,
-          role: input.role,
-          inviterId: actor.id,
-          expiresAt,
-        });
-        await tx.insert(schema.auditLog).values({
-          organizationId: input.organizationId,
-          actorId: actor.id,
-          action: "invitation.created",
-          entityType: "invitation",
-          entityId: invitationId,
-          after: { email: recipient, role: input.role },
-        });
-        const workspaceName = authorization.workspace.name;
-        return Result.succeed(
-          new EmailDeliveryJob({
+          await tx
+            .update(schema.invitation)
+            .set({ status: "canceled" })
+            .where(
+              and(
+                eq(schema.invitation.organizationId, input.organizationId),
+                eq(schema.invitation.email, recipient),
+                eq(schema.invitation.status, "pending"),
+              ),
+            );
+          await tx.insert(schema.invitation).values({
+            id: invitationId,
+            organizationId: input.organizationId,
+            email: recipient,
+            role: input.role,
+            inviterId: actor.id,
+            expiresAt,
+          });
+          await tx.insert(schema.auditLog).values({
+            organizationId: input.organizationId,
+            actorId: actor.id,
+            action: "invitation.created",
+            entityType: "invitation",
+            entityId: invitationId,
+            after: { email: recipient, role: input.role },
+          });
+          const workspaceName = authorization.workspace.name;
+          const email = new EmailDeliveryJob({
+            outboxId: invitationId,
             recipient,
             subject: `Join ${workspaceName} on Prosewire`,
             text: `${actor.name} invited you to join ${workspaceName} as ${input.role}. Accept the invitation: ${invitationUrl}`,
             html: `<p>${escapeHtml(actor.name)} invited you to join <strong>${escapeHtml(workspaceName)}</strong> as ${escapeHtml(input.role)}.</p><p><a href="${escapeHtml(invitationUrl)}">Accept invitation</a></p>`,
-          }),
-        );
-      }),
+          });
+          await tx.insert(schema.emailDeliveryOutbox).values({
+            id: invitationId,
+            recipient: email.recipient,
+            subject: email.subject,
+            text: email.text,
+            html: email.html,
+          });
+          await tx.execute(
+            sql`select pg_notify(${emailOutboxNotificationChannel}, '')`,
+          );
+          return Result.succeed(undefined);
+        }),
     );
-    yield* emailQueue.offer(email);
     return invitationId;
   });
 

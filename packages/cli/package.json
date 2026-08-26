@@ -53,9 +53,9 @@
     "provenance": true
   },
   "dependencies": {
-    "@effect/platform-node-shared": "4.0.0-rc.110",
+    "@effect/platform-node-shared": "4.0.0-rc.112",
     "@prosewire/sdk": "workspace:^",
-    "effect": "4.0.0-rc.110"
+    "effect": "4.0.0-rc.112"
   },
   "devDependencies": {
     "@prosewire/config": "workspace:*",

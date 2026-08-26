@@ -1,8 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { type Db, openDb } from "@prosewire/db/client";
 import * as schema from "@prosewire/db/schema";
-import type { EmailDeliveryJob } from "@prosewire/jobs/email-queue";
-import * as EmailQueue from "@prosewire/jobs/email-queue";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { Effect, Layer, Redacted } from "effect";
 import { describe, expect, it } from "vitest";
@@ -24,7 +22,11 @@ import {
   UserId,
 } from "./domain.ts";
 import { PlatformCrypto } from "./platform-crypto.ts";
-import { Publishing, SavePostInput } from "./publishing.ts";
+import {
+  ArchivePostsCommand,
+  Publishing,
+  UpdatePostCommand,
+} from "./publishing.ts";
 import {
   InvitationMutationInput,
   InviteMemberInput,
@@ -49,29 +51,17 @@ function configLayer(url: string) {
     defaultBlog: "fieldnotes",
     publicUrl: "http://localhost:3000",
     databaseUrl: Redacted.make(url),
-    redisUrl: Redacted.make("redis://test"),
     authSecret: Redacted.make("test-secret-at-least-32-characters"),
     allowSignUp: false,
     environment: "test",
   });
 }
 
-async function workspaceManagement(
-  client: Db,
-  url: string,
-  queued: Array<EmailDeliveryJob> = [],
-) {
+async function workspaceManagement(client: Db, url: string) {
   const dependencies = Layer.mergeAll(
     databaseLayer(client),
     configLayer(url),
     PlatformCrypto.layer,
-    Layer.mock(EmailQueue.Service, {
-      offer: (job) =>
-        Effect.sync(() => {
-          queued.push(job);
-        }),
-      take: () => Effect.die("Email consumption is unavailable in web tests"),
-    }),
   );
   return Effect.runPromise(
     WorkspaceManagement.Service.pipe(
@@ -161,7 +151,6 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
     const release = deferred();
     let blockingTransaction: Promise<void> | undefined;
     let attempts: ReadonlyArray<Promise<unknown>> = [];
-    const queuedEmails: Array<EmailDeliveryJob> = [];
 
     try {
       await resource.client.insert(schema.user).values({
@@ -181,11 +170,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
         role: "owner",
       });
 
-      const management = await workspaceManagement(
-        resource.client,
-        serviceUrl,
-        queuedEmails,
-      );
+      const management = await workspaceManagement(resource.client, serviceUrl);
       const actor = {
         id: actorId,
         name: "A <script>alert(1)</script>",
@@ -235,13 +220,17 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
             eq(schema.auditLog.action, "invitation.created"),
           ),
         );
+      const outbox = await resource.client
+        .select()
+        .from(schema.emailDeliveryOutbox)
+        .where(eq(schema.emailDeliveryOutbox.recipient, recipient));
       expect(invitations.map(({ status }) => status).sort()).toEqual([
         "canceled",
         "pending",
       ]);
       expect(auditEntries).toHaveLength(2);
-      expect(queuedEmails).toHaveLength(2);
-      for (const email of queuedEmails) {
+      expect(outbox).toHaveLength(2);
+      for (const email of outbox) {
         expect(email.recipient).toBe(recipient);
         expect(email.html).toContain("A &lt;script&gt;alert(1)&lt;/script&gt;");
         expect(email.html).toContain("Studio &amp; Partners");
@@ -251,6 +240,9 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
       release.resolve();
       await blockingTransaction?.catch(() => undefined);
       await Promise.allSettled(attempts);
+      await resource.client
+        .delete(schema.emailDeliveryOutbox)
+        .where(eq(schema.emailDeliveryOutbox.recipient, recipient));
       await resource.client
         .delete(schema.auditLog)
         .where(eq(schema.auditLog.actorId, actorId));
@@ -448,16 +440,17 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
 
       const service = await publishing(resource.client);
       await Effect.runPromise(
-        service.savePost(
-          new SavePostInput({
-            id: postId,
+        service.updatePost(
+          new UpdatePostCommand({
+            postId,
             blogId,
             authorId,
+            categoryIds: [],
             title: "Published post, edited",
-            requestedSlug: "published-post",
+            slug: "published-post",
             excerpt: "Edited",
             contentMarkdown: "# Edited",
-            requestedStatus: "published",
+            status: "published",
             featured: false,
             locale: "en",
             coverImageUrl: null,
@@ -468,7 +461,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
             canonicalUrl: null,
             scheduledAt: null,
           }),
-          actorId,
+          { _tag: "Dashboard", userId: actorId },
         ),
       );
 
@@ -972,16 +965,17 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
       const service = await publishing(resource.client);
       const denied = await Effect.runPromise(
         Effect.flip(
-          service.savePost(
-            new SavePostInput({
-              id: postId,
+          service.updatePost(
+            new UpdatePostCommand({
+              postId,
               blogId,
               authorId,
+              categoryIds: [],
               title: "Back to draft",
-              requestedSlug: "back-to-draft",
+              slug: "back-to-draft",
               excerpt: "",
               contentMarkdown: "# Draft",
-              requestedStatus: "draft",
+              status: "draft",
               featured: false,
               locale: "en",
               coverImageUrl: null,
@@ -992,7 +986,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
               canonicalUrl: null,
               scheduledAt: null,
             }),
-            actorId,
+            { _tag: "Dashboard", userId: actorId },
           ),
         ),
       );
@@ -1036,9 +1030,11 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
     const resource = openDb(databaseUrl);
     const organizationId = OrganizationId.make(`workspace-${randomUUID()}`);
     const blogId = BlogId.make(randomUUID());
+    const blogSlug = `blog-${randomUUID()}`;
     const authorId = AuthorId.make(randomUUID());
     const archivedPostId = PostId.make(randomUUID());
     const untouchedPostId = PostId.make(randomUUID());
+    const missingPostId = PostId.make(randomUUID());
     const keyId = ApiKeyId.make(randomUUID());
     const revokedKeyId = ApiKeyId.make(randomUUID());
 
@@ -1052,7 +1048,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
         id: blogId,
         organizationId,
         name: "API archive publication",
-        slug: `blog-${randomUUID()}`,
+        slug: blogSlug,
       });
       await resource.client.insert(schema.author).values({
         id: authorId,
@@ -1098,14 +1094,37 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
 
       const service = await publishing(resource.client);
       const result = await Effect.runPromise(
-        service.archiveApiPost(archivedPostId, { blogId, keyId }),
+        service.archivePosts(
+          new ArchivePostsCommand({
+            blogId,
+            postIds: [archivedPostId],
+            requireAll: true,
+          }),
+          { _tag: "Api", keyId },
+        ),
+      );
+      const missing = await Effect.runPromise(
+        Effect.flip(
+          service.archivePosts(
+            new ArchivePostsCommand({
+              blogId,
+              postIds: [untouchedPostId, missingPostId],
+              requireAll: true,
+            }),
+            { _tag: "Api", keyId },
+          ),
+        ),
       );
       const revoked = await Effect.runPromise(
         Effect.flip(
-          service.archiveApiPost(untouchedPostId, {
-            blogId,
-            keyId: revokedKeyId,
-          }),
+          service.archivePosts(
+            new ArchivePostsCommand({
+              blogId,
+              postIds: [untouchedPostId],
+              requireAll: true,
+            }),
+            { _tag: "Api", keyId: revokedKeyId },
+          ),
         ),
       );
       const posts = await resource.client
@@ -1130,7 +1149,11 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
       });
       const byId = new Map(posts.map((post) => [post.id, post]));
 
-      expect(result).toEqual({ ok: true });
+      expect(result).toEqual({ archived: 1, blogSlug });
+      expect(missing).toMatchObject({
+        _tag: "PostNotFound",
+        postId: missingPostId,
+      });
       expect(revoked).toBeInstanceOf(ApiAccess.AuthenticationFailed);
       expect(byId.get(archivedPostId)?.status).toBe("archived");
       expect(byId.get(archivedPostId)?.archivedAt).toBeInstanceOf(Date);

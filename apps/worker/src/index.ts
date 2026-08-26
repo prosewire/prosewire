@@ -1,64 +1,68 @@
 import * as JobRedis from "@prosewire/jobs/redis";
 import { Clock, Effect } from "effect";
-import { AnalyticsRetention } from "./analytics-retention.ts";
 import { disposeWorkerRuntime, runWorkerEffect } from "./app-runtime.ts";
-import { EmailDelivery } from "./email-delivery.ts";
-import { Publishing } from "./publishing.ts";
+import { EmailOutboxNotifications } from "./email-outbox-notifications.ts";
 import { runUntilShutdown } from "./shutdown.ts";
 import { WorkerConfig } from "./worker-config.ts";
 import {
   analyticsRetentionSchedule,
-  emailRetryInterval,
+  emailOutboxSchedule,
   publishingSchedule,
   repeatScheduled,
 } from "./worker-runtime.ts";
+import {
+  startAnalyticsRetention,
+  startEmailOutbox,
+  startScheduledPublishing,
+} from "./workflows.ts";
 
 const runWorker = Effect.gen(function* () {
-  const publishing = yield* Publishing.Service;
-  const analyticsRetention = yield* AnalyticsRetention.Service;
-  const emailDelivery = yield* EmailDelivery.Service;
+  const emailOutboxNotifications = yield* EmailOutboxNotifications.Service;
   const redis = yield* JobRedis.Service;
   const config = yield* WorkerConfig;
 
   yield* redis.ping;
 
+  const now = Clock.currentTimeMillis.pipe(
+    Effect.map((millis) => new Date(millis)),
+  );
   const publishScheduled = repeatScheduled(
     "Scheduled publishing",
-    publishing.publishScheduled(),
+    now.pipe(Effect.flatMap(startScheduledPublishing)),
     publishingSchedule,
   );
   const pruneAnalytics = repeatScheduled(
     "Analytics retention",
-    Effect.gen(function* () {
-      const now = new Date(yield* Clock.currentTimeMillis);
-      const deleted = yield* analyticsRetention.pruneExpired(now);
-      yield* Effect.logInfo(`Pruned ${deleted} expired analytics event(s)`);
-    }),
+    now.pipe(Effect.flatMap(startAnalyticsRetention)),
     analyticsRetentionSchedule,
   );
-  const consumeEmail = (consumer: number) =>
-    emailDelivery.processNext.pipe(
-      Effect.tapError((error) =>
-        Effect.logError("Email queue consumer failed", { consumer, error }),
-      ),
-      Effect.catch(() => Effect.sleep(emailRetryInterval)),
-      Effect.forever,
-    );
-  const consumeEmails = Effect.all(
-    Array.from({ length: config.emailWorkerConcurrency }, (_, consumer) =>
-      consumeEmail(consumer + 1),
+  const dispatchEmailOutbox = now.pipe(Effect.flatMap(startEmailOutbox));
+  const pollEmailOutbox = repeatScheduled(
+    "Email outbox",
+    dispatchEmailOutbox,
+    emailOutboxSchedule,
+  );
+  const dispatchNotifiedEmails = emailOutboxNotifications.wait.pipe(
+    Effect.andThen(dispatchEmailOutbox),
+    Effect.tapError((error) =>
+      Effect.logError("Notified email outbox dispatch failed", error),
     ),
-    { concurrency: "unbounded", discard: true },
+    Effect.ignore,
+    Effect.forever,
   );
 
   yield* Effect.logInfo("Publishing worker ready", {
-    queue: "effect-persisted-redis",
+    workflows: "effect-cluster-postgres",
+    queue: "effect-durable-queue-redis",
     emailConcurrency: config.emailWorkerConcurrency,
   });
-  return yield* Effect.all([publishScheduled, pruneAnalytics, consumeEmails], {
-    concurrency: "unbounded",
-    discard: true,
-  });
+  return yield* Effect.all(
+    [publishScheduled, pruneAnalytics, pollEmailOutbox, dispatchNotifiedEmails],
+    {
+      concurrency: "unbounded",
+      discard: true,
+    },
+  );
 });
 
 const program = Effect.gen(function* () {

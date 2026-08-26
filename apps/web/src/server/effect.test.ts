@@ -56,7 +56,6 @@ describe("web infrastructure", () => {
       ConfigProvider.ConfigProvider,
       ConfigProvider.fromUnknown({
         DATABASE_URL: "postgres://localhost/prosewire",
-        REDIS_URL: "redis://localhost:6379",
         BETTER_AUTH_SECRET:
           "replace-with-a-unique-secret-of-at-least-32-characters",
         ADMIN_PASSWORD: "replace-with-a-unique-admin-password",
@@ -81,7 +80,6 @@ describe("web infrastructure", () => {
       ConfigProvider.fromUnknown({
         NODE_ENV: "development",
         DATABASE_URL: "postgres://localhost/prosewire",
-        REDIS_URL: "redis://localhost:6379",
         BETTER_AUTH_SECRET: "local-development-secret-change-before-production",
       }),
     );
@@ -106,7 +104,6 @@ describe("web infrastructure", () => {
       ConfigProvider.fromUnknown({
         NODE_ENV: "production",
         DATABASE_URL: "postgres://localhost/prosewire",
-        REDIS_URL: "redis://localhost:6379",
         BETTER_AUTH_SECRET: "cloud-auth-secret-with-at-least-32-characters",
         PROSEWIRE_DEPLOYMENT: "cloud",
         PROSEWIRE_GOOGLE_CLIENT_ID: "google-client-id",
@@ -134,7 +131,6 @@ describe("web infrastructure", () => {
       ConfigProvider.fromUnknown({
         NODE_ENV: "production",
         DATABASE_URL: "postgres://localhost/prosewire",
-        REDIS_URL: "redis://localhost:6379",
         BETTER_AUTH_SECRET:
           "self-hosted-auth-secret-with-at-least-32-characters",
         PROSEWIRE_GOOGLE_CLIENT_ID: "ignored-google-client-id",
@@ -159,7 +155,6 @@ describe("web infrastructure", () => {
       ConfigProvider.fromUnknown({
         NODE_ENV: "production",
         DATABASE_URL: "postgres://localhost/prosewire",
-        REDIS_URL: "redis://localhost:6379",
         BETTER_AUTH_SECRET: "cloud-auth-secret-with-at-least-32-characters",
         PROSEWIRE_DEPLOYMENT: "cloud",
         PROSEWIRE_GITHUB_CLIENT_ID: "github-client-id",
@@ -191,7 +186,6 @@ describe("web infrastructure", () => {
         ConfigProvider.fromUnknown({
           NODE_ENV: "production",
           DATABASE_URL: "postgres://localhost/prosewire",
-          REDIS_URL: "redis://localhost:6379",
           BETTER_AUTH_SECRET: authSecret,
         }),
       );
@@ -285,7 +279,6 @@ describe("web infrastructure", () => {
       defaultBlog: "fieldnotes",
       publicUrl: "http://localhost:3000",
       databaseUrl: Redacted.make("postgres://test"),
-      redisUrl: Redacted.make("redis://test"),
       authSecret: Redacted.make("test-secret-at-least-32-characters"),
       allowSignUp: false,
       environment: "test",

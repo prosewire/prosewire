@@ -14,9 +14,10 @@ import { type AppServices, runAppEffect } from "./app-runtime.ts";
 import { BlogId, PostId } from "./domain.ts";
 import { PostErrors } from "./post-errors.ts";
 import {
-  ApiCreatePostInput,
-  ApiUpdatePostInput,
+  ArchivePostsCommand,
+  CreatePostCommand,
   Publishing,
+  UpdatePostCommand,
 } from "./publishing.ts";
 
 function toApiError(error: unknown) {
@@ -74,14 +75,20 @@ const decodeBlogId = (value: unknown) =>
   );
 
 const decodeCreateInput = (value: unknown) =>
-  Schema.decodeUnknownEffect(ApiCreatePostInput)(value).pipe(
+  Schema.decodeUnknownEffect(CreatePostCommand)(value).pipe(
     Effect.mapError(() => invalidInput("Invalid post input")),
   );
 
-const decodeUpdateInput = (value: unknown) =>
-  Schema.decodeUnknownEffect(ApiUpdatePostInput)(value).pipe(
-    Effect.mapError(() => invalidInput("Invalid post update")),
-  );
+const decodeUpdateInput = (
+  postId: PostId,
+  blogId: BlogId,
+  value: PostUpdateInput,
+) =>
+  Schema.decodeUnknownEffect(UpdatePostCommand)({
+    postId,
+    blogId,
+    ...value,
+  }).pipe(Effect.mapError(() => invalidInput("Invalid post update")));
 
 const principal = Effect.fn("ApiEntrypoints.principal")(function* (
   request: Request,
@@ -160,7 +167,12 @@ export function createPost(request: Request, input: CreatePostBoundaryInput) {
       const command = yield* decodeCreateInput(input);
       yield* access.requireBlog(actor, blogId);
       const publishing = yield* Publishing.Service;
-      return yield* publishing.createApiPost(command, actor);
+      const result = yield* publishing.createPost(command, {
+        _tag: "Api",
+        keyId: actor.keyId,
+      });
+      const content = yield* ApiContent.Service;
+      return yield* content.getPost(actor.blogId, result.postId);
     }),
   );
 }
@@ -178,8 +190,13 @@ export function updatePost(
       const actor = yield* principal(request, "content:write");
       const publishing = yield* Publishing.Service;
       const postId = yield* decodePostId(id);
-      const command = yield* decodeUpdateInput(input);
-      return yield* publishing.updateApiPost(postId, command, actor);
+      const command = yield* decodeUpdateInput(postId, actor.blogId, input);
+      const result = yield* publishing.updatePost(command, {
+        _tag: "Api",
+        keyId: actor.keyId,
+      });
+      const content = yield* ApiContent.Service;
+      return yield* content.getPost(actor.blogId, result.postId);
     }),
   );
 }
@@ -191,7 +208,16 @@ export function archivePost(request: Request, id: string) {
       const actor = yield* principal(request, "content:write");
       const publishing = yield* Publishing.Service;
       const postId = yield* decodePostId(id);
-      return yield* publishing.archiveApiPost(postId, actor);
+      const command = new ArchivePostsCommand({
+        blogId: actor.blogId,
+        postIds: [postId],
+        requireAll: true,
+      });
+      yield* publishing.archivePosts(command, {
+        _tag: "Api",
+        keyId: actor.keyId,
+      });
+      return { ok: true as const };
     }),
   );
 }

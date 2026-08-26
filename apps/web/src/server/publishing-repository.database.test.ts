@@ -15,12 +15,11 @@ import {
   UserId,
 } from "./domain.ts";
 import {
-  ApiCreatePostInput,
-  ApiUpdatePostInput,
-  BulkArchiveInput,
+  ArchivePostsCommand,
+  CreatePostCommand,
   Publishing,
-  SavePostInput,
   UpdateBlogSettingsInput,
+  UpdatePostCommand,
 } from "./publishing.ts";
 
 async function publishing(client: ReturnType<typeof openDb>["client"]) {
@@ -126,16 +125,16 @@ describe.skipIf(!databaseUrl)("PostgreSQL publishing repository", () => {
 
       const service = await publishing(resource.client);
       const saved = await Effect.runPromise(
-        service.savePost(
-          new SavePostInput({
+        service.createPost(
+          new CreatePostCommand({
             blogId,
             authorId,
-            categoryId,
+            categoryIds: [categoryId],
             title: "Created from dashboard",
-            requestedSlug: "",
+            slug: "created-from-dashboard",
             excerpt: "",
             contentMarkdown: "# Dashboard post",
-            requestedStatus: "draft",
+            status: "draft",
             featured: true,
             locale: "",
             coverImageUrl: null,
@@ -146,34 +145,46 @@ describe.skipIf(!databaseUrl)("PostgreSQL publishing repository", () => {
             canonicalUrl: null,
             scheduledAt: null,
           }),
-          ownerId,
+          { _tag: "Dashboard", userId: ownerId },
         ),
       );
-      const savedId = PostId.make(saved.savedId);
+      const savedId = saved.postId;
       const archived = await Effect.runPromise(
-        service.bulkArchive(
-          new BulkArchiveInput({ blogId, postIds: [savedId] }),
-          ownerId,
+        service.archivePosts(
+          new ArchivePostsCommand({
+            blogId,
+            postIds: [savedId],
+            requireAll: false,
+          }),
+          { _tag: "Dashboard", userId: ownerId },
         ),
       );
       const empty = await Effect.runPromise(
-        service.bulkArchive(
-          new BulkArchiveInput({ blogId, postIds: [] }),
-          ownerId,
+        service.archivePosts(
+          new ArchivePostsCommand({
+            blogId,
+            postIds: [],
+            requireAll: false,
+          }),
+          { _tag: "Dashboard", userId: ownerId },
         ),
       );
       const denied = await Effect.runPromise(
         Effect.flip(
-          service.bulkArchive(
-            new BulkArchiveInput({ blogId, postIds: [deniedPostId] }),
-            viewerId,
+          service.archivePosts(
+            new ArchivePostsCommand({
+              blogId,
+              postIds: [deniedPostId],
+              requireAll: false,
+            }),
+            { _tag: "Dashboard", userId: viewerId },
           ),
         ),
       );
 
       expect(saved.blogSlug).toMatch(/^blog-/);
-      expect(archived).toBe(true);
-      expect(empty).toBe(false);
+      expect(archived.archived).toBe(1);
+      expect(empty.archived).toBe(0);
       expect(denied).toMatchObject({
         _tag: "BlogAccessDenied",
         capability: "content:archive",
@@ -189,7 +200,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL publishing repository", () => {
         locale: "en",
         status: "archived",
         archivedAt: expect.any(Date),
-        categories: [{ postId: savedId, categoryId }],
+        categories: [{ postId: savedId, categoryId, blogId }],
       });
       expect(byId.get(deniedPostId)?.status).toBe("draft");
       const revisions = await resource.client.query.postRevision.findMany({
@@ -390,8 +401,9 @@ describe.skipIf(!databaseUrl)("PostgreSQL publishing repository", () => {
 
       const service = await publishing(resource.client);
       const created = await Effect.runPromise(
-        service.createApiPost(
-          new ApiCreatePostInput({
+        service.createPost(
+          new CreatePostCommand({
+            blogId,
             authorId,
             title: "API draft",
             slug: "api-draft",
@@ -401,14 +413,21 @@ describe.skipIf(!databaseUrl)("PostgreSQL publishing repository", () => {
             featured: false,
             categoryIds: [categoryId, categoryId],
           }),
-          { blogId, keyId },
+          { _tag: "Api", keyId },
         ),
       );
-      const postId = PostId.make(created.id);
-      const updated = await Effect.runPromise(
-        service.updateApiPost(
-          postId,
-          new ApiUpdatePostInput({
+      const postId = created.postId;
+      const createdPost = await resource.client.query.post.findFirst({
+        where: eq(schema.post.id, postId),
+        with: { categories: true },
+      });
+      expect(createdPost?.categories).toEqual([{ postId, categoryId, blogId }]);
+      expect(createdPost?.contentHtml).not.toContain("<script>");
+      await Effect.runPromise(
+        service.updatePost(
+          new UpdatePostCommand({
+            postId,
+            blogId,
             title: "API published",
             slug: "api-published",
             contentMarkdown: "## Updated\n\nVisible<script>bad()</script>",
@@ -416,23 +435,25 @@ describe.skipIf(!databaseUrl)("PostgreSQL publishing repository", () => {
             featured: true,
             categoryIds: [],
           }),
-          { blogId, keyId },
+          { _tag: "Api", keyId },
         ),
       );
 
-      expect(created.categories.map(({ id }) => id)).toEqual([categoryId]);
-      expect(created.contentHtml).not.toContain("<script>");
-      expect(updated).toMatchObject({
+      const persisted = await resource.client.query.post.findFirst({
+        where: eq(schema.post.id, postId),
+        with: { categories: true },
+      });
+      expect(persisted).toMatchObject({
         id: postId,
         title: "API published",
         slug: "api-published",
         status: "published",
         featured: true,
-        publishedAt: expect.any(String),
+        publishedAt: expect.any(Date),
         categories: [],
       });
-      expect(updated.contentHtml).toContain("Visible");
-      expect(updated.contentHtml).not.toContain("<script>");
+      expect(persisted?.contentHtml).toContain("Visible");
+      expect(persisted?.contentHtml).not.toContain("<script>");
       const revisions = await resource.client.query.postRevision.findMany({
         where: eq(schema.postRevision.postId, postId),
       });

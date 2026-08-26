@@ -22,13 +22,13 @@ export default async function EditPostPage({
       canPublish={hasPermission(context.role, "content:publish")}
       saved={query.saved === "1"}
       error={query.error}
-      authors={authors}
-      categories={categories}
+      authors={authors.map(({ id, name }) => ({ id, name }))}
+      categories={categories.map(({ id, name }) => ({ id, name }))}
       post={{
         id: post.id,
         blogId: post.blogId,
         authorId: post.authorId,
-        categoryId: post.categories[0]?.categoryId ?? "",
+        categoryIds: post.categories.map(({ categoryId }) => categoryId),
         title: post.title,
         slug: post.slug,
         excerpt: post.excerpt,

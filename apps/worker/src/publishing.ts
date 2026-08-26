@@ -1,12 +1,13 @@
-import { Clock, Context, Effect, Layer } from "effect";
+import { Context, Effect, Layer } from "effect";
 import { PublishingRepository } from "./publishing-repository.ts";
 
 export const create = Effect.fn("Publishing.create")(function* () {
   const repository = yield* PublishingRepository.Service;
 
   return {
-    publishScheduled: Effect.fn("Publishing.publishScheduled")(function* () {
-      const now = new Date(yield* Clock.currentTimeMillis);
+    publishScheduled: Effect.fn("Publishing.publishScheduled")(function* (
+      now: Date,
+    ) {
       const published = yield* repository.publishDue(now);
 
       if (published.length > 0) {
