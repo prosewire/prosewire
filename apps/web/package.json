@@ -15,6 +15,7 @@
     "test:acceptance": "playwright test"
   },
   "dependencies": {
+    "@base-ui/react": "^1.7.0",
     "@icons-pack/react-simple-icons": "^13.15.1",
     "@phosphor-icons/react": "^2.1.10",
     "@prosewire/contract": "workspace:*",
