@@ -98,7 +98,7 @@ Upgrades do not delete or merge existing workspaces. If an older self-hosted dat
 
 Keep web, worker, and migrations on the same source version. Do not run different schema generations at the same time. If a migration is not backward compatible, rollback requires a tested database restore as well as the previous application image.
 
-Migration `0012_medical_namor.sql` adds the required-password-change marker with a `false` default, so existing accounts are not forced through the bootstrap flow. If the migration job stops because bootstrap credentials are incomplete or invalid, correct or remove those variables and rerun it. The schema migration is idempotent. If the database itself cannot apply the column, keep the old release running and restore the pre-upgrade backup before retrying.
+Migration `0013_friendly_slipstream.sql` adds the required-password-change marker with a `false` default, so existing accounts are not forced through the bootstrap flow. If the migration job stops because bootstrap credentials are incomplete or invalid, correct or remove those variables and rerun it. The schema migration is idempotent. If the database itself cannot apply the column, keep the old release running and restore the pre-upgrade backup before retrying.
 
 Migration `0011_flaky_bug.sql` rejects content relationships that already cross publication boundaries. Check before upgrading:
 

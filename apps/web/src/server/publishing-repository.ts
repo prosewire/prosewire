@@ -9,6 +9,7 @@ import type { Db } from "@prosewire/db/client";
 import * as schema from "@prosewire/db/schema";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { Clock, Context, Effect, Layer, Option, Result, Schema } from "effect";
+import { canonicalLocale, normalizeLanguageSettings } from "@/lib/locales";
 import { ApiAccess, hasScope } from "./api-access.ts";
 import { BlogAccess } from "./authorization.ts";
 import { BlogErrors } from "./blog-errors.ts";
@@ -48,6 +49,7 @@ export class UpdateBlogSettingsInput extends Schema.Class<UpdateBlogSettingsInpu
   name: Schema.String,
   description: Schema.String,
   locale: Schema.String,
+  locales: Schema.Array(Schema.String),
   accentColor: Schema.String,
   publicUrl: Schema.NullOr(Schema.String),
   customCss: Schema.String,
@@ -63,6 +65,8 @@ type LockedActor =
       readonly _tag: "Dashboard";
       readonly organizationId: OrganizationId;
       readonly blogSlug: string;
+      readonly locale: string;
+      readonly locales: ReadonlyArray<string>;
       readonly userId: UserId;
       readonly role: TeamRole;
     }
@@ -70,6 +74,8 @@ type LockedActor =
       readonly _tag: "Api";
       readonly organizationId: OrganizationId;
       readonly blogSlug: string;
+      readonly locale: string;
+      readonly locales: ReadonlyArray<string>;
       readonly keyId: ApiKeyId;
     };
 
@@ -123,6 +129,8 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
     return {
       organizationId: OrganizationId.make(authorization.organizationId),
       blogSlug: authorization.blogSlug,
+      locale: authorization.locale,
+      locales: authorization.locales,
     } as const;
   };
 
@@ -160,6 +168,8 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
         _tag: "Dashboard",
         organizationId: authorization.workspace.id,
         blogSlug: authorization.blog.slug,
+        locale: authorization.blog.locale,
+        locales: authorization.blog.locales,
         userId: actor.userId,
         role: authorization.role,
       });
@@ -171,6 +181,8 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
       _tag: "Api",
       organizationId: authorization.organizationId,
       blogSlug: authorization.blogSlug,
+      locale: authorization.locale,
+      locales: authorization.locales,
       keyId: actor.keyId,
     });
   };
@@ -352,6 +364,16 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
           return Result.fail(authorization.failure);
         }
         const locked = authorization.success;
+        const locale = command.locale
+          ? canonicalLocale(command.locale)
+          : locked.locale;
+        if (!locale || !locked.locales.includes(locale)) {
+          return Result.fail(
+            new PostErrors.InvalidPost({
+              message: "Choose a language configured for this publication",
+            }),
+          );
+        }
         if (
           locked._tag === "Dashboard" &&
           (command.status === "scheduled" || command.status === "published") &&
@@ -399,7 +421,7 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
             coverImageUrl: command.coverImageUrl ?? null,
             coverImageAlt: command.coverImageAlt ?? null,
             status: command.status,
-            locale: command.locale || "en",
+            locale,
             featured: command.featured,
             seoTitle: command.seoTitle ?? null,
             seoDescription: command.seoDescription ?? null,
@@ -521,6 +543,16 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
         }
 
         const nextStatus = command.status ?? existing.status;
+        const nextLocale = command.locale
+          ? canonicalLocale(command.locale)
+          : existing.locale;
+        if (!nextLocale || !locked.locales.includes(nextLocale)) {
+          return Result.fail(
+            new PostErrors.InvalidPost({
+              message: "Choose a language configured for this publication",
+            }),
+          );
+        }
         const nextScheduledAt =
           command.scheduledAt === undefined
             ? existing.scheduledAt
@@ -616,7 +648,7 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
                 ? existing.coverImageAlt
                 : command.coverImageAlt,
             status: nextStatus,
-            locale: command.locale ?? existing.locale,
+            locale: nextLocale,
             featured: command.featured ?? existing.featured,
             seoTitle:
               command.seoTitle === undefined
@@ -751,6 +783,14 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
             );
           }
           const snapshot = decoded.value;
+          if (!locked.locales.includes(snapshot.locale)) {
+            return Result.fail(
+              new PostErrors.InvalidPost({
+                message:
+                  "Add the revision language in publication settings before restoring it",
+              }),
+            );
+          }
           if (snapshot.status === "scheduled" && !snapshot.scheduledAt) {
             return Result.fail(
               new PostErrors.InvalidPostRevision({
@@ -1048,11 +1088,22 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
 
   const updateBlogSettings = Effect.fn("Publishing.updateBlogSettings")(
     function* (input: UpdateBlogSettingsInput, actorId: UserId) {
+      const languageSettings = normalizeLanguageSettings(
+        input.locale,
+        input.locales,
+      );
+      if (!languageSettings) {
+        return yield* new BlogErrors.InvalidBlogSettings({
+          message:
+            "Add at least one valid language and choose a default from that list",
+        });
+      }
       const now = new Date(yield* Clock.currentTimeMillis);
       const values = {
         name: input.name,
         description: input.description,
-        locale: input.locale || "en",
+        locale: languageSettings.locale,
+        locales: languageSettings.locales,
         accentColor: input.accentColor || "#ef6848",
         publicUrl: input.publicUrl,
         customCss: input.customCss,
@@ -1060,7 +1111,9 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
       };
       return yield* executeResult<
         string,
-        BlogErrors.BlogNotFound | BlogAccess.BlogAccessDenied
+        | BlogErrors.BlogNotFound
+        | BlogErrors.InvalidBlogSettings
+        | BlogAccess.BlogAccessDenied
       >("blog.updateSettings", (client) =>
         client.transaction(async (tx) => {
           const authorization = await lockBlogAuthorization(
@@ -1075,6 +1128,20 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
                 blogId: input.blogId,
                 userId: actorId,
                 capability: "publications:update",
+              }),
+            );
+          }
+          const usedLocales = await tx
+            .selectDistinct({ locale: schema.post.locale })
+            .from(schema.post)
+            .where(eq(schema.post.blogId, input.blogId));
+          const removedLocale = usedLocales.find(
+            ({ locale }) => !languageSettings.locales.includes(locale),
+          )?.locale;
+          if (removedLocale) {
+            return Result.fail(
+              new BlogErrors.InvalidBlogSettings({
+                message: `Keep ${removedLocale} configured while a post uses it`,
               }),
             );
           }

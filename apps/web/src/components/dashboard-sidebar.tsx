@@ -14,6 +14,7 @@ import { switchPublication, switchWorkspace } from "@/server/actions";
 import { DashboardNavLink } from "./dashboard-nav-link";
 import type { DashboardShellProps } from "./dashboard-shell-types";
 import { Logo } from "./logo";
+import { Select } from "./select";
 import { SignOutButton } from "./sign-out-button";
 import { ThemeToggle } from "./theme-toggle";
 
@@ -52,21 +53,19 @@ export function DashboardSidebar({
       <div className="mt-7 space-y-2 rounded-xl border border-[#dedfd9] bg-white p-2.5 shadow-sm">
         {showWorkspaceSwitcher ? (
           <form action={switchWorkspace} className="flex items-center gap-2">
-            <label htmlFor="workspace-switcher" className="sr-only">
-              Active workspace
-            </label>
-            <select
+            <Select
               id="workspace-switcher"
               name="organizationId"
+              label="Active workspace"
+              labelClassName="sr-only"
               defaultValue={workspace.id}
-              className="min-w-0 flex-1 bg-transparent text-xs font-semibold outline-none"
-            >
-              {workspaces.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
+              options={workspaces.map((item) => ({
+                value: item.id,
+                label: item.name,
+              }))}
+              size="small"
+              className="h-8 min-w-0 flex-1 border-transparent bg-transparent px-1.5 text-xs font-semibold shadow-none hover:border-transparent hover:bg-[var(--paper)]"
+            />
             <button className="rounded-md border border-[#dedfd9] px-2 py-1 text-[10px] font-semibold text-[#687279]">
               Switch
             </button>
@@ -76,21 +75,19 @@ export function DashboardSidebar({
           action={switchPublication}
           className={`flex items-center gap-2 ${showWorkspaceSwitcher ? "border-t border-[#ecece8] pt-2" : ""}`}
         >
-          <label htmlFor="publication-switcher" className="sr-only">
-            Active publication
-          </label>
-          <select
+          <Select
             id="publication-switcher"
             name="publicationId"
+            label="Active publication"
+            labelClassName="sr-only"
             defaultValue={publication.id}
-            className="min-w-0 flex-1 bg-transparent text-xs text-[#687279] outline-none"
-          >
-            {publications.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </select>
+            options={publications.map((item) => ({
+              value: item.id,
+              label: item.name,
+            }))}
+            size="small"
+            className="h-8 min-w-0 flex-1 border-transparent bg-transparent px-1.5 text-xs text-[#687279] shadow-none hover:border-transparent hover:bg-[var(--paper)]"
+          />
           <button className="rounded-md border border-[#dedfd9] px-2 py-1 text-[10px] font-semibold text-[#687279]">
             Open
           </button>

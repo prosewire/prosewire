@@ -273,6 +273,15 @@ describe.skipIf(!databaseUrl)("PostgreSQL publishing repository", () => {
         name: "Before",
         slug: `blog-${randomUUID()}`,
       });
+      const [author] = await resource.client
+        .insert(schema.author)
+        .values({
+          blogId,
+          name: "Settings author",
+          slug: `author-${randomUUID()}`,
+        })
+        .returning({ id: schema.author.id });
+      if (!author) throw new Error("Unable to create settings author");
 
       const service = await publishing(resource.client);
       const input = new UpdateBlogSettingsInput({
@@ -280,6 +289,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL publishing repository", () => {
         name: "After",
         description: "Updated description",
         locale: "fr",
+        locales: ["en", "fr"],
         accentColor: "#112233",
         publicUrl: "https://example.com/publication",
         customCss: ".pw-root { color: red; }",
@@ -299,6 +309,30 @@ describe.skipIf(!databaseUrl)("PostgreSQL publishing repository", () => {
       expect(denied).toMatchObject({
         _tag: "BlogAccessDenied",
         capability: "publications:update",
+      });
+
+      await resource.client.insert(schema.post).values({
+        blogId,
+        authorId: author.id,
+        title: "French post",
+        slug: `french-${randomUUID()}`,
+        locale: "fr",
+      });
+      const usedLanguage = await Effect.runPromise(
+        Effect.flip(
+          service.updateBlogSettings(
+            new UpdateBlogSettingsInput({
+              ...input,
+              locale: "en",
+              locales: ["en"],
+            }),
+            ownerId,
+          ),
+        ),
+      );
+      expect(usedLanguage).toMatchObject({
+        _tag: "InvalidBlogSettings",
+        message: "Keep fr configured while a post uses it",
       });
 
       await resource.client.$client.query(`
@@ -340,6 +374,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL publishing repository", () => {
         name: "After",
         description: "Updated description",
         locale: "fr",
+        locales: ["en", "fr"],
         accentColor: "#112233",
         publicUrl: "https://example.com/publication",
       });
@@ -377,6 +412,8 @@ describe.skipIf(!databaseUrl)("PostgreSQL publishing repository", () => {
         organizationId,
         name: "API publication",
         slug: `blog-${randomUUID()}`,
+        locale: "fr",
+        locales: ["fr"],
       });
       await resource.client.insert(schema.author).values({
         id: authorId,
@@ -409,7 +446,6 @@ describe.skipIf(!databaseUrl)("PostgreSQL publishing repository", () => {
             slug: "api-draft",
             contentMarkdown: "# Safe\n\n<script>alert('x')</script>",
             status: "draft",
-            locale: "en",
             featured: false,
             categoryIds: [categoryId, categoryId],
           }),
@@ -422,6 +458,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL publishing repository", () => {
         with: { categories: true },
       });
       expect(createdPost?.categories).toEqual([{ postId, categoryId, blogId }]);
+      expect(createdPost?.locale).toBe("fr");
       expect(createdPost?.contentHtml).not.toContain("<script>");
       await Effect.runPromise(
         service.updatePost(

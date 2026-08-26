@@ -46,7 +46,6 @@ function normalizedCreateInput(input: PostCreateEncodedInput): PostCreateInput {
     ...input,
     contentMarkdown: input.contentMarkdown ?? "",
     status: input.status ?? "draft",
-    locale: input.locale ?? "en",
     featured: input.featured ?? false,
     categoryIds: input.categoryIds ?? [],
   };

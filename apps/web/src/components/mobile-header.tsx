@@ -5,6 +5,7 @@ import { switchPublication, switchWorkspace } from "@/server/actions";
 import { DashboardNavLink } from "./dashboard-nav-link";
 import type { DashboardShellProps } from "./dashboard-shell-types";
 import { Logo } from "./logo";
+import { Select } from "./select";
 import { SignOutButton } from "./sign-out-button";
 import { ThemeToggle } from "./theme-toggle";
 
@@ -52,20 +53,21 @@ export function MobileHeader({
                   action={switchWorkspace}
                   className="grid grid-cols-[1fr_auto] items-end gap-2"
                 >
-                  <label className="text-[10px] font-bold uppercase tracking-[.12em] text-[#8a9397]">
-                    Workspace
-                    <select
+                  <div className="text-[10px] font-bold uppercase tracking-[.12em] text-[#8a9397]">
+                    <Select
+                      id="mobile-workspace-switcher"
                       name="organizationId"
+                      label="Workspace"
+                      labelClassName="cursor-default"
                       defaultValue={workspace.id}
+                      options={workspaces.map((item) => ({
+                        value: item.id,
+                        label: item.name,
+                      }))}
+                      size="small"
                       className="mt-1.5 h-9 w-full rounded-lg border border-[#d9dbd5] bg-white px-2 text-xs font-semibold normal-case tracking-normal text-[#172329]"
-                    >
-                      {workspaces.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                    />
+                  </div>
                   <button className="h-9 rounded-lg border border-[#d9dbd5] bg-white px-3 text-xs font-semibold">
                     Switch
                   </button>
@@ -75,20 +77,21 @@ export function MobileHeader({
                 action={switchPublication}
                 className="grid grid-cols-[1fr_auto] items-end gap-2"
               >
-                <label className="text-[10px] font-bold uppercase tracking-[.12em] text-[#8a9397]">
-                  Publication
-                  <select
+                <div className="text-[10px] font-bold uppercase tracking-[.12em] text-[#8a9397]">
+                  <Select
+                    id="mobile-publication-switcher"
                     name="publicationId"
+                    label="Publication"
+                    labelClassName="cursor-default"
                     defaultValue={publication.id}
+                    options={publications.map((item) => ({
+                      value: item.id,
+                      label: item.name,
+                    }))}
+                    size="small"
                     className="mt-1.5 h-9 w-full rounded-lg border border-[#d9dbd5] bg-white px-2 text-xs font-semibold normal-case tracking-normal text-[#172329]"
-                  >
-                    {publications.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                  />
+                </div>
                 <button className="h-9 rounded-lg border border-[#d9dbd5] bg-white px-3 text-xs font-semibold">
                   Open
                 </button>

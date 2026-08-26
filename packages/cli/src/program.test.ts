@@ -110,7 +110,6 @@ describe("Prosewire CLI", () => {
       slug: "cli-draft",
       contentMarkdown: "",
       status: "draft",
-      locale: "en",
       featured: false,
       categoryIds: [],
     });

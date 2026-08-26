@@ -108,6 +108,8 @@ export async function lockApiKey(
       key: schema.apiKey,
       organizationId: schema.blog.organizationId,
       blogSlug: schema.blog.slug,
+      locale: schema.blog.locale,
+      locales: schema.blog.locales,
     })
     .from(schema.apiKey)
     .innerJoin(schema.blog, eq(schema.apiKey.blogId, schema.blog.id))

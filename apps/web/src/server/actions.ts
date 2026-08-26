@@ -180,6 +180,7 @@ export async function updateBlogSettings(formData: FormData): Promise<void> {
       name: text(formData, "name"),
       description: text(formData, "description"),
       locale: text(formData, "locale") || "en",
+      locales: formData.getAll("locales").map(String).filter(Boolean),
       accentColor: text(formData, "accentColor") || "#ef6848",
       publicUrl: nullableText(formData, "publicUrl"),
       customCss: text(formData, "customCss"),

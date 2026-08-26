@@ -15,7 +15,7 @@
     "lint": "biome lint src drizzle.config.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:database": "vitest run src/account-migration.test.ts src/bootstrap-password-migration.test.ts src/invitation-migration.test.ts src/publication-relationships-migration.test.ts",
+    "test:database": "vitest run src/account-migration.test.ts src/bootstrap-password-migration.test.ts src/invitation-migration.test.ts src/publication-locales-migration.test.ts src/publication-relationships-migration.test.ts",
     "test:coverage": "vitest run --coverage",
     "generate": "drizzle-kit generate",
     "migrate": "drizzle-kit migrate",

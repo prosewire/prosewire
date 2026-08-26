@@ -1,6 +1,6 @@
 {
-  "id": "0b104841-f032-4f22-bf0d-599a4d1753bc",
-  "prevId": "eb094b84-5c96-44a7-b57b-ce8113a4e5c1",
+  "id": "14143dd8-1c94-4cd1-a6b3-8221fef217b6",
+  "prevId": "0b104841-f032-4f22-bf0d-599a4d1753bc",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -595,6 +595,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'member'"
+        },
+        "must_change_password": {
+          "name": "must_change_password",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "disabled_at": {
           "name": "disabled_at",

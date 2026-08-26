@@ -23,7 +23,9 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
+import { localeName } from "@/lib/locales";
 import { restorePostRevision, savePost } from "@/server/actions";
+import { Select } from "./select";
 
 interface EditorRevision {
   readonly id: string;
@@ -81,6 +83,7 @@ interface EditorProps {
   readonly post: EditorPost;
   readonly authors: ReadonlyArray<Option>;
   readonly categories: ReadonlyArray<Option>;
+  readonly locales: ReadonlyArray<string>;
   readonly saved: boolean;
   readonly restored: boolean;
   readonly error: string | undefined;
@@ -118,6 +121,7 @@ export function Editor({
   post,
   authors,
   categories,
+  locales,
   saved,
   restored,
   error,
@@ -250,17 +254,17 @@ export function Editor({
               autoFocus={!post.id}
             />
             <div className="mt-5 flex flex-wrap items-center gap-3 text-xs text-[#7b8589]">
-              <select
+              <Select
                 name="authorId"
                 defaultValue={post.authorId}
-                className="rounded-lg border border-[#e0e1dc] bg-[#fafaf7] px-2.5 py-1.5 outline-none"
-              >
-                {authors.map((author) => (
-                  <option key={author.id} value={author.id}>
-                    {author.name}
-                  </option>
-                ))}
-              </select>
+                aria-label="Post author"
+                options={authors.map((author) => ({
+                  value: author.id,
+                  label: author.name,
+                }))}
+                size="small"
+                className="h-8 w-auto min-w-32 rounded-lg border-[#e0e1dc] bg-[#fafaf7] px-2.5 py-1.5 text-xs shadow-none"
+              />
               <details className="relative rounded-lg border border-[#e0e1dc] bg-[#fafaf7] px-2.5 py-1.5">
                 <summary className="cursor-pointer select-none">
                   {categoryIds.size === 0
@@ -602,14 +606,20 @@ export function Editor({
                 className="mt-1.5 h-9 w-full rounded-lg border border-[#dcded8] bg-white px-2.5 text-xs font-normal tracking-normal text-[#172329] outline-none"
               />
             </label>
-            <label className="block text-[10px] font-bold uppercase tracking-[.1em] text-[#8a9397]">
-              Locale
-              <input
+            <div>
+              <Select
                 name="locale"
+                label="Language"
+                labelClassName="block text-[10px] font-bold uppercase tracking-[.1em] text-[#8a9397]"
                 defaultValue={post.locale}
-                className="mt-1.5 h-9 w-full rounded-lg border border-[#dcded8] bg-white px-2.5 text-xs font-normal tracking-normal text-[#172329] outline-none"
+                options={locales.map((locale) => ({
+                  value: locale,
+                  label: `${localeName(locale)} (${locale})`,
+                }))}
+                size="small"
+                className="mt-1.5 h-9 w-full rounded-lg border border-[#dcded8] bg-white px-2.5 text-xs font-normal tracking-normal text-[#172329] shadow-none outline-none"
               />
-            </label>
+            </div>
             <label className="block text-[10px] font-bold uppercase tracking-[.1em] text-[#8a9397]">
               Canonical URL
               <input

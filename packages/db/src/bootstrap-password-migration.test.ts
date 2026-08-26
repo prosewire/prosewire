@@ -8,7 +8,7 @@ describe.skipIf(!databaseUrl)("bootstrap password migration", () => {
   it("keeps existing and new users outside the forced-change flow", async () => {
     if (!databaseUrl) throw new Error("DATABASE_URL is required");
     const migration = await readFile(
-      new URL("../drizzle/0012_medical_namor.sql", import.meta.url),
+      new URL("../drizzle/0013_friendly_slipstream.sql", import.meta.url),
       "utf8",
     );
     const client = new Client({ connectionString: databaseUrl });

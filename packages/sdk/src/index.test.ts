@@ -200,7 +200,6 @@ describe("Prosewire SDK", () => {
     await expect(requests[4]?.json()).resolves.toMatchObject({
       contentMarkdown: "",
       status: "draft",
-      locale: "en",
       featured: false,
       categoryIds: [],
     });

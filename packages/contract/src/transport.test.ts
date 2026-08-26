@@ -43,7 +43,6 @@ describe("private API request contract", () => {
         title: "Contract-owned transport",
         slug: "contract-owned-transport",
         status: "draft",
-        locale: "en",
         featured: false,
         categoryIds: [],
       },

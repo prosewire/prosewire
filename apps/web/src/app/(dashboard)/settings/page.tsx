@@ -3,9 +3,11 @@ import {
   Database,
   Palette,
   ShieldCheck,
+  Translate,
   WarningCircle,
 } from "@phosphor-icons/react/ssr";
 import { hasPermission } from "@prosewire/core";
+import { LanguageSettings } from "@/components/language-settings";
 import {
   createPublication,
   updateBlogSettings,
@@ -46,7 +48,7 @@ export default async function SettingsPage({
         Blog settings
       </h1>
       <p className="mt-2 text-sm text-[#6e787d]">
-        Identity, public URL, styling, and ownership controls.
+        Identity, languages, public URL, styling, and ownership controls.
       </p>
       {saved === "1" ? (
         <div className="mt-5 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-semibold text-emerald-700">
@@ -141,14 +143,6 @@ export default async function SettingsPage({
                   className="mt-2 h-10 w-full rounded-xl border border-[#d9dbd5] px-3 text-sm font-normal outline-none focus:border-[#ef6848]"
                 />
               </label>
-              <label className="text-xs font-semibold">
-                Default locale
-                <input
-                  name="locale"
-                  defaultValue={blog.locale}
-                  className="mt-2 h-10 w-full rounded-xl border border-[#d9dbd5] px-3 text-sm font-normal outline-none focus:border-[#ef6848]"
-                />
-              </label>
               <label className="text-xs font-semibold sm:col-span-2">
                 Description
                 <textarea
@@ -181,6 +175,20 @@ export default async function SettingsPage({
                 />
               </label>
             </div>
+          </section>
+          <section className="card p-5 sm:p-6">
+            <div className="flex items-center gap-2">
+              <Translate className="size-4 text-[#ef6848]" />
+              <h2 className="text-sm font-semibold">Languages</h2>
+            </div>
+            <p className="mt-2 text-xs leading-5 text-[#7b8589]">
+              Manage the languages authors can assign to posts in this
+              publication.
+            </p>
+            <LanguageSettings
+              defaultLocale={blog.locale}
+              initialLocales={blog.locales}
+            />
           </section>
           <section className="card p-5 sm:p-6">
             <div className="flex items-center gap-2">

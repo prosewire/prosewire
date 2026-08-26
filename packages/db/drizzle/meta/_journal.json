@@ -89,8 +89,15 @@
     {
       "idx": 12,
       "version": "7",
-      "when": 1787722507616,
-      "tag": "0012_medical_namor",
+      "when": 1787720375349,
+      "tag": "0012_magical_rumiko_fujikawa",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1787726243283,
+      "tag": "0013_friendly_slipstream",
       "breakpoints": true
     }
   ]

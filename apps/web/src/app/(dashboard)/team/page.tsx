@@ -1,5 +1,6 @@
 import { ShieldCheck, UserPlus, UsersThree } from "@phosphor-icons/react/ssr";
 import { hasPermission } from "@prosewire/core";
+import { Select } from "@/components/select";
 import {
   cancelInvitation,
   inviteMember,
@@ -59,19 +60,22 @@ export default async function TeamPage({
               className="mt-2 h-10 w-full rounded-xl border border-[#d9dbd5] px-3 text-sm font-normal"
             />
           </label>
-          <label className="text-xs font-semibold">
-            Role
-            <select
+          <div className="text-xs font-semibold">
+            <Select
+              id="invitation-role"
               name="role"
+              label="Role"
+              labelClassName="cursor-default"
               defaultValue="viewer"
+              options={[
+                { value: "admin", label: "Admin" },
+                { value: "editor", label: "Editor" },
+                { value: "author", label: "Author" },
+                { value: "viewer", label: "Viewer" },
+              ]}
               className="mt-2 h-10 w-full rounded-xl border border-[#d9dbd5] bg-white px-3 text-sm font-normal"
-            >
-              <option value="admin">Admin</option>
-              <option value="editor">Editor</option>
-              <option value="author">Author</option>
-              <option value="viewer">Viewer</option>
-            </select>
-          </label>
+            />
+          </div>
           <button className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#172329] px-4 text-sm font-semibold text-white">
             <UserPlus className="size-3.5" />
             Invite
@@ -116,16 +120,19 @@ export default async function TeamPage({
                       value={context.workspace.id}
                     />
                     <input type="hidden" name="memberId" value={member.id} />
-                    <select
+                    <Select
                       name="role"
                       defaultValue={member.role}
-                      className="h-9 rounded-lg border border-[#d9dbd5] bg-white px-2 text-xs capitalize"
-                    >
-                      <option value="admin">Admin</option>
-                      <option value="editor">Editor</option>
-                      <option value="author">Author</option>
-                      <option value="viewer">Viewer</option>
-                    </select>
+                      aria-label={`Role for ${member.name}`}
+                      options={[
+                        { value: "admin", label: "Admin" },
+                        { value: "editor", label: "Editor" },
+                        { value: "author", label: "Author" },
+                        { value: "viewer", label: "Viewer" },
+                      ]}
+                      size="small"
+                      className="h-9 w-28 rounded-lg border border-[#d9dbd5] bg-white px-2 text-xs"
+                    />
                     <button className="rounded-lg border border-[#d9dbd5] px-2 text-xs font-semibold">
                       Save
                     </button>
