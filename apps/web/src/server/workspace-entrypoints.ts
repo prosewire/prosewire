@@ -249,7 +249,13 @@ export async function loadOnboarding() {
     Effect.gen(function* () {
       const { session, actor } = yield* currentActor();
       const access = yield* BlogAccess.Service;
+      const config = yield* WebConfig;
       const workspaces = yield* access.findWorkspaces(actor.id);
+      let selfHostedTeamExists = false;
+      if (config.deployment === "self-hosted") {
+        const management = yield* WorkspaceManagement.Service;
+        selfHostedTeamExists = yield* management.hasWorkspace();
+      }
       const activeId = Schema.decodeUnknownOption(OrganizationId)(
         session.session.activeOrganizationId,
       );
@@ -262,6 +268,8 @@ export async function loadOnboarding() {
         session,
         workspace: selected?.workspace,
         role: selected?.role,
+        cloudDeployment: config.deployment === "cloud",
+        selfHostedTeamExists,
       };
     }),
   );
@@ -270,18 +278,27 @@ export async function loadOnboarding() {
 export async function loadInvitation(invitationId: string) {
   const parsed = Schema.decodeOption(InvitationId)(invitationId);
   if (Option.isNone(parsed)) {
-    return Promise.resolve({ session: null, details: undefined });
+    return Promise.resolve({
+      session: null,
+      details: undefined,
+      cloudDeployment: false,
+    });
   }
   await io();
   return runAppEffect(
     Effect.gen(function* () {
       const session = yield* getDashboardSessionEffect();
+      const config = yield* WebConfig;
       const service = yield* WorkspaceManagement.Service;
       const details = yield* service.invitationDetails(
         parsed.value,
         session?.user.email,
       );
-      return { session, details };
+      return {
+        session,
+        details,
+        cloudDeployment: config.deployment === "cloud",
+      };
     }),
   );
 }
@@ -292,12 +309,16 @@ export async function loadAuthenticationState(invitationId?: string) {
     Effect.gen(function* () {
       const session = yield* getDashboardSessionEffect();
       const config = yield* WebConfig;
-      const openRegistration =
+      const cloudDeployment = config.deployment === "cloud";
+      let openRegistration =
         config.environment !== "production" || config.allowSignUp;
+      if (openRegistration && !cloudDeployment) {
+        const service = yield* WorkspaceManagement.Service;
+        openRegistration = !(yield* service.hasInstallation());
+      }
       const socialProviders = socialProviderIds.filter(
         (provider) => config.cloudSocialProviders?.[provider] !== undefined,
       );
-      const cloudDeployment = config.cloudSocialProviders !== undefined;
       if (!invitationId) {
         return {
           session,

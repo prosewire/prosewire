@@ -16,10 +16,12 @@ function formText(data: FormData, name: string): string {
 
 export function SignUpForm({
   returnTo,
+  cloudDeployment,
   invitedEmail,
   invitationId,
 }: {
   returnTo: string;
+  cloudDeployment: boolean;
   invitedEmail?: string;
   invitationId?: string;
 }) {
@@ -38,7 +40,11 @@ export function SignUpForm({
           Create your account
         </h1>
         <p className="mt-3 text-sm leading-6 text-[#69757a]">
-          Your first workspace and publication come next.
+          {invitationId
+            ? "Create your account to accept the team invitation."
+            : cloudDeployment
+              ? "Your first workspace and publication come next."
+              : "Your first publication comes next."}
         </p>
         <form
           className="mt-8 space-y-5"

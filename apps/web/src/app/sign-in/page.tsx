@@ -7,18 +7,22 @@ export const metadata = { title: "Sign in" };
 export default async function SignInPage({
   searchParams,
 }: {
-  searchParams: Promise<{ returnTo?: string }>;
+  searchParams: Promise<{ passwordChanged?: string; returnTo?: string }>;
 }) {
-  const { returnTo } = await searchParams;
+  const { passwordChanged, returnTo } = await searchParams;
   const safeReturnTo =
     returnTo?.startsWith("/") && !returnTo.startsWith("//")
       ? returnTo
       : "/dashboard";
   const state = await loadAuthenticationState();
+  if (state.session?.user.mustChangePassword) {
+    redirect(`/change-password?returnTo=${encodeURIComponent(safeReturnTo)}`);
+  }
   if (state.session) redirect(safeReturnTo);
   return (
     <SignInForm
       allowSignUp={state.openRegistration}
+      passwordChanged={passwordChanged === "1"}
       returnTo={safeReturnTo}
       showDevelopmentCredentials={process.env["NODE_ENV"] !== "production"}
       socialProviders={state.socialProviders}

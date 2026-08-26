@@ -9,13 +9,14 @@ import {
 import * as schema from "@prosewire/db/schema";
 import { openTestDatabase, type TestDatabase } from "@prosewire/db/testing";
 import { and, eq, sql } from "drizzle-orm";
-import { Effect, Layer, Redacted } from "effect";
+import { Effect, Layer, Redacted, Result } from "effect";
 import { BlogAccess } from "./authorization.ts";
 import { WebConfig } from "./config.ts";
 import { databaseLayer } from "./database-test-support.ts";
 import { InvitationId, OrganizationId, UserId } from "./domain.ts";
 import { PlatformCrypto } from "./platform-crypto.ts";
 import {
+  CreateWorkspaceInput,
   InvitationMutationInput,
   InviteMemberInput,
   WorkspaceManagement,
@@ -110,11 +111,122 @@ describe.skipIf(!databaseUrl)(
               databaseUrl: Redacted.make(testDatabase.url),
               authSecret: Redacted.make("test-secret-at-least-32-characters"),
               allowSignUp: false,
+              deployment: "self-hosted",
               environment: "test",
             }),
           ),
         ),
       );
+
+    it.effect("detects self-hosted installation data", () =>
+      Effect.gen(function* () {
+        const management = yield* WorkspaceManagement.Service;
+
+        expect(yield* management.hasWorkspace()).toBe(false);
+        expect(yield* management.hasInstallation()).toBe(false);
+
+        yield* Effect.promise(() =>
+          testDatabase.client.insert(schema.organization).values({
+            id: organizationId,
+            name: "Existing workspace",
+            slug: "existing-workspace",
+          }),
+        );
+        expect(yield* management.hasWorkspace()).toBe(true);
+        expect(yield* management.hasInstallation()).toBe(true);
+
+        yield* Effect.promise(async () => {
+          await testDatabase.client
+            .delete(schema.organization)
+            .where(eq(schema.organization.id, organizationId));
+          await testDatabase.client.insert(schema.user).values({
+            id: actor.id,
+            email: actor.email,
+            name: actor.name,
+          });
+        });
+        expect(yield* management.hasWorkspace()).toBe(false);
+        expect(yield* management.hasInstallation()).toBe(true);
+      }).pipe(Effect.provide(layer())),
+    );
+
+    it.effect("allows only one concurrent self-hosted bootstrap", () =>
+      Effect.gen(function* () {
+        const secondActor = {
+          id: UserId.make("user-2"),
+          name: "Second owner",
+          email: "second@example.com",
+          sessionId: "session-2",
+        };
+        yield* Effect.promise(() =>
+          testDatabase.client.insert(schema.user).values([
+            { id: actor.id, email: actor.email, name: actor.name },
+            {
+              id: secondActor.id,
+              email: secondActor.email,
+              name: secondActor.name,
+            },
+          ]),
+        );
+        yield* Effect.promise(() =>
+          testDatabase.client.insert(schema.session).values([
+            {
+              id: actor.sessionId,
+              userId: actor.id,
+              token: "session-token-1",
+              expiresAt: new Date("2099-01-01T00:00:00.000Z"),
+            },
+            {
+              id: secondActor.sessionId,
+              userId: secondActor.id,
+              token: "session-token-2",
+              expiresAt: new Date("2099-01-01T00:00:00.000Z"),
+            },
+          ]),
+        );
+        const management = yield* WorkspaceManagement.Service;
+        const attempts = yield* Effect.all(
+          [
+            management.createWorkspace(
+              new CreateWorkspaceInput({
+                workspaceName: "First publication",
+                workspaceSlug: "first-publication",
+                publicationName: "First publication",
+                publicationSlug: "first-publication",
+              }),
+              actor,
+            ),
+            management.createWorkspace(
+              new CreateWorkspaceInput({
+                workspaceName: "Second publication",
+                workspaceSlug: "second-publication",
+                publicationName: "Second publication",
+                publicationSlug: "second-publication",
+              }),
+              secondActor,
+            ),
+          ].map(Effect.result),
+          { concurrency: "unbounded" },
+        );
+
+        expect(attempts.filter(Result.isSuccess)).toHaveLength(1);
+        const failure = attempts.find(Result.isFailure);
+        expect(
+          failure && Result.isFailure(failure) && failure.failure,
+        ).toMatchObject({ _tag: "SelfHostedWorkspaceAlreadyExists" });
+        const [workspaces, publications, memberships] = yield* Effect.promise(
+          () =>
+            Promise.all([
+              testDatabase.client.query.organization.findMany(),
+              testDatabase.client.query.blog.findMany(),
+              testDatabase.client.query.member.findMany(),
+            ]),
+        );
+        expect(workspaces).toHaveLength(1);
+        expect(publications).toHaveLength(1);
+        expect(memberships).toHaveLength(1);
+      }).pipe(Effect.provide(layer())),
+    );
 
     it.effect(
       "serializes invite creation and escapes untrusted email HTML",

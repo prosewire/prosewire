@@ -18,13 +18,17 @@ export function databaseLayer(client: Db) {
   });
 }
 
-export function configLayer(url: string) {
+export function configLayer(
+  url: string,
+  deployment: "self-hosted" | "cloud" = "cloud",
+) {
   return Layer.succeed(WebConfig, {
     defaultBlog: "fieldnotes",
     publicUrl: "http://localhost:3000",
     databaseUrl: Redacted.make(url),
     authSecret: Redacted.make("test-secret-at-least-32-characters"),
     allowSignUp: false,
+    deployment,
     environment: "test",
   });
 }

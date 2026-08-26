@@ -20,11 +20,13 @@ const providerDetails = {
 
 export function SignInForm({
   allowSignUp,
+  passwordChanged,
   returnTo,
   showDevelopmentCredentials,
   socialProviders,
 }: {
   allowSignUp: boolean;
+  passwordChanged: boolean;
   returnTo: string;
   showDevelopmentCredentials: boolean;
   socialProviders: ReadonlyArray<SocialProviderId>;
@@ -137,6 +139,14 @@ export function SignInForm({
             router.refresh();
           }}
         >
+          {passwordChanged ? (
+            <p
+              role="status"
+              className="rounded-[9px] border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-700"
+            >
+              Password changed. Sign in with the new password.
+            </p>
+          ) : null}
           <label className="block">
             <span className="sr-only">Email</span>
             <input

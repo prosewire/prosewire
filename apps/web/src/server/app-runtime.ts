@@ -1,4 +1,5 @@
 import { type Effect, Layer, ManagedRuntime } from "effect";
+import { AccountSecurity } from "./account-security.ts";
 import { ApiAccess } from "./api-access.ts";
 import { ApiContent } from "./api-content.ts";
 import { Auth } from "./auth-service.ts";
@@ -31,6 +32,7 @@ const domainLayer = Layer.mergeAll(
 ).pipe(Layer.provideMerge(infrastructureLayer));
 
 const applicationLayer = Layer.mergeAll(
+  AccountSecurity.layer,
   Dashboard.layer,
   PostExport.layer,
   PublicContent.layer,
@@ -44,6 +46,7 @@ export const appRuntime = processSingleton("@prosewire/web/AppRuntime/v1", () =>
 
 export type AppServices =
   | Auth
+  | AccountSecurity.Service
   | WebConfig
   | ContentQueries.Service
   | BlogAccess.Service

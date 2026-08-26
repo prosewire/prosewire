@@ -16,6 +16,7 @@ export {
   MemberNotFound,
   ProtectedMember,
   RevokeApiKeyInput,
+  SelfHostedWorkspaceAlreadyExists,
   UpdateMemberRoleInput,
   UpdateWorkspaceInput,
 } from "./workspace-repository.ts";
@@ -24,6 +25,8 @@ export const create = Effect.fn("WorkspaceManagement.create")(function* () {
   const repository = yield* WorkspaceRepository.Service;
   return {
     invitationDetails: repository.invitationDetails,
+    hasInstallation: repository.hasInstallation,
+    hasWorkspace: repository.hasWorkspace,
     createWorkspace: repository.createWorkspace,
     createPublication: repository.createPublication,
     updateWorkspace: repository.updateWorkspace,

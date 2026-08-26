@@ -21,6 +21,8 @@ const links = [
 
 export function MobileHeader({
   userName,
+  canCreateWorkspace,
+  showWorkspaceSwitcher,
   role,
   workspace,
   workspaces,
@@ -46,29 +48,31 @@ export function MobileHeader({
           </summary>
           <div className="absolute right-0 top-11 w-[calc(100vw-2rem)] max-w-sm overflow-hidden rounded-2xl border border-[#d9dbd5] bg-[#f8f7f2] shadow-xl">
             <div className="space-y-3 border-b border-[#dedfd9] p-4">
-              <form
-                action={switchWorkspace}
-                className="grid grid-cols-[1fr_auto] items-end gap-2"
-              >
-                <div className="text-[10px] font-bold uppercase tracking-[.12em] text-[#8a9397]">
-                  <Select
-                    id="mobile-workspace-switcher"
-                    name="organizationId"
-                    label="Workspace"
-                    labelClassName="cursor-default"
-                    defaultValue={workspace.id}
-                    options={workspaces.map((item) => ({
-                      value: item.id,
-                      label: item.name,
-                    }))}
-                    size="small"
-                    className="mt-1.5 h-9 w-full rounded-lg border border-[#d9dbd5] bg-white px-2 text-xs font-semibold normal-case tracking-normal text-[#172329]"
-                  />
-                </div>
-                <button className="h-9 rounded-lg border border-[#d9dbd5] bg-white px-3 text-xs font-semibold">
-                  Switch
-                </button>
-              </form>
+              {showWorkspaceSwitcher ? (
+                <form
+                  action={switchWorkspace}
+                  className="grid grid-cols-[1fr_auto] items-end gap-2"
+                >
+                  <div className="text-[10px] font-bold uppercase tracking-[.12em] text-[#8a9397]">
+                    <Select
+                      id="mobile-workspace-switcher"
+                      name="organizationId"
+                      label="Workspace"
+                      labelClassName="cursor-default"
+                      defaultValue={workspace.id}
+                      options={workspaces.map((item) => ({
+                        value: item.id,
+                        label: item.name,
+                      }))}
+                      size="small"
+                      className="mt-1.5 h-9 w-full rounded-lg border border-[#d9dbd5] bg-white px-2 text-xs font-semibold normal-case tracking-normal text-[#172329]"
+                    />
+                  </div>
+                  <button className="h-9 rounded-lg border border-[#d9dbd5] bg-white px-3 text-xs font-semibold">
+                    Switch
+                  </button>
+                </form>
+              ) : null}
               <form
                 action={switchPublication}
                 className="grid grid-cols-[1fr_auto] items-end gap-2"
@@ -92,12 +96,22 @@ export function MobileHeader({
                   Open
                 </button>
               </form>
-              <Link
-                href="/onboarding?newWorkspace=1"
-                className="block text-center text-xs font-semibold text-[#687279]"
-              >
-                + New workspace
-              </Link>
+              {hasPermission(role, "publications:create") ? (
+                <Link
+                  href="/onboarding"
+                  className="block text-center text-xs font-semibold text-[#687279]"
+                >
+                  + New publication
+                </Link>
+              ) : null}
+              {canCreateWorkspace ? (
+                <Link
+                  href="/onboarding?newWorkspace=1"
+                  className="block text-center text-xs font-semibold text-[#687279]"
+                >
+                  + New workspace
+                </Link>
+              ) : null}
             </div>
             <nav className="grid grid-cols-2 gap-1 p-3">
               {links.map(([href, label]) => (

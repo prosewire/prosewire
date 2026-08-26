@@ -47,6 +47,7 @@ function configLayer(url = "postgres://test") {
     databaseUrl: Redacted.make(url),
     authSecret: Redacted.make("test-secret-at-least-32-characters"),
     allowSignUp: false,
+    deployment: "self-hosted",
     environment: "test",
   });
 }

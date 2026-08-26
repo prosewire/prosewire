@@ -47,9 +47,19 @@ The default Compose file contains five services:
 | `web` | Dashboard, APIs, embed, and public reader | Port 3000 |
 | `worker` | Scheduled publishing, analytics retention, and queued email delivery | No |
 
-The web and worker wait for the migration service; the worker also waits for Redis. The web commits invitation email intents to Postgres. The worker turns those intents into durable Effect workflows, uses Redis for SMTP queue handoff, and stores workflow progress in Postgres. Run one worker container for this database. Production startup does not create the development administrator, API key, publication, or sample posts.
+The web and worker wait for the migration service; the worker also waits for Redis. The web commits invitation email intents to Postgres. The worker turns those intents into durable Effect workflows, uses Redis for SMTP queue handoff, and stores workflow progress in Postgres. Run one worker container for this database. Production startup does not create the development seed, API key, publication, or sample posts. The migration job can create one temporary self-hosted administrator when explicitly configured.
 
 ## Start and bootstrap
+
+The recommended bootstrap does not open registration. Before the first start, add a unique email and temporary password to `.env`:
+
+```shell
+PROSEWIRE_BOOTSTRAP_ADMIN_EMAIL=owner@example.com
+PROSEWIRE_BOOTSTRAP_ADMIN_PASSWORD=replace-with-a-unique-temporary-password
+# PROSEWIRE_BOOTSTRAP_ADMIN_NAME=Prosewire Admin
+```
+
+Both credential variables must exist. The password must contain 12 to 128 characters. Do not reuse the database password or authentication secret.
 
 ```shell
 docker compose up -d --build
@@ -63,13 +73,19 @@ Confirm that `migrate` exited successfully and that the health endpoint responds
 curl --fail https://publish.example.com/api/health
 ```
 
-For the first account only, set `PROSEWIRE_ALLOW_SIGN_UP=true`, start the stack, visit the public URL, and create the owner account and first workspace. Then set the value to `false` and recreate the web container:
+The migration job creates the administrator only when no user and no workspace exist. Sign in with the temporary password. Prosewire requires a new password immediately, revokes every existing session, and asks you to sign in again. The next screen creates the first publication and the installation's implicit team.
+
+Remove the bootstrap credential variables after changing the password, then recreate the long-running containers so the temporary secret no longer appears in their environment:
 
 ```shell
-docker compose up -d --force-recreate web
+docker compose up -d --force-recreate web worker
 ```
 
-Disabling open registration does not block valid, unexpired workspace invitations.
+If you prefer browser registration, leave the bootstrap credentials absent and set `PROSEWIRE_ALLOW_SIGN_UP=true` only for the first account. Turn it off and recreate the web container after onboarding. Once that account exists, direct self-hosted registration requires a valid, unexpired team invitation even if the flag remains enabled.
+
+If the temporary password is lost before it is changed, replace `PROSEWIRE_BOOTSTRAP_ADMIN_PASSWORD` and run `docker compose run --rm migrate`. The migration job refreshes the credential only when it finds the sole matching bootstrap administrator, the password-change requirement is still active, and no workspace exists. After the password changes, the environment can never reset it. On an existing installation, bootstrap credentials are ignored rather than creating another administrator.
+
+Upgrades do not delete or merge existing workspaces. If an older self-hosted database already contains more than one, members can still switch between them, but the instance cannot create another one. Move independent teams to separate installations before consolidating the data.
 
 ## Upgrade safely
 
@@ -81,6 +97,8 @@ Disabling open registration does not block valid, unexpired workspace invitation
 6. Verify `/api/health`, sign-in, one published reader page, one authenticated export, worker logs, and a scheduled post.
 
 Keep web, worker, and migrations on the same source version. Do not run different schema generations at the same time. If a migration is not backward compatible, rollback requires a tested database restore as well as the previous application image.
+
+Migration `0013_friendly_slipstream.sql` adds the required-password-change marker with a `false` default, so existing accounts are not forced through the bootstrap flow. If the migration job stops because bootstrap credentials are incomplete or invalid, correct or remove those variables and rerun it. The schema migration is idempotent. If the database itself cannot apply the column, keep the old release running and restore the pre-upgrade backup before retrying.
 
 Migration `0011_flaky_bug.sql` rejects content relationships that already cross publication boundaries. Check before upgrading:
 
@@ -122,7 +140,8 @@ Portable JSON and CSV exports improve content portability but are not substitute
 - Keep Redis on a private network, retain AOF persistence, and use `maxmemory-policy noeviction`
 - Keep authentication, database, SMTP, API-key, and server-action secrets out of images and source control
 - Configure SMTP and test an invitation before onboarding the team
-- Keep `PROSEWIRE_ALLOW_SIGN_UP=false` after bootstrap unless open registration is intentional
+- Keep `PROSEWIRE_ALLOW_SIGN_UP=false` after bootstrap
+- Remove `PROSEWIRE_BOOTSTRAP_ADMIN_EMAIL` and `PROSEWIRE_BOOTSTRAP_ADMIN_PASSWORD` after the first password change
 - Pin an immutable source commit or image digest instead of `latest`
 - Run exactly one supervised worker for each database and use `PROSEWIRE_EMAIL_WORKER_CONCURRENCY` for parallel SMTP delivery
 - Monitor migration exit status, web health, worker failures, Redis queue age, disk usage, and database capacity

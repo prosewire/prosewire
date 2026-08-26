@@ -15,6 +15,7 @@ Keep production configuration in the deployment platform's secret store. Do not 
 | `REDIS_URL` | Worker | Redis connection used by Effect `DurableQueue` for email delivery |
 | `PROSEWIRE_PUBLIC_URL` | Production | External origin used by the server for links such as invitations |
 | `NEXT_PUBLIC_PROSEWIRE_PUBLIC_URL` | Production | Matching browser-visible origin used by the authentication client |
+| `PROSEWIRE_DEPLOYMENT` | No | `self-hosted` for one implicit team or `cloud` for multiple explicit workspaces; defaults to `self-hosted` |
 | `PROSEWIRE_DEFAULT_BLOG` | No | Development default publication slug; defaults to `fieldnotes` |
 | `PROSEWIRE_MIGRATIONS_DIR` | Container default | Override the directory containing committed Drizzle migrations |
 | `POSTGRES_PASSWORD` | Default Compose only | Password interpolated into the bundled Postgres service and application URL |
@@ -30,13 +31,25 @@ The two public URL values should be the same external HTTPS origin seen by users
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `BETTER_AUTH_SECRET` | Yes | Unique authentication secret of at least 32 characters |
-| `PROSEWIRE_ALLOW_SIGN_UP` | No | Enables open account registration; defaults to `false` |
+| `PROSEWIRE_ALLOW_SIGN_UP` | No | Enables first-owner bootstrap for self-hosted or open registration for Cloud; defaults to `false` |
 | `SMTP_URL` | Production invitations | SMTP or SMTPS connection URL |
 | `EMAIL_FROM` | Production email | Sender identity; defaults to a localhost address in development |
 
-Enable `PROSEWIRE_ALLOW_SIGN_UP=true` only to create the first owner or when open registration is intentional. Set it back to `false` and replace web replicas after bootstrap. A valid, unexpired invitation still allows its invited email address to create an account.
+On self-hosted deployments, enable `PROSEWIRE_ALLOW_SIGN_UP=true` only to create the first owner. Direct registration closes automatically after the first account exists, even before that owner creates the team, but you should still set the value back to `false` and replace the web container after bootstrap. On Cloud, the flag keeps open registration available until you disable it. A valid, unexpired invitation still allows its invited email address to create an account in either deployment mode.
 
 Test SMTP delivery and invitation links from the public origin before onboarding a team.
+
+## Self-hosted administrator bootstrap
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `PROSEWIRE_BOOTSTRAP_ADMIN_EMAIL` | With bootstrap password | Email for the first self-hosted administrator |
+| `PROSEWIRE_BOOTSTRAP_ADMIN_PASSWORD` | With bootstrap email | Temporary password between 12 and 128 characters |
+| `PROSEWIRE_BOOTSTRAP_ADMIN_NAME` | No | Display name; defaults to `Prosewire Admin` |
+
+These variables need no separate enable flag. When both credentials exist, the one-shot migration job creates an administrator only if the installation has no users and no workspace. It marks that account for a required password change. The dashboard and authenticated mutations remain unavailable until the administrator replaces the temporary password. The change revokes every session, so the administrator signs in again before creating the first publication.
+
+Remove the variables after the password change. Later migration runs do not reset a completed bootstrap account. Until the password changes, an operator can replace the temporary password value and rerun the migration job to recover access. This recovery works only for the sole matching bootstrap administrator before a workspace exists. Cloud deployments reject bootstrap administrator credentials.
 
 ## Rolling and multi-instance deployments
 
@@ -68,7 +81,7 @@ The pinned Effect SQL runner supports durable single-process execution. Do not s
 | `ADMIN_PASSWORD` | Yes | Unique password of at least 12 characters |
 | `PROSEWIRE_SEED_API_KEY` | No | One-time local key of at least 24 characters with read and write scopes |
 
-The example values are local-only. Development web startup runs migrations and seed logic; production web startup does neither. Production uses the one-shot migration command and account bootstrap flow instead.
+The example values are local-only. Development web startup runs migrations and seed logic; production web startup does neither. Production uses the one-shot migration command and the optional self-hosted administrator bootstrap instead.
 
 ## Development and test controls
 

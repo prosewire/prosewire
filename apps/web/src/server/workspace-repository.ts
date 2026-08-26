@@ -35,9 +35,15 @@ import {
 } from "./transactional-access.ts";
 
 const EditableRole = Schema.Literals(["admin", "editor", "author", "viewer"]);
+const selfHostedWorkspaceLockKey = "prosewire:self-hosted-workspace";
 
 export class InvalidWorkspaceInput extends Schema.TaggedError<InvalidWorkspaceInput>()(
   "InvalidWorkspaceInput",
+  { message: Schema.String },
+) {}
+
+export class SelfHostedWorkspaceAlreadyExists extends Schema.TaggedError<SelfHostedWorkspaceAlreadyExists>()(
+  "SelfHostedWorkspaceAlreadyExists",
   { message: Schema.String },
 ) {}
 
@@ -152,6 +158,7 @@ export type Error =
   | PersistenceError
   | BlogAccess.Error
   | InvalidWorkspaceInput
+  | SelfHostedWorkspaceAlreadyExists
   | InvitationNotFound
   | MemberNotFound
   | ApiKeyNotFound
@@ -283,6 +290,27 @@ export const create = Effect.fn("WorkspaceRepository.create")(function* () {
     },
   );
 
+  const hasWorkspace = Effect.fn("WorkspaceManagement.hasWorkspace")(
+    function* () {
+      const rows = yield* execute("workspace.exists", (client) =>
+        client
+          .select({ id: schema.organization.id })
+          .from(schema.organization)
+          .limit(1),
+      );
+      return rows.length > 0;
+    },
+  );
+
+  const hasInstallation = Effect.fn("WorkspaceManagement.hasInstallation")(
+    function* () {
+      const users = yield* execute("installation.userExists", (client) =>
+        client.select({ id: schema.user.id }).from(schema.user).limit(1),
+      );
+      return users.length > 0 || (yield* hasWorkspace());
+    },
+  );
+
   const createWorkspace = Effect.fn("WorkspaceManagement.createWorkspace")(
     function* (input: CreateWorkspaceInput, actor: Actor) {
       const workspaceName = yield* required(
@@ -311,8 +339,28 @@ export const create = Effect.fn("WorkspaceRepository.create")(function* () {
         "Author name",
       );
       const now = new Date(yield* Clock.currentTimeMillis);
-      const publication = yield* execute("workspace.create", (client) =>
+      const publication = yield* executeResult<
+        typeof schema.blog.$inferSelect,
+        SelfHostedWorkspaceAlreadyExists
+      >("workspace.create", (client) =>
         client.transaction(async (tx) => {
+          if (config.deployment === "self-hosted") {
+            await tx.execute(
+              sql`select pg_advisory_xact_lock(hashtextextended(${selfHostedWorkspaceLockKey}, 0))`,
+            );
+            const existing = await tx
+              .select({ id: schema.organization.id })
+              .from(schema.organization)
+              .limit(1);
+            if (existing.length > 0) {
+              return Result.fail(
+                new SelfHostedWorkspaceAlreadyExists({
+                  message:
+                    "This self-hosted instance already has a team. Ask an owner for an invitation.",
+                }),
+              );
+            }
+          }
           await tx.insert(schema.organization).values({
             id: organizationId,
             name: workspaceName,
@@ -362,7 +410,7 @@ export const create = Effect.fn("WorkspaceRepository.create")(function* () {
               after: { name: publicationName, slug: publicationSlug },
             },
           ]);
-          return created;
+          return Result.succeed(created);
         }),
       );
       return {
@@ -1030,6 +1078,8 @@ export const create = Effect.fn("WorkspaceRepository.create")(function* () {
 
   return {
     invitationDetails,
+    hasInstallation,
+    hasWorkspace,
     createWorkspace,
     createPublication,
     updateWorkspace,

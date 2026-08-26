@@ -90,6 +90,7 @@ describe("web infrastructure", () => {
     try {
       const config = await runtime.runPromise(WebConfig);
       expect(config.environment).toBe("development");
+      expect(config.deployment).toBe("self-hosted");
       expect(Redacted.value(config.authSecret)).toBe(
         "local-development-secret-change-before-production",
       );
@@ -116,6 +117,7 @@ describe("web infrastructure", () => {
 
     try {
       const config = await runtime.runPromise(WebConfig);
+      expect(config.deployment).toBe("cloud");
       expect(config.cloudSocialProviders?.google?.clientId).toBe(
         "google-client-id",
       );
@@ -143,6 +145,7 @@ describe("web infrastructure", () => {
 
     try {
       const config = await runtime.runPromise(WebConfig);
+      expect(config.deployment).toBe("self-hosted");
       expect(config.cloudSocialProviders).toBeUndefined();
     } finally {
       await runtime.dispose();
@@ -281,6 +284,7 @@ describe("web infrastructure", () => {
       databaseUrl: Redacted.make("postgres://test"),
       authSecret: Redacted.make("test-secret-at-least-32-characters"),
       allowSignUp: false,
+      deployment: "self-hosted",
       environment: "test",
     });
     const database = Database.layerWith(() => {

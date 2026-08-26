@@ -9,16 +9,20 @@ function label(value: string): string {
 }
 
 export default async function AuditPage() {
-  const { context, entries } = dashboardData(await loadDashboardAudit());
+  const { cloudDeployment, context, entries } = dashboardData(
+    await loadDashboardAudit(),
+  );
   return (
     <main className="mx-auto max-w-[1100px] px-4 py-6 sm:px-7 lg:px-9 lg:py-8">
-      <p className="text-xs font-semibold text-[#ef6848]">Workspace security</p>
+      <p className="text-xs font-semibold text-[#ef6848]">
+        {cloudDeployment ? "Workspace" : "Team"} security
+      </p>
       <h1 className="mt-1 text-3xl font-semibold tracking-[-.04em]">
         Audit history
       </h1>
       <p className="mt-2 text-sm text-[#6e787d]">
-        The latest workspace, team, publication, content, scheduler, and API-key
-        changes across {context.workspace.name}.
+        The latest team, publication, content, scheduler, and API-key changes
+        {cloudDeployment ? ` across ${context.workspace.name}` : ""}.
       </p>
 
       <section className="card mt-7 overflow-hidden">
@@ -47,8 +51,9 @@ export default async function AuditPage() {
                   </p>
                   <p className="mt-1 truncate text-[11px] text-[#7b8589]">
                     {entry.actorName ?? entry.actorEmail ?? "System"} ·{" "}
-                    {entry.publicationName ?? "Workspace"} ·{" "}
-                    {label(entry.entityType)}
+                    {entry.publicationName ??
+                      (cloudDeployment ? "Workspace" : "Team")}{" "}
+                    · {label(entry.entityType)}
                   </p>
                 </div>
               </div>
@@ -67,7 +72,7 @@ export default async function AuditPage() {
             <div className="bg-white px-5 py-16 text-center">
               <p className="text-sm font-semibold">No audit events yet</p>
               <p className="mt-1 text-xs text-[#8a9397]">
-                Workspace changes will appear here.
+                Team and publication changes will appear here.
               </p>
             </div>
           ) : null}

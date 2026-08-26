@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { acceptInvitation } from "@/server/actions";
@@ -13,9 +13,12 @@ export default async function AcceptInvitationPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { session, details } = await loadInvitation(id);
+  const { cloudDeployment, session, details } = await loadInvitation(id);
   if (!details) notFound();
   const returnTo = `/accept-invitation/${id}`;
+  if (session?.user.mustChangePassword) {
+    redirect(`/change-password?returnTo=${encodeURIComponent(returnTo)}`);
+  }
   if (!session) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f4f3ed] px-5">
@@ -23,7 +26,7 @@ export default async function AcceptInvitationPage({
         <div className="card w-full max-w-[480px] p-7">
           <Logo className="text-lg" />
           <p className="mt-9 text-sm font-semibold text-[#ef6848]">
-            Workspace invitation
+            {cloudDeployment ? "Workspace" : "Team"} invitation
           </p>
           <h1 className="mt-2 text-3xl font-semibold tracking-[-.035em]">
             Sign in to continue
@@ -56,7 +59,7 @@ export default async function AcceptInvitationPage({
       <div className="card w-full max-w-[480px] p-7">
         <Logo className="text-lg" />
         <p className="mt-9 text-sm font-semibold text-[#ef6848]">
-          Workspace invitation
+          {cloudDeployment ? "Workspace" : "Team"} invitation
         </p>
         <h1 className="mt-2 text-3xl font-semibold tracking-[-.035em]">
           Join {details.workspace.name}
@@ -66,7 +69,8 @@ export default async function AcceptInvitationPage({
           <span className="font-semibold capitalize">
             {details.invitation.role}
           </span>
-          . This role applies to all publications in the workspace.
+          . This role applies to all publications in the{" "}
+          {cloudDeployment ? "workspace" : "team"}.
         </p>
         <form action={acceptInvitation} className="mt-7">
           <input type="hidden" name="invitationId" value={id} />

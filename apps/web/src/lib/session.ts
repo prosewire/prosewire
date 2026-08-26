@@ -34,10 +34,14 @@ export const getSessionWithHeadersEffect = Effect.fn(
   );
 });
 
-const requireSession = <A>(
+export const requireSessionAccess = <A>(
   session: A | null,
   disabledAt: Date | null | undefined,
-): Effect.Effect<A, SessionErrors.AuthenticationRequired> => {
+  mustChangePassword: boolean | null | undefined,
+): Effect.Effect<
+  A,
+  SessionErrors.AuthenticationRequired | SessionErrors.PasswordChangeRequired
+> => {
   if (!session) {
     return Effect.fail(
       new SessionErrors.AuthenticationRequired({ reason: "missing-session" }),
@@ -48,13 +52,20 @@ const requireSession = <A>(
       new SessionErrors.AuthenticationRequired({ reason: "disabled-account" }),
     );
   }
+  if (mustChangePassword) {
+    return Effect.fail(new SessionErrors.PasswordChangeRequired({}));
+  }
   return Effect.succeed(session);
 };
 
 export const requireDashboardSessionEffect = Effect.fn("WebSession.require")(
   function* () {
     const session = yield* getDashboardSessionEffect();
-    return yield* requireSession(session, session?.user.disabledAt);
+    return yield* requireSessionAccess(
+      session,
+      session?.user.disabledAt,
+      session?.user.mustChangePassword,
+    );
   },
 );
 
@@ -62,5 +73,9 @@ export const requireSessionWithHeadersEffect = Effect.fn(
   "WebSession.requireWithHeaders",
 )(function* (requestHeaders: Headers) {
   const session = yield* getSessionWithHeadersEffect(requestHeaders);
-  return yield* requireSession(session, session?.user.disabledAt);
+  return yield* requireSessionAccess(
+    session,
+    session?.user.disabledAt,
+    session?.user.mustChangePassword,
+  );
 });

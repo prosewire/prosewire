@@ -21,7 +21,8 @@ export default async function TeamPage({
     searchParams,
     loadDashboardTeam(),
   ]);
-  const { authors, members, invitations, context } = dashboardData(result);
+  const { authors, cloudDeployment, context, invitations, members } =
+    dashboardData(result);
   const canManage = hasPermission(context.role, "members:manage");
   return (
     <main className="mx-auto max-w-[1100px] px-4 py-6 sm:px-7 lg:px-9 lg:py-8">
@@ -31,7 +32,8 @@ export default async function TeamPage({
           Authors & team
         </h1>
         <p className="mt-2 text-sm text-[#6e787d]">
-          Workspace roles apply consistently across every publication.
+          {cloudDeployment ? "Workspace" : "Team"} roles apply consistently
+          across every publication.
         </p>
       </header>
       {query.invited === "1" ? (
@@ -84,7 +86,9 @@ export default async function TeamPage({
         <div className="flex items-center justify-between border-b border-[#e2e3de] px-5 py-4">
           <div className="flex items-center gap-2">
             <UsersThree className="size-4 text-[#ef6848]" />
-            <h2 className="text-sm font-semibold">Workspace members</h2>
+            <h2 className="text-sm font-semibold">
+              {cloudDeployment ? "Workspace" : "Team"} members
+            </h2>
           </div>
           <span className="text-xs text-[#8a9397]">{members.length}</span>
         </div>

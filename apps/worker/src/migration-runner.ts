@@ -13,6 +13,11 @@ export interface MigrationDependencies {
   readonly migrateWorkflowStorage: (databaseUrl: string) => Promise<void>;
 }
 
+export interface MigrationOptions {
+  readonly migrationsDir?: string;
+  readonly afterMigrations?: () => Promise<void>;
+}
+
 const defaultDependencies: MigrationDependencies = {
   runMigrations,
   withDatabaseAdvisoryLock,
@@ -21,11 +26,12 @@ const defaultDependencies: MigrationDependencies = {
 
 export function migrateDatabase(
   databaseUrl: string,
-  migrationsDir?: string,
+  options: MigrationOptions = {},
   dependencies: MigrationDependencies = defaultDependencies,
 ): Promise<void> {
   return dependencies.withDatabaseAdvisoryLock(databaseUrl, async () => {
-    await dependencies.runMigrations(databaseUrl, migrationsDir);
+    await dependencies.runMigrations(databaseUrl, options.migrationsDir);
     await dependencies.migrateWorkflowStorage(databaseUrl);
+    await options.afterMigrations?.();
   });
 }
