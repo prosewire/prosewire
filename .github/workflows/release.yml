@@ -65,14 +65,35 @@ jobs:
         id: changesets
         uses: changesets/action/publish@8488615a623b1b9c987934bb89eae8af6a946ac1 # v2.1.1
         with:
+          github-token: ${{ secrets.RELEASE_GITHUB_TOKEN || github.token }}
           script: pnpm release
-          create-github-releases: false
-          push-git-tags: false
+          create-github-releases: true
+          push-git-tags: true
       - name: Verify published packages
         if: steps.changesets.outputs.published == 'true'
         env:
           PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.published-packages }}
         run: pnpm verify:registry
+      - name: Verify package tags and GitHub releases
+        if: steps.changesets.outputs.published == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_GITHUB_TOKEN || github.token }}
+          PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.published-packages }}
+        run: |
+          git fetch origin --tags
+          release_commit="$(git rev-parse HEAD)"
+          while IFS=$'\t' read -r package_name package_version; do
+            tag="$package_name@$package_version"
+            tagged_commit="$(git rev-list -n 1 "$tag")"
+            if [ "$tagged_commit" != "$release_commit" ]; then
+              echo "$tag points to $tagged_commit, expected $release_commit" >&2
+              exit 1
+            fi
+            release_tag="$(gh release view "$tag" --json tagName --jq .tagName)"
+            test "$release_tag" = "$tag"
+            release_url="$(gh release view "$tag" --json url --jq .url)"
+            echo "- [$tag]($release_url)" >> "$GITHUB_STEP_SUMMARY"
+          done < <(jq -r '.[] | [.name, .version] | @tsv' <<<"$PUBLISHED_PACKAGES")
       - name: Require at least one publication
         if: steps.changesets.outputs.published != 'true'
         run: |

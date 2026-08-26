@@ -15,6 +15,8 @@ by repository code.
       changelogs, ran the tarball preflight, and pushed one release commit.
 - [ ] Confirm every expected package reached npm with provenance and passed the
       registry consumer smoke test.
+- [ ] Confirm every published package has a Changesets Git tag and GitHub
+      release pointing to the generated version commit.
 - [ ] **External, GitHub:** the release identity may bypass the pull-request rule
       only for the generated version commit.
 - [ ] **External, npm:** trusted publishing is scoped to this repository and the
@@ -30,6 +32,8 @@ by repository code.
       migrations, web, worker, required files, and `/api/health` passed.
 - [ ] Confirm the workflow verified the candidate digest before creating the
       immutable Git tag and promoting stable image aliases.
+- [ ] Confirm the GitHub release notes compare the previous stable image tag to
+      the new `vX.Y.Z` tag.
 - [ ] **External, GHCR:** verify public pull access while signed out of a
       maintainer account.
 
