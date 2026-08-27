@@ -17,12 +17,12 @@
     "deploy:dry": "pnpm build:production && wrangler deploy --dry-run"
   },
   "dependencies": {
-    "@astrojs/markdown-remark": "^7.2.3",
-    "@astrojs/mdx": "^7.0.6",
-    "@astrojs/react": "^6.0.3",
+    "@astrojs/markdown-remark": "^7.2.4",
+    "@astrojs/mdx": "^7.0.7",
+    "@astrojs/react": "^6.0.4",
     "@astrojs/sitemap": "^3.7.3",
     "@tailwindcss/vite": "^4.3.3",
-    "astro": "^7.2.3",
+    "astro": "^7.2.4",
     "fumadocs-core": "^16.14.5",
     "fumadocs-ui": "^16.14.5",
     "react": "^19.2.8",

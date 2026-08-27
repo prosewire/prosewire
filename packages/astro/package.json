@@ -64,7 +64,7 @@
     "@astrojs/compiler": "^2.13.1",
     "@prosewire/config": "workspace:*",
     "@types/node": "^26.2.0",
-    "astro": "^7.2.3",
+    "astro": "^7.2.4",
     "tsdown": "^0.22.0",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "vitest": "^4.1.11"
