@@ -35,6 +35,25 @@ async function exists(path) {
 const htmlFiles = (await walk(dist)).filter((file) => file.endsWith(".html"));
 assert.ok(htmlFiles.length > 0, "documentation build produced no HTML files");
 
+const requiredLegalPages = [
+  "acceptable-use",
+  "copyright",
+  "data-location",
+  "data-requests",
+  "deletion-retention",
+  "dpa",
+  "privacy",
+  "security",
+  "subprocessors",
+  "terms",
+];
+for (const slug of requiredLegalPages) {
+  assert.ok(
+    await exists(join(dist, "legal", slug, "index.html")),
+    `legal page /legal/${slug}/ was not built`,
+  );
+}
+
 for (const file of htmlFiles) {
   const html = await readFile(file, "utf8");
   for (const match of html.matchAll(/href="([^"]+)"/g)) {
@@ -53,6 +72,9 @@ for (const file of htmlFiles) {
 }
 
 const index = await readFile(join(dist, "index.html"), "utf8");
+assert.match(index, /href="\/legal\/"/);
+assert.match(index, /href="\/legal\/privacy\/"/);
+assert.match(index, /href="\/legal\/security\/"/);
 assert.match(
   index,
   new RegExp(`rel="canonical" href="${expectedOrigin.origin}/"`),

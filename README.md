@@ -21,6 +21,7 @@
 <p align="center">
   <a href="https://prosewire.com">Website</a> ·
   <a href="https://prosewire.com/docs/">Documentation</a> ·
+  <a href="https://prosewire.com/legal/">Legal</a> ·
   <a href="#why-prosewire">Why Prosewire</a> ·
   <a href="#features">Features</a> ·
   <a href="#add-to-nextjs-or-astro">Next.js and Astro</a> ·
@@ -185,6 +186,9 @@ pnpm build
 5. Open a pull request.
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md) before making changes. Releases are never implicit.
+
+Cloud terms, privacy practices, data commitments, and reporting procedures are
+published in the [legal and trust center](https://prosewire.com/legal/).
 
 ## License
 

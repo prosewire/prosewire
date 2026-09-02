@@ -21,4 +21,16 @@ const meta = defineCollection({
   }),
 });
 
-export const collections = { docs, meta };
+const legal = defineCollection({
+  loader: glob({ pattern: "**/*.{md,mdx}", base: "./content/legal" }),
+  schema: z.object({
+    title: z.string(),
+    shortTitle: z.string(),
+    description: z.string(),
+    summary: z.string(),
+    order: z.number(),
+    effectiveDate: z.string(),
+  }),
+});
+
+export const collections = { docs, legal, meta };

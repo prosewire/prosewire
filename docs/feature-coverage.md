@@ -70,3 +70,4 @@ missing.
 | Background workflow scaling | Workflow messages and results persist in Postgres; the pinned Effect SQL runner requires exactly one Prosewire worker process per database, with configurable in-process email concurrency |
 | Backups and restore | Postgres ownership and verification steps are documented; automated offsite backups are deployment-owned |
 | Stable public container | Release automation exists, but documentation does not assume registry access until a public image is independently verified |
+| Cloud legal baseline | Public Terms, Privacy, acceptable use, retention, subprocessor, data-location, security, copyright, data-request, and DPA pages are implemented; the maintainer runbook keeps business sales gated until provider, region, processor, transfer, and deletion facts are verified |

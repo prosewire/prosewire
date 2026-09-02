@@ -1,0 +1,55 @@
+---
+import type { CollectionEntry } from "astro:content";
+import SiteFooter from "../components/SiteFooter.astro";
+import { legalPagePath, legalPages } from "../lib/legal";
+import BaseLayout from "./BaseLayout.astro";
+
+interface Props {
+  page: CollectionEntry<"legal">;
+}
+
+const { page } = Astro.props;
+---
+
+<BaseLayout
+  title={`${page.data.title} · Prosewire`}
+  description={page.data.description}
+  image={null}
+>
+  <main class="legal-shell">
+    <nav class="legal-breadcrumbs" aria-label="Breadcrumb">
+      <a href="/">Home</a>
+      <span aria-hidden="true">/</span>
+      <a href="/legal/">Legal</a>
+      <span aria-hidden="true">/</span>
+      <span aria-current="page">{page.data.shortTitle}</span>
+    </nav>
+
+    <div class="legal-frame">
+      <aside class="legal-nav" aria-label="Legal documents">
+        <p>Legal documents</p>
+        {legalPages.map((item) => (
+          <a
+            href={legalPagePath(item.id)}
+            class:list={{ active: item.id === page.id }}
+            aria-current={item.id === page.id ? "page" : undefined}
+          >
+            {item.data.shortTitle}
+          </a>
+        ))}
+      </aside>
+
+      <article class="legal-document">
+        <header class="legal-document-header">
+          <p>Effective {page.data.effectiveDate}</p>
+          <h1>{page.data.title}</h1>
+          <span>{page.data.summary}</span>
+        </header>
+        <div class="legal-prose">
+          <slot />
+        </div>
+      </article>
+    </div>
+  </main>
+  <SiteFooter />
+</BaseLayout>

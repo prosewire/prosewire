@@ -115,6 +115,32 @@ export function SignUpForm({
             {pending ? "Creating…" : "Create account"}
             <ArrowRight className="size-4" />
           </button>
+          {cloudDeployment ? (
+            <p className="text-center text-xs leading-5 text-[#687279]">
+              By creating an account, you agree to the{" "}
+              <a
+                href="https://prosewire.com/legal/terms/"
+                className="font-semibold underline underline-offset-3"
+              >
+                Terms
+              </a>{" "}
+              and acknowledge the{" "}
+              <a
+                href="https://prosewire.com/legal/privacy/"
+                className="font-semibold underline underline-offset-3"
+              >
+                Privacy Policy
+              </a>
+              . Business use is also subject to the{" "}
+              <a
+                href="https://prosewire.com/legal/dpa/"
+                className="font-semibold underline underline-offset-3"
+              >
+                DPA
+              </a>
+              .
+            </p>
+          ) : null}
         </form>
         <p className="mt-5 text-center text-xs text-[#687279]">
           Already have an account?{" "}

@@ -1,0 +1,51 @@
+---
+import SiteFooter from "../../components/SiteFooter.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { legalPagePath, legalPages } from "../../lib/legal";
+---
+
+<BaseLayout
+  title="Legal and trust · Prosewire"
+  description="The terms, privacy practices, data commitments, and reporting procedures that apply to Prosewire Cloud."
+  image={null}
+>
+  <main class="legal-index">
+    <header>
+      <p>Legal and trust</p>
+      <h1>Plain terms, public operating commitments.</h1>
+      <span>
+        These documents apply to Prosewire Cloud. A self-hosted Prosewire
+        operator controls its own deployment and must publish terms for its users.
+      </span>
+    </header>
+
+    <section class="legal-card-grid" aria-label="Legal documents">
+      {legalPages.map((page, index) => (
+        <a href={legalPagePath(page.id)}>
+          <span>{String(index + 1).padStart(2, "0")}</span>
+          <h2>{page.data.shortTitle}</h2>
+          <p>{page.data.description}</p>
+          <b>Read document <i aria-hidden="true">→</i></b>
+        </a>
+      ))}
+    </section>
+
+    <aside class="legal-contact-card">
+      <div>
+        <p>Contact directory</p>
+        <h2>Send the request to the right inbox.</h2>
+      </div>
+      <div>
+        <p>
+          Use <a href="mailto:legal@prosewire.com">legal@prosewire.com</a> for
+          contracts and DPA requests, <a href="mailto:privacy@prosewire.com">privacy@prosewire.com</a>
+          for personal-data requests, and <a href="mailto:security@prosewire.com">security@prosewire.com</a>
+          for vulnerabilities. Abuse and copyright reports have dedicated inboxes
+          in their procedures.
+        </p>
+        <a href="/legal/data-requests/">Read the request procedure →</a>
+      </div>
+    </aside>
+  </main>
+  <SiteFooter />
+</BaseLayout>
