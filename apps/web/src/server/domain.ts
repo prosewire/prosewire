@@ -17,6 +17,11 @@ export const PostId = Schema.String.check(Schema.isUUID()).pipe(
 );
 export type PostId = typeof PostId.Type;
 
+export const MediaAssetId = Schema.String.check(Schema.isUUID()).pipe(
+  Schema.brand("@prosewire/MediaAssetId"),
+);
+export type MediaAssetId = typeof MediaAssetId.Type;
+
 export const UserId = Schema.String.check(Schema.isMinLength(1)).pipe(
   Schema.brand("@prosewire/UserId"),
 );

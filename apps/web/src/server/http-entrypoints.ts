@@ -6,6 +6,7 @@ import { getAuth } from "./auth-service.ts";
 import { decodeErrorTag } from "./boundary-errors.ts";
 import { BlogSlug, PostId, UserId } from "./domain.ts";
 import { promiseEffect } from "./external-effect.ts";
+import { ObjectStorage } from "./object-storage.ts";
 import { PostExport } from "./post-export.ts";
 import { PublicContent } from "./public-content.ts";
 import { serializePublicBlog, serializePublicPost } from "./serialize.ts";
@@ -205,16 +206,21 @@ export async function exportPosts(
           blogSlug: slug.value,
           actorId: UserId.make(session.user.id),
         });
-        return yield* new URL(request.url).searchParams.get("format") === "json"
-          ? service.portable(input)
-          : service.csv(input);
+        const format = new URL(request.url).searchParams.get("format");
+        if (format === "json") return yield* service.portable(input);
+        if (format === "media") return yield* service.media(input);
+        return yield* service.csv(input);
       }),
     ),
     request.signal,
   );
 
   if (Result.isSuccess(result)) {
-    return new Response(result.success.body, {
+    const body =
+      typeof result.success.body === "string"
+        ? result.success.body
+        : Uint8Array.from(result.success.body).buffer;
+    return new Response(body, {
       headers: {
         "Content-Type": result.success.contentType,
         "Content-Disposition": `attachment; filename="${result.success.filename}"`,
@@ -230,6 +236,15 @@ export async function exportPosts(
       return new Response("Forbidden", { status: 403 });
     case "BlogNotFound":
       return new Response("Blog not found", { status: 404 });
+  }
+  if (result.failure instanceof PostExport.MediaExportTooLarge) {
+    return new Response(result.failure.message, { status: 413 });
+  }
+  if (
+    result.failure instanceof ObjectStorage.NotConfigured ||
+    result.failure instanceof ObjectStorage.StorageError
+  ) {
+    return new Response(result.failure.message, { status: 503 });
   }
   throw result.failure;
 }

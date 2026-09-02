@@ -9,6 +9,7 @@ import type { PublicPostOptions } from "./content-queries.ts";
 import { Dashboard } from "./dashboard.ts";
 import { BlogId, BlogSlug, OrganizationId, PostId, UserId } from "./domain.ts";
 import { promiseEffect } from "./external-effect.ts";
+import { Media } from "./media.ts";
 import { PublicContent } from "./public-content.ts";
 
 export class PageBoundaryError extends Schema.TaggedError<PageBoundaryError>()(
@@ -110,7 +111,13 @@ export function loadDashboardContentLibrary() {
     Effect.gen(function* () {
       const { actorId, selection } = yield* currentActor();
       const dashboard = yield* Dashboard.Service;
-      return yield* dashboard.contentLibrary(actorId, selection);
+      const library = yield* dashboard.contentLibrary(actorId, selection);
+      const media = yield* Media.Service;
+      const assets = yield* media.list(library.blog.id, {
+        _tag: "Dashboard",
+        userId: actorId,
+      });
+      return { ...library, media: assets };
     }),
   );
 }
@@ -189,7 +196,13 @@ export function loadNewPost() {
     Effect.gen(function* () {
       const { actorId, selection } = yield* currentActor();
       const dashboard = yield* Dashboard.Service;
-      return yield* dashboard.newPost(actorId, selection);
+      const data = yield* dashboard.newPost(actorId, selection);
+      const media = yield* Media.Service;
+      const assets = yield* media.list(data.blog.id, {
+        _tag: "Dashboard",
+        userId: actorId,
+      });
+      return { ...data, media: assets };
     }),
   );
 }
@@ -206,7 +219,14 @@ export function loadEditPost(id: string) {
     Effect.gen(function* () {
       const { actorId, selection } = yield* currentActor();
       const dashboard = yield* Dashboard.Service;
-      return yield* dashboard.editPost(actorId, selection, postId.value);
+      const data = yield* dashboard.editPost(actorId, selection, postId.value);
+      if (!data) return null;
+      const media = yield* Media.Service;
+      const assets = yield* media.list(data.blog.id, {
+        _tag: "Dashboard",
+        userId: actorId,
+      });
+      return { ...data, media: assets };
     }),
   );
 }

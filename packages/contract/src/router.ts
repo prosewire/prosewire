@@ -8,6 +8,10 @@ import {
 } from "effect/unstable/httpapi";
 import {
   blogOutput,
+  mediaAssetOutput,
+  mediaListOutput,
+  mediaStartUploadInput,
+  mediaUploadReservationOutput,
   paginatedPosts,
   postCreateInput,
   postOutput,
@@ -22,6 +26,10 @@ export const apiErrorStatusByTag = {
   ApiAccessDenied: 403,
   ApiPostNotFound: 404,
   ApiRevisionNotFound: 404,
+  ApiMediaNotFound: 404,
+  ApiMediaConflict: 409,
+  ApiMediaTooLarge: 413,
+  ApiMediaUnavailable: 503,
   ApiUnavailable: 500,
 } as const;
 
@@ -30,6 +38,7 @@ export const privateApiPaths = {
   health: "/health",
   blogs: "/blogs",
   posts: "/posts",
+  media: "/media",
 } as const;
 
 export class ApiInputRejected extends Schema.TaggedError<ApiInputRejected>()(
@@ -62,6 +71,30 @@ export class ApiRevisionNotFound extends Schema.TaggedError<ApiRevisionNotFound>
   { httpApiStatus: apiErrorStatusByTag.ApiRevisionNotFound },
 ) {}
 
+export class ApiMediaNotFound extends Schema.TaggedError<ApiMediaNotFound>()(
+  "ApiMediaNotFound",
+  { message: Schema.String },
+  { httpApiStatus: apiErrorStatusByTag.ApiMediaNotFound },
+) {}
+
+export class ApiMediaConflict extends Schema.TaggedError<ApiMediaConflict>()(
+  "ApiMediaConflict",
+  { message: Schema.String },
+  { httpApiStatus: apiErrorStatusByTag.ApiMediaConflict },
+) {}
+
+export class ApiMediaTooLarge extends Schema.TaggedError<ApiMediaTooLarge>()(
+  "ApiMediaTooLarge",
+  { message: Schema.String },
+  { httpApiStatus: apiErrorStatusByTag.ApiMediaTooLarge },
+) {}
+
+export class ApiMediaUnavailable extends Schema.TaggedError<ApiMediaUnavailable>()(
+  "ApiMediaUnavailable",
+  { message: Schema.String },
+  { httpApiStatus: apiErrorStatusByTag.ApiMediaUnavailable },
+) {}
+
 export class ApiUnavailable extends Schema.TaggedError<ApiUnavailable>()(
   "ApiUnavailable",
   { message: Schema.String },
@@ -74,11 +107,16 @@ export const apiErrors = [
   ApiAccessDenied,
   ApiPostNotFound,
   ApiRevisionNotFound,
+  ApiMediaNotFound,
+  ApiMediaConflict,
+  ApiMediaTooLarge,
+  ApiMediaUnavailable,
   ApiUnavailable,
 ] as const;
 
 export const privateApiPostId = Schema.String.check(Schema.isUUID());
 export const privateApiRevisionId = Schema.String.check(Schema.isUUID());
+export const privateApiMediaId = Schema.String.check(Schema.isUUID());
 export const privateApiPageNumber = Schema.FiniteFromString.pipe(
   Schema.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(1)),
 );
@@ -180,8 +218,55 @@ const posts = HttpApiGroup.make("posts")
     ).annotate(OpenApi.Summary, "Restore a post revision"),
   );
 
+const media = HttpApiGroup.make("media")
+  .add(
+    HttpApiEndpoint.get("list", privateApiPaths.media, {
+      success: mediaListOutput,
+      error: apiErrors,
+    }).annotate(OpenApi.Summary, "List media assets and storage usage"),
+  )
+  .add(
+    HttpApiEndpoint.get("get", `${privateApiPaths.media}/:id`, {
+      params: { id: privateApiMediaId },
+      success: mediaAssetOutput,
+      error: apiErrors,
+    }).annotate(OpenApi.Summary, "Get a media asset"),
+  )
+  .add(
+    HttpApiEndpoint.post("startUpload", `${privateApiPaths.media}/uploads`, {
+      payload: mediaStartUploadInput,
+      success: mediaUploadReservationOutput.pipe(HttpApiSchema.status(201)),
+      error: apiErrors,
+    }).annotate(OpenApi.Summary, "Reserve storage and sign a direct upload"),
+  )
+  .add(
+    HttpApiEndpoint.post(
+      "completeUpload",
+      `${privateApiPaths.media}/:id/complete`,
+      {
+        params: { id: privateApiMediaId },
+        success: mediaAssetOutput,
+        error: apiErrors,
+      },
+    ).annotate(OpenApi.Summary, "Validate and process an uploaded image"),
+  )
+  .add(
+    HttpApiEndpoint.post("backup", `${privateApiPaths.media}/:id/backup`, {
+      params: { id: privateApiMediaId },
+      success: mediaAssetOutput,
+      error: apiErrors,
+    }).annotate(OpenApi.Summary, "Copy a media asset to the backup bucket"),
+  )
+  .add(
+    HttpApiEndpoint.delete("delete", `${privateApiPaths.media}/:id`, {
+      params: { id: privateApiMediaId },
+      success: Schema.Struct({ ok: Schema.Literal(true) }),
+      error: apiErrors,
+    }).annotate(OpenApi.Summary, "Delete an unreferenced media asset"),
+  );
+
 export const api = HttpApi.make("ProsewireApi")
-  .add(health, blogs, posts)
+  .add(health, blogs, posts, media)
   .prefix(privateApiPaths.prefix)
   .annotate(OpenApi.Title, "Prosewire private API")
   .annotate(OpenApi.Version, "1.0.0");

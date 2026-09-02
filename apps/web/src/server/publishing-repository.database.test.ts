@@ -10,6 +10,7 @@ import {
   AuthorId,
   BlogId,
   CategoryId,
+  MediaAssetId,
   OrganizationId,
   PostId,
   UserId,
@@ -399,6 +400,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL publishing repository", () => {
     const blogId = BlogId.make(randomUUID());
     const authorId = AuthorId.make(randomUUID());
     const categoryId = CategoryId.make(randomUUID());
+    const mediaAssetId = MediaAssetId.make(randomUUID());
     const keyId = ApiKeyId.make(randomUUID());
 
     try {
@@ -427,6 +429,35 @@ describe.skipIf(!databaseUrl)("PostgreSQL publishing repository", () => {
         name: "Engineering",
         slug: `category-${randomUUID()}`,
       });
+      await resource.client.insert(schema.mediaAsset).values({
+        id: mediaAssetId,
+        blogId,
+        originalFilename: "cover.webp",
+        declaredMimeType: "image/webp",
+        detectedMimeType: "image/webp",
+        byteSize: 1_024,
+        storageBytes: 2_048,
+        width: 1_600,
+        height: 900,
+        checksumSha256:
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        status: "ready",
+        uploadStorageKey: `uploads/${mediaAssetId}`,
+        uploadExpiresAt: new Date("2026-08-20T00:10:00.000Z"),
+        uploadedAt: new Date("2026-08-20T00:00:00.000Z"),
+      });
+      await resource.client.insert(schema.mediaVariant).values({
+        assetId: mediaAssetId,
+        kind: "large",
+        storageKey: `publications/${blogId}/media/${mediaAssetId}/large.webp`,
+        publicUrl: "https://media.example/managed-cover.webp",
+        mimeType: "image/webp",
+        byteSize: 1_024,
+        width: 1_600,
+        height: 900,
+        checksumSha256:
+          "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      });
       await resource.client.insert(schema.apiKey).values({
         id: keyId,
         blogId,
@@ -448,6 +479,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL publishing repository", () => {
             status: "draft",
             featured: false,
             categoryIds: [categoryId, categoryId],
+            coverImageAssetId: mediaAssetId,
           }),
           { _tag: "Api", keyId },
         ),
@@ -459,6 +491,10 @@ describe.skipIf(!databaseUrl)("PostgreSQL publishing repository", () => {
       });
       expect(createdPost?.categories).toEqual([{ postId, categoryId, blogId }]);
       expect(createdPost?.locale).toBe("fr");
+      expect(createdPost).toMatchObject({
+        coverImageAssetId: mediaAssetId,
+        coverImageUrl: "https://media.example/managed-cover.webp",
+      });
       expect(createdPost?.contentHtml).not.toContain("<script>");
       await Effect.runPromise(
         service.updatePost(
@@ -488,6 +524,8 @@ describe.skipIf(!databaseUrl)("PostgreSQL publishing repository", () => {
         featured: true,
         publishedAt: expect.any(Date),
         categories: [],
+        coverImageAssetId: mediaAssetId,
+        coverImageUrl: "https://media.example/managed-cover.webp",
       });
       expect(persisted?.contentHtml).toContain("Visible");
       expect(persisted?.contentHtml).not.toContain("<script>");
@@ -503,7 +541,11 @@ describe.skipIf(!databaseUrl)("PostgreSQL publishing repository", () => {
       expect(revisions).toHaveLength(1);
       expect(revisions[0]).toMatchObject({
         version: 1,
-        snapshot: { title: "API draft", slug: "api-draft" },
+        snapshot: {
+          title: "API draft",
+          slug: "api-draft",
+          coverImageAssetId: mediaAssetId,
+        },
       });
       expect(redirects).toEqual([
         expect.objectContaining({

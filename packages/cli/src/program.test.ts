@@ -4,8 +4,10 @@ import { type CliPrivateClient, runProgram } from "./program.ts";
 
 function privateClient(
   overrides: Partial<CliPrivateClient["posts"]> = {},
+  mediaOverrides: Partial<CliPrivateClient["media"]> = {},
 ): CliPrivateClient {
   return {
+    blogs: { list: vi.fn() },
     posts: {
       create: vi.fn(),
       update: vi.fn(),
@@ -13,6 +15,15 @@ function privateClient(
       revisions: vi.fn(),
       restore: vi.fn(),
       ...overrides,
+    },
+    media: {
+      list: vi.fn(),
+      get: vi.fn(),
+      startUpload: vi.fn(),
+      completeUpload: vi.fn(),
+      backup: vi.fn(),
+      delete: vi.fn(),
+      ...mediaOverrides,
     },
   };
 }
@@ -291,6 +302,109 @@ describe("Prosewire CLI", () => {
       ),
     ).rejects.toThrow();
     expect(restore).toHaveBeenCalledOnce();
+  });
+
+  it("uploads, lists, backs up, and explicitly deletes media", async () => {
+    const blogId = "11111111-1111-4111-8111-111111111111";
+    const assetId = "22222222-2222-4222-8222-222222222222";
+    const list = vi.fn().mockResolvedValue({ items: [], configured: true });
+    const startUpload = vi.fn().mockResolvedValue({
+      asset: { id: assetId },
+      upload: {
+        url: "https://storage.example/signed",
+        method: "PUT",
+        headers: { "content-type": "image/webp" },
+      },
+    });
+    const completeUpload = vi
+      .fn()
+      .mockResolvedValue({ id: assetId, status: "ready" });
+    const backup = vi.fn().mockResolvedValue({
+      id: assetId,
+      backedUpAt: "2026-08-20T00:00:00.000Z",
+    });
+    const remove = vi.fn().mockResolvedValue({ ok: true });
+    const client = privateClient(
+      {},
+      {
+        list,
+        startUpload,
+        completeUpload,
+        backup,
+        delete: remove,
+      },
+    );
+    const output = vi.fn();
+    const body = new Uint8Array([1, 2, 3]);
+    const fetch = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 200 }));
+    const dependencies = {
+      createClient: vi.fn(() => client),
+      readFile: vi.fn().mockResolvedValue(body),
+      fetch,
+      output,
+      env: {},
+    };
+
+    await runProgram(
+      ["node", "prosewire", "--key", "pw_test", "media-list"],
+      dependencies,
+    );
+    await runProgram(
+      [
+        "node",
+        "prosewire",
+        "--key",
+        "pw_test",
+        "media-upload",
+        "cover.webp",
+        "--blog-id",
+        blogId,
+      ],
+      dependencies,
+    );
+    await runProgram(
+      ["node", "prosewire", "--key", "pw_test", "media-backup", assetId],
+      dependencies,
+    );
+    await runProgram(
+      [
+        "node",
+        "prosewire",
+        "--key",
+        "pw_test",
+        "media-delete",
+        assetId,
+        "--yes",
+      ],
+      dependencies,
+    );
+
+    expect(list).toHaveBeenCalledOnce();
+    expect(startUpload).toHaveBeenCalledWith({
+      blogId,
+      filename: "cover.webp",
+      mimeType: "image/webp",
+      byteSize: body.byteLength,
+    });
+    expect(fetch).toHaveBeenCalledWith("https://storage.example/signed", {
+      method: "PUT",
+      headers: { "content-type": "image/webp" },
+      body,
+    });
+    expect(completeUpload).toHaveBeenCalledWith({ params: { id: assetId } });
+    expect(backup).toHaveBeenCalledWith({ params: { id: assetId } });
+    expect(remove).toHaveBeenCalledWith({ params: { id: assetId } });
+    expect(output).toHaveBeenCalledTimes(4);
+
+    await expect(
+      runProgram(
+        ["node", "prosewire", "--key", "pw_test", "media-delete", assetId],
+        dependencies,
+      ),
+    ).rejects.toThrow();
+    expect(remove).toHaveBeenCalledOnce();
   });
 
   it("writes JSON to stdout by default", async () => {

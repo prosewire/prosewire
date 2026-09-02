@@ -8,6 +8,9 @@ import { WebConfig } from "./config.ts";
 import { ContentQueries } from "./content-queries.ts";
 import { Dashboard } from "./dashboard.ts";
 import { Database } from "./database.ts";
+import { Media } from "./media.ts";
+import { MediaImage } from "./media-image.ts";
+import { ObjectStorage } from "./object-storage.ts";
 import { PlatformCrypto } from "./platform-crypto.ts";
 import { PostExport } from "./post-export.ts";
 import { processSingleton } from "./process-singleton.ts";
@@ -21,6 +24,8 @@ const databaseLayer = Database.layer.pipe(Layer.provideMerge(configLayer));
 
 const infrastructureLayer = Layer.mergeAll(
   Auth.layer,
+  MediaImage.layer,
+  ObjectStorage.layer,
   PlatformCrypto.layer,
 ).pipe(Layer.provideMerge(databaseLayer));
 
@@ -34,6 +39,7 @@ const domainLayer = Layer.mergeAll(
 const applicationLayer = Layer.mergeAll(
   AccountSecurity.layer,
   Dashboard.layer,
+  Media.layer,
   PostExport.layer,
   PublicContent.layer,
   Publishing.live,
@@ -53,6 +59,7 @@ export type AppServices =
   | ApiAccess.Service
   | ApiContent.Service
   | Dashboard.Service
+  | Media.Service
   | PostExport.Service
   | PublicContent.Service
   | Publishing.Service

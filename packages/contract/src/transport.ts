@@ -1,13 +1,17 @@
 import { Schema } from "effect";
 import {
   ApiInputRejected,
+  ApiMediaNotFound,
   ApiPostNotFound,
+  privateApiMediaId,
   privateApiPaths,
   privateApiPostId,
   privateApiPostListQuery,
   privateApiRevisionId,
 } from "./router.ts";
 import {
+  type MediaStartUploadInput,
+  mediaStartUploadInput,
   type PostCreateInput,
   type PostStatus,
   type PostUpdateInput,
@@ -19,6 +23,7 @@ const path = (route: string) => `${privateApiPaths.prefix}${route}`;
 const healthPath = path(privateApiPaths.health);
 const blogsPath = path(privateApiPaths.blogs);
 const postsPath = path(privateApiPaths.posts);
+const mediaPath = path(privateApiPaths.media);
 
 export interface PostListRequest {
   readonly blog?: string | undefined;
@@ -45,7 +50,16 @@ export type PrivateApiRequest =
       readonly _tag: "RestorePostRevision";
       readonly id: string;
       readonly revisionId: string;
-    };
+    }
+  | { readonly _tag: "ListMedia" }
+  | { readonly _tag: "GetMedia"; readonly id: string }
+  | {
+      readonly _tag: "StartMediaUpload";
+      readonly input: MediaStartUploadInput;
+    }
+  | { readonly _tag: "CompleteMediaUpload"; readonly id: string }
+  | { readonly _tag: "BackupMedia"; readonly id: string }
+  | { readonly _tag: "DeleteMedia"; readonly id: string };
 
 async function decode<S extends Schema.ConstraintDecoder<unknown>>(
   schema: S,
@@ -124,6 +138,40 @@ async function revisionRoute(pathname: string): Promise<
   };
 }
 
+async function mediaIdentifier(pathname: string): Promise<
+  | {
+      readonly id: string;
+      readonly action: "get" | "complete" | "backup";
+    }
+  | undefined
+> {
+  const prefix = `${mediaPath}/`;
+  if (!pathname.startsWith(prefix)) return undefined;
+  const segments = pathname.slice(prefix.length).split("/");
+  if (segments.length < 1 || segments.length > 2 || !segments[0]) {
+    return undefined;
+  }
+  const action =
+    segments.length === 1
+      ? "get"
+      : segments[1] === "complete"
+        ? "complete"
+        : segments[1] === "backup"
+          ? "backup"
+          : undefined;
+  if (!action) return undefined;
+  let id: string;
+  try {
+    id = decodeURIComponent(segments[0]);
+  } catch {
+    throw new ApiInputRejected({ message: "Invalid media asset id" });
+  }
+  return {
+    id: await decode(privateApiMediaId, id, "Invalid media asset id"),
+    action,
+  };
+}
+
 export async function decodePrivateApiRequest(
   request: Request,
 ): Promise<PrivateApiRequest> {
@@ -133,6 +181,32 @@ export async function decodePrivateApiRequest(
   }
   if (request.method === "GET" && pathname === blogsPath) {
     return { _tag: "ListBlogs" };
+  }
+  if (request.method === "GET" && pathname === mediaPath) {
+    return { _tag: "ListMedia" };
+  }
+  if (request.method === "POST" && pathname === `${mediaPath}/uploads`) {
+    return {
+      _tag: "StartMediaUpload",
+      input: await decode(
+        mediaStartUploadInput,
+        await json(request),
+        "Invalid media upload",
+      ),
+    };
+  }
+  const media = await mediaIdentifier(pathname);
+  if (media?.action === "get" && request.method === "GET") {
+    return { _tag: "GetMedia", id: media.id };
+  }
+  if (media?.action === "complete" && request.method === "POST") {
+    return { _tag: "CompleteMediaUpload", id: media.id };
+  }
+  if (media?.action === "backup" && request.method === "POST") {
+    return { _tag: "BackupMedia", id: media.id };
+  }
+  if (media?.action === "get" && request.method === "DELETE") {
+    return { _tag: "DeleteMedia", id: media.id };
   }
   if (request.method === "GET" && pathname === postsPath) {
     const query = await decode(
@@ -186,6 +260,9 @@ export async function decodePrivateApiRequest(
     };
   }
   if (id && request.method === "DELETE") return { _tag: "ArchivePost", id };
+  if (pathname.startsWith(mediaPath)) {
+    throw new ApiMediaNotFound({ message: "Media API route not found" });
+  }
   throw new ApiPostNotFound({ message: "API route not found" });
 }
 

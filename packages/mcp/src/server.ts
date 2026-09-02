@@ -1,5 +1,9 @@
 import {
   blogOutput,
+  mediaAssetOutput,
+  mediaListOutput,
+  mediaStartUploadInput,
+  mediaUploadReservationOutput,
   paginatedPosts,
   postCreateInput,
   postOutput,
@@ -134,6 +138,75 @@ export const PostsRevisionRestore = Tool.make("posts_revision_restore", {
   .annotate(Tool.Idempotent, false)
   .annotate(Tool.OpenWorld, false);
 
+const mediaId = Schema.String.check(Schema.isUUID());
+
+export const MediaList = Tool.make("media_list", {
+  description:
+    "List media assets, post references, backup state, and quota usage (safe, read-only).",
+  success: mediaListOutput,
+  failure: ProsewireToolFailure,
+})
+  .annotate(Tool.Title, "List media assets")
+  .annotate(Tool.Readonly, true)
+  .annotate(Tool.Destructive, false)
+  .annotate(Tool.Idempotent, true)
+  .annotate(Tool.OpenWorld, false);
+
+export const MediaUploadStart = Tool.make("media_upload_start", {
+  description:
+    "Reserve quota and create a signed image upload target (mutating, confirm with the user first).",
+  parameters: mediaStartUploadInput,
+  success: mediaUploadReservationOutput,
+  failure: ProsewireToolFailure,
+  needsApproval: true,
+})
+  .annotate(Tool.Title, "Start media upload")
+  .annotate(Tool.Readonly, false)
+  .annotate(Tool.Destructive, false)
+  .annotate(Tool.Idempotent, false)
+  .annotate(Tool.OpenWorld, true);
+
+export const MediaUploadComplete = Tool.make("media_upload_complete", {
+  description:
+    "Validate and process an object after its signed upload has finished (mutating).",
+  parameters: Schema.Struct({ id: mediaId }),
+  success: mediaAssetOutput,
+  failure: ProsewireToolFailure,
+  needsApproval: true,
+})
+  .annotate(Tool.Title, "Complete media upload")
+  .annotate(Tool.Readonly, false)
+  .annotate(Tool.Destructive, false)
+  .annotate(Tool.Idempotent, true)
+  .annotate(Tool.OpenWorld, true);
+
+export const MediaBackup = Tool.make("media_backup", {
+  description: "Copy a ready media asset to the configured backup bucket.",
+  parameters: Schema.Struct({ id: mediaId }),
+  success: mediaAssetOutput,
+  failure: ProsewireToolFailure,
+  needsApproval: true,
+})
+  .annotate(Tool.Title, "Back up media asset")
+  .annotate(Tool.Readonly, false)
+  .annotate(Tool.Destructive, false)
+  .annotate(Tool.Idempotent, true)
+  .annotate(Tool.OpenWorld, true);
+
+export const MediaDelete = Tool.make("media_delete", {
+  description:
+    "Delete an unreferenced media asset from primary storage (destructive, confirm with the user first).",
+  parameters: Schema.Struct({ id: mediaId }),
+  success: Schema.Struct({ ok: Schema.Literal(true) }),
+  failure: ProsewireToolFailure,
+  needsApproval: true,
+})
+  .annotate(Tool.Title, "Delete media asset")
+  .annotate(Tool.Readonly, false)
+  .annotate(Tool.Destructive, true)
+  .annotate(Tool.Idempotent, true)
+  .annotate(Tool.OpenWorld, true);
+
 export const ProsewireToolkit = Toolkit.make(
   PublicationGet,
   PostsList,
@@ -143,6 +216,11 @@ export const ProsewireToolkit = Toolkit.make(
   PostsRevisionsList,
   PostsRevisionRestore,
   PostsArchive,
+  MediaList,
+  MediaUploadStart,
+  MediaUploadComplete,
+  MediaBackup,
+  MediaDelete,
 );
 
 const toolFailure = (error: unknown) =>
@@ -177,6 +255,15 @@ export interface ProsewireMcpClient {
     readonly restore: McpOperation<EffectClient["posts"]["restore"]>;
     readonly archive: McpOperation<EffectClient["posts"]["archive"]>;
   };
+  readonly media: {
+    readonly list: McpOperation<EffectClient["media"]["list"]>;
+    readonly startUpload: McpOperation<EffectClient["media"]["startUpload"]>;
+    readonly completeUpload: McpOperation<
+      EffectClient["media"]["completeUpload"]
+    >;
+    readonly backup: McpOperation<EffectClient["media"]["backup"]>;
+    readonly delete: McpOperation<EffectClient["media"]["delete"]>;
+  };
 }
 
 export function createProsewireMcpHandlers(client: ProsewireMcpClient) {
@@ -202,6 +289,12 @@ export function createProsewireMcpHandlers(client: ProsewireMcpClient) {
     posts_revision_restore: ({ id, revisionId }) =>
       call(client.posts.restore({ params: { id, revisionId } })),
     posts_archive: ({ id }) => call(client.posts.archive({ params: { id } })),
+    media_list: () => call(client.media.list()),
+    media_upload_start: (input) => call(client.media.startUpload(input)),
+    media_upload_complete: ({ id }) =>
+      call(client.media.completeUpload({ params: { id } })),
+    media_backup: ({ id }) => call(client.media.backup({ params: { id } })),
+    media_delete: ({ id }) => call(client.media.delete({ params: { id } })),
   });
 }
 

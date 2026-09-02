@@ -25,6 +25,7 @@ At minimum, set:
 - A stable `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`
 - `SMTP_URL` and `EMAIL_FROM` for invitations
 - A deployment-specific `NEXT_DEPLOYMENT_ID` for the image build
+- S3-compatible `PROSEWIRE_MEDIA_*` settings if editors need managed uploads
 
 Generate secrets with a cryptographically secure tool, for example:
 
@@ -123,17 +124,19 @@ Both queries must return no rows. If either returns data, keep the old release r
 
 ## Back up and restore
 
-Back up Postgres with managed snapshots or `pg_dump`. Back up the Redis volume separately because delivery processing, retries, and failed email jobs live there after outbox dispatch. A Compose-hosted Postgres example is:
+Back up Postgres with managed snapshots or `pg_dump`. Back up the Redis volume separately because delivery processing, retries, and failed email jobs live there after outbox dispatch. If media storage is configured, snapshot or replicate both the primary and backup buckets and record the same recovery point as the database backup. A Compose-hosted Postgres example is:
 
 ```shell
 docker compose exec -T postgres pg_dump -U prosewire -d prosewire --format=custom > prosewire.dump
 ```
 
-Store backups outside the application host, encrypt them when appropriate, and define a retention policy. Test restoration into a separate database and verify posts, authors, redirects, memberships, audit entries, exports, and public visibility before calling the backup usable.
+Store backups outside the application host, encrypt them when appropriate, and define a retention policy. Test restoration into a separate database and object-storage namespace. Verify posts, authors, redirects, memberships, audit entries, media checksums, exports, and public visibility before calling the backup usable.
 
 The `email_delivery_outbox` table and Effect-owned `cluster_*` tables are safe to leave in place when rolling the application back, but an older web release does not create outbox intents. If Redis is lost and restored empty, stop the worker and restore Postgres and Redis to matching recovery points. Do not reset dispatched outbox rows by hand while their workflow execution remains suspended. Restore into a separate environment and verify one invitation workflow before replacing production data.
 
-Portable JSON and CSV exports improve content portability but are not substitutes for a database backup because Prosewire does not currently provide a full import workflow.
+Portable JSON, CSV, and media ZIP exports improve content portability but are not substitutes for coordinated database and object-storage backups because Prosewire does not currently provide a full import workflow.
+
+Migration `0014_yummy_wildside.sql` only adds tables, columns, indexes, and constraints. Existing external cover URLs remain unchanged and their managed-asset identifier stays null. Before rollback, stop writes and take a database backup. An older application ignores the new media tables and column, but cannot understand managed cover references. Restore the database and primary media bucket together if the migration or upload rollout must be reversed. Do not drop the new tables until every post has `cover_image_asset_id` cleared and a replacement external URL has been verified.
 
 ## Production checklist
 
@@ -142,9 +145,10 @@ Portable JSON and CSV exports improve content portability but are not substitute
 - Keep Redis on a private network, retain AOF persistence, and use `maxmemory-policy noeviction`
 - Keep authentication, database, SMTP, API-key, and server-action secrets out of images and source control
 - Configure SMTP and test an invitation before onboarding the team
+- Keep the media bucket private, restrict CDN paths to processed objects, and test signed upload CORS from the dashboard origin
 - Keep `PROSEWIRE_ALLOW_SIGN_UP=false` after bootstrap
 - Remove `PROSEWIRE_BOOTSTRAP_ADMIN_EMAIL` and `PROSEWIRE_BOOTSTRAP_ADMIN_PASSWORD` after the first password change
 - Pin an immutable source commit or image digest instead of `latest`
 - Run exactly one supervised worker for each database and use `PROSEWIRE_EMAIL_WORKER_CONCURRENCY` for parallel SMTP delivery
 - Monitor migration exit status, web health, worker failures, Redis queue age, disk usage, and database capacity
-- Verify a database restore and content export before launch
+- Verify a coordinated database, Redis, and media restore plus every export format before launch

@@ -72,6 +72,58 @@ describe("private API request contract", () => {
     });
   });
 
+  it("decodes media reads, upload steps, backup, and deletion", async () => {
+    const id = "11111111-1111-4111-8111-111111111111";
+    const blogId = "22222222-2222-4222-8222-222222222222";
+
+    await expect(
+      decodePrivateApiRequest(new Request("http://localhost/api/v1/media")),
+    ).resolves.toEqual({ _tag: "ListMedia" });
+    await expect(
+      decodePrivateApiRequest(
+        new Request(`http://localhost/api/v1/media/${id}`),
+      ),
+    ).resolves.toEqual({ _tag: "GetMedia", id });
+    await expect(
+      decodePrivateApiRequest(
+        new Request("http://localhost/api/v1/media/uploads", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            blogId,
+            filename: "cover.webp",
+            mimeType: "image/webp",
+            byteSize: 1_024,
+          }),
+        }),
+      ),
+    ).resolves.toMatchObject({
+      _tag: "StartMediaUpload",
+      input: { blogId, filename: "cover.webp", byteSize: 1_024 },
+    });
+    await expect(
+      decodePrivateApiRequest(
+        new Request(`http://localhost/api/v1/media/${id}/complete`, {
+          method: "POST",
+        }),
+      ),
+    ).resolves.toEqual({ _tag: "CompleteMediaUpload", id });
+    await expect(
+      decodePrivateApiRequest(
+        new Request(`http://localhost/api/v1/media/${id}/backup`, {
+          method: "POST",
+        }),
+      ),
+    ).resolves.toEqual({ _tag: "BackupMedia", id });
+    await expect(
+      decodePrivateApiRequest(
+        new Request(`http://localhost/api/v1/media/${id}`, {
+          method: "DELETE",
+        }),
+      ),
+    ).resolves.toEqual({ _tag: "DeleteMedia", id });
+  });
+
   it("owns malformed input and unknown-route failures", async () => {
     await expect(
       decodePrivateApiRequest(
@@ -87,6 +139,11 @@ describe("private API request contract", () => {
           "http://localhost/api/v1/posts/11111111-1111-4111-8111-111111111111/revisions/not-a-uuid/restore",
           { method: "POST" },
         ),
+      ),
+    ).rejects.toBeInstanceOf(ApiInputRejected);
+    await expect(
+      decodePrivateApiRequest(
+        new Request("http://localhost/api/v1/media/not-a-uuid"),
       ),
     ).rejects.toBeInstanceOf(ApiInputRejected);
   });

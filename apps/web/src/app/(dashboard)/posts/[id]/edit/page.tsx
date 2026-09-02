@@ -20,7 +20,7 @@ export default async function EditPostPage({
   const [{ id }, query] = await Promise.all([params, searchParams]);
   const result = dashboardData(await loadEditPost(id));
   if (!result) notFound();
-  const { blog, post, authors, categories, context } = result;
+  const { blog, post, authors, categories, context, media } = result;
   const canPublish = hasPermission(context.role, "content:publish");
   const canArchive = hasPermission(context.role, "content:archive");
   return (
@@ -31,6 +31,7 @@ export default async function EditPostPage({
       saved={query.saved === "1"}
       restored={query.restored === "1"}
       error={query.error}
+      media={media}
       authors={authors.map(({ id, name }) => ({ id, name }))}
       categories={categories.map(({ id, name }) => ({ id, name }))}
       locales={blog.locales}
@@ -47,6 +48,7 @@ export default async function EditPostPage({
         status: post.status,
         locale: post.locale,
         featured: post.featured,
+        coverImageAssetId: post.coverImageAssetId ?? "",
         coverImageUrl: post.coverImageUrl ?? "",
         coverImageAlt: post.coverImageAlt ?? "",
         seoTitle: post.seoTitle ?? "",

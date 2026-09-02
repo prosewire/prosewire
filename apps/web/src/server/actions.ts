@@ -7,6 +7,13 @@ import { changeRequiredPassword as runChangeRequiredPassword } from "./account-e
 import { actionErrorRedirect } from "./action-errors.ts";
 import { decodeErrorTag, decodeTaggedError } from "./boundary-errors.ts";
 import {
+  backup as runBackupMedia,
+  completeUpload as runCompleteMediaUpload,
+  remove as runRemoveMedia,
+  startUpload as runStartMediaUpload,
+  type StartUploadBoundaryInput,
+} from "./media-entrypoints.ts";
+import {
   bulkArchive as runBulkArchive,
   restorePostRevision as runRestorePostRevision,
   savePost as runSavePost,
@@ -100,6 +107,7 @@ function savePostInput(formData: FormData): SavePostBoundaryInput {
     requestedStatus: text(formData, "status"),
     featured: formData.get("featured") === "on",
     locale: text(formData, "locale") || "en",
+    coverImageAssetId: nullableText(formData, "coverImageAssetId"),
     coverImageUrl: nullableText(formData, "coverImageUrl"),
     coverImageAlt: nullableText(formData, "coverImageAlt"),
     seoTitle: nullableText(formData, "seoTitle"),
@@ -180,6 +188,34 @@ export async function updateBlogSettings(formData: FormData): Promise<void> {
   revalidatePath("/settings");
   revalidatePath(`/b/${blogSlug}`);
   redirect("/settings?saved=1");
+}
+
+export async function requestMediaUpload(input: StartUploadBoundaryInput) {
+  return authorizedMutation(runStartMediaUpload(input));
+}
+
+export async function finishMediaUpload(blogId: string, assetId: string) {
+  return authorizedMutation(runCompleteMediaUpload(blogId, assetId));
+}
+
+export async function deleteMediaAsset(formData: FormData): Promise<void> {
+  try {
+    await runRemoveMedia(text(formData, "blogId"), text(formData, "assetId"));
+  } catch (error) {
+    redirectActionError(error, "/content");
+  }
+  revalidatePath("/content");
+  redirect("/content?mediaDeleted=1");
+}
+
+export async function backupMediaAsset(formData: FormData): Promise<void> {
+  try {
+    await runBackupMedia(text(formData, "blogId"), text(formData, "assetId"));
+  } catch (error) {
+    redirectActionError(error, "/content");
+  }
+  revalidatePath("/content");
+  redirect("/content?mediaBackedUp=1");
 }
 
 export async function changeRequiredPassword(

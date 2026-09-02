@@ -3,7 +3,14 @@ import { Effect, Schema } from "effect";
 import { requireDashboardSessionEffect } from "@/lib/session";
 import { runAppEffect } from "./app-runtime.ts";
 import { BlogErrors } from "./blog-errors.ts";
-import { AuthorId, BlogId, CategoryId, PostId, UserId } from "./domain.ts";
+import {
+  AuthorId,
+  BlogId,
+  CategoryId,
+  MediaAssetId,
+  PostId,
+  UserId,
+} from "./domain.ts";
 import { PostErrors } from "./post-errors.ts";
 import {
   ArchivePostsCommand,
@@ -28,6 +35,7 @@ class SavePostInput extends Schema.Class<SavePostInput>(
   requestedStatus: Schema.Literals(["draft", "scheduled", "published"]),
   featured: Schema.Boolean,
   locale: Schema.String,
+  coverImageAssetId: Schema.NullOr(MediaAssetId),
   coverImageUrl: Schema.NullOr(Schema.String),
   coverImageAlt: Schema.NullOr(Schema.String),
   seoTitle: Schema.NullOr(Schema.String),
@@ -101,6 +109,7 @@ export function savePost(input: SavePostBoundaryInput) {
         slug: slugify(command.requestedSlug || command.title),
         excerpt: command.excerpt,
         contentMarkdown: command.contentMarkdown,
+        coverImageAssetId: command.coverImageAssetId,
         coverImageUrl: command.coverImageUrl,
         coverImageAlt: command.coverImageAlt,
         status: command.requestedStatus,

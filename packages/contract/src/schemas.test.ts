@@ -1,6 +1,7 @@
 import { Schema } from "effect";
 import { describe, expect, it } from "vitest";
 import {
+  mediaStartUploadInput,
   postCreateInput,
   postRevisionOutput,
   postUpdateInput,
@@ -107,4 +108,33 @@ describe("public post schemas", () => {
       ).toThrow();
     },
   );
+});
+
+describe("media schemas", () => {
+  it("accepts an exact upload reservation shape", () => {
+    expect(
+      Schema.decodeSync(mediaStartUploadInput)({
+        blogId: "11111111-1111-4111-8111-111111111111",
+        filename: "cover.avif",
+        mimeType: "image/avif",
+        byteSize: 1_024,
+      }),
+    ).toEqual({
+      blogId: "11111111-1111-4111-8111-111111111111",
+      filename: "cover.avif",
+      mimeType: "image/avif",
+      byteSize: 1_024,
+    });
+  });
+
+  it("rejects empty names and non-positive sizes", () => {
+    expect(() =>
+      Schema.decodeSync(mediaStartUploadInput)({
+        blogId: "11111111-1111-4111-8111-111111111111",
+        filename: "",
+        mimeType: "image/png",
+        byteSize: 0,
+      }),
+    ).toThrow();
+  });
 });

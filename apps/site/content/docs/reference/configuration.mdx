@@ -1,6 +1,6 @@
 ---
 title: Configuration map
-description: Runtime, authentication, email, bootstrap, worker, and documentation-site settings for Prosewire.
+description: Runtime, authentication, media, email, bootstrap, worker, and documentation-site settings for Prosewire.
 section: Reference
 order: 8
 ---
@@ -25,6 +25,31 @@ Use the same `DATABASE_URL` for the migration, web, and worker processes. The wo
 The Redis account must permit `SCRIPT LOAD`, `EVALSHA`, publish, subscribe, list, set, hash, string, and expiry commands. Use AOF persistence, replication, backups, and `maxmemory-policy noeviction` in production. Postgres retains the original email intent and the workflow result. Redis owns the queued delivery payload while the workflow waits. Back up both systems because losing Redis after Postgres marks an intent dispatched can leave an email workflow waiting for a queue item that no longer exists.
 
 The two public URL values should be the same external HTTPS origin seen by users. Do not include a path suffix.
+
+## Media storage and delivery
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `PROSEWIRE_MEDIA_ENDPOINT` | Cloud; optional self-hosted | S3-compatible API endpoint |
+| `PROSEWIRE_MEDIA_REGION` | No | Object-storage region; defaults to `auto` |
+| `PROSEWIRE_MEDIA_BUCKET` | With endpoint | Private primary bucket for uploads and processed variants |
+| `PROSEWIRE_MEDIA_ACCESS_KEY_ID` | With endpoint | Object-storage access-key identifier |
+| `PROSEWIRE_MEDIA_SECRET_ACCESS_KEY` | With endpoint | Object-storage secret key |
+| `PROSEWIRE_MEDIA_PUBLIC_URL` | With endpoint | CDN origin used for processed asset URLs |
+| `PROSEWIRE_MEDIA_FORCE_PATH_STYLE` | No | Enables path-style bucket addressing; defaults to `false` |
+| `PROSEWIRE_MEDIA_MAX_UPLOAD_BYTES` | No | Maximum reservation size from 1 byte through 100 MiB; defaults to 20 MiB |
+| `PROSEWIRE_MEDIA_UPLOAD_URL_EXPIRES_SECONDS` | No | Signed upload lifetime from 60 through 3600 seconds; defaults to 600 |
+| `PROSEWIRE_MEDIA_BACKUP_BUCKET` | No | Second bucket that receives processed media copies |
+
+Set all five endpoint, bucket, credential, and public URL values together. Cloud mode rejects a missing media configuration. Self-hosted mode can omit it and continue using external cover-image URLs.
+
+The primary bucket must stay private. Put a CDN in front of it and configure the CDN to serve only processed keys under `publications/`. Deny the temporary `_uploads/` prefix. Processed filenames contain a checksum, so the CDN may cache them; Prosewire records the resulting CDN URL with each variant.
+
+Browser uploads use a signed `PUT` request. The bucket CORS policy must allow the exact Prosewire dashboard origin, the `PUT` method, and the `Content-Type` request header. Do not use a wildcard origin for a credentialed production dashboard. The application checks the reserved byte count against the object metadata, reads the object back, detects its MIME type from the image, rejects animated or multi-page inputs, and produces sanitized original, 1600-pixel, and 480-pixel variants.
+
+Each publication starts with a 1 GiB storage quota recorded in Postgres. Pending reservations and ready variants count toward the quota. Operators can change `blog.media_storage_quota_bytes` through a controlled database operation until a quota administration surface is added.
+
+When a backup bucket is configured, upload completion copies every processed variant and records the completed backup time. A failed backup does not mark an upload ready. Manual retry is available in the dashboard and management clients. The backup bucket uses the same S3 endpoint and credentials, should have versioning and retention enabled, and should use a separate failure domain where the provider supports one.
 
 ## Authentication and email
 
@@ -103,4 +128,4 @@ On Vercel, `VERCEL_PROJECT_PRODUCTION_URL` supplies the origin when system envir
 - Keep Postgres on a private network and require TLS for remote connections
 - Store API tokens as hashes and use the narrowest read/write scope
 - Rotate a compromised API key by creating a replacement, changing the consumer, then revoking the old key
-- Back up Postgres and test a restore before launch
+- Back up Postgres, Redis, and the media buckets, then test a coordinated restore before launch

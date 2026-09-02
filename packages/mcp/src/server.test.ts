@@ -20,6 +20,7 @@ const post = {
   excerpt: "",
   contentMarkdown: "",
   contentHtml: "",
+  coverImageAssetId: null,
   coverImageUrl: null,
   coverImageAlt: null,
   status: "draft" as const,
@@ -45,6 +46,26 @@ const post = {
   categories: [],
 };
 
+const mediaAsset = {
+  id,
+  blogId: id,
+  filename: "cover.png",
+  mimeType: "image/png",
+  byteSize: 100,
+  storageBytes: 200,
+  width: 10,
+  height: 10,
+  checksumSha256: "abc",
+  status: "ready" as const,
+  url: "https://media.example/cover.webp",
+  variants: [],
+  references: [],
+  uploadedAt: now,
+  backedUpAt: null,
+  createdAt: now,
+  updatedAt: now,
+};
+
 function mockClient(): ProsewireMcpClient {
   return {
     blogs: { list: vi.fn(() => Effect.succeed([])) },
@@ -63,6 +84,40 @@ function mockClient(): ProsewireMcpClient {
       revisions: vi.fn(() => Effect.succeed([])),
       restore: vi.fn(() => Effect.succeed({ ...post, title: "Restored" })),
       archive: vi.fn(() => Effect.succeed({ ok: true as const })),
+    },
+    media: {
+      list: vi.fn(() =>
+        Effect.succeed({
+          items: [mediaAsset],
+          usage: {
+            usedBytes: 200,
+            quotaBytes: 1_000,
+            remainingBytes: 800,
+          },
+          configured: true,
+          backupConfigured: true,
+          maxUploadBytes: 500,
+        }),
+      ),
+      startUpload: vi.fn(() =>
+        Effect.succeed({
+          asset: { ...mediaAsset, status: "pending" as const, url: null },
+          upload: {
+            url: "https://storage.example/upload",
+            method: "PUT" as const,
+            headers: { "content-type": "image/png" },
+            expiresAt: now,
+          },
+          usage: {
+            usedBytes: 200,
+            quotaBytes: 1_000,
+            remainingBytes: 800,
+          },
+        }),
+      ),
+      completeUpload: vi.fn(() => Effect.succeed(mediaAsset)),
+      backup: vi.fn(() => Effect.succeed(mediaAsset)),
+      delete: vi.fn(() => Effect.succeed({ ok: true as const })),
     },
   };
 }
@@ -106,6 +161,11 @@ describe("Prosewire Effect MCP server", () => {
       "posts_revisions_list",
       "posts_revision_restore",
       "posts_archive",
+      "media_list",
+      "media_upload_start",
+      "media_upload_complete",
+      "media_backup",
+      "media_delete",
     ]);
     expect(
       Context.get(ProsewireToolkit.tools.posts_list.annotations, Tool.Readonly),
@@ -138,6 +198,16 @@ describe("Prosewire Effect MCP server", () => {
     expect(ProsewireToolkit.tools.posts_revision_restore.needsApproval).toBe(
       true,
     );
+    expect(
+      Context.get(ProsewireToolkit.tools.media_list.annotations, Tool.Readonly),
+    ).toBe(true);
+    expect(
+      Context.get(
+        ProsewireToolkit.tools.media_delete.annotations,
+        Tool.Destructive,
+      ),
+    ).toBe(true);
+    expect(ProsewireToolkit.tools.media_delete.needsApproval).toBe(true);
   });
 
   it("validates inputs and delegates all tools to the Effect SDK", async () => {
@@ -187,6 +257,30 @@ describe("Prosewire Effect MCP server", () => {
       runTool(client, (toolkit) => toolkit.handle("posts_archive", { id })),
     ).resolves.toEqual({ ok: true });
     await expect(
+      runTool(client, (toolkit) => toolkit.handle("media_list", {})),
+    ).resolves.toMatchObject({ configured: true });
+    await expect(
+      runTool(client, (toolkit) =>
+        toolkit.handle("media_upload_start", {
+          blogId: id,
+          filename: "cover.png",
+          mimeType: "image/png",
+          byteSize: 100,
+        }),
+      ),
+    ).resolves.toMatchObject({ upload: { method: "PUT" } });
+    await expect(
+      runTool(client, (toolkit) =>
+        toolkit.handle("media_upload_complete", { id }),
+      ),
+    ).resolves.toMatchObject({ id });
+    await expect(
+      runTool(client, (toolkit) => toolkit.handle("media_backup", { id })),
+    ).resolves.toMatchObject({ id });
+    await expect(
+      runTool(client, (toolkit) => toolkit.handle("media_delete", { id })),
+    ).resolves.toEqual({ ok: true });
+    await expect(
       runTool(client, (toolkit) =>
         toolkit.handle("posts_revision_restore", {
           id,
@@ -221,6 +315,18 @@ describe("Prosewire Effect MCP server", () => {
       params: { id, revisionId: id },
     });
     expect(client.posts.archive).toHaveBeenCalledWith({ params: { id } });
+    expect(client.media.list).toHaveBeenCalledWith();
+    expect(client.media.startUpload).toHaveBeenCalledWith({
+      blogId: id,
+      filename: "cover.png",
+      mimeType: "image/png",
+      byteSize: 100,
+    });
+    expect(client.media.completeUpload).toHaveBeenCalledWith({
+      params: { id },
+    });
+    expect(client.media.backup).toHaveBeenCalledWith({ params: { id } });
+    expect(client.media.delete).toHaveBeenCalledWith({ params: { id } });
   });
 
   it("rejects invalid UUIDs before calling the SDK", async () => {

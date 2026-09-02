@@ -1,5 +1,6 @@
 import { relations, sql } from "drizzle-orm";
 import {
+  bigint,
   boolean,
   check,
   foreignKey,
@@ -43,9 +44,18 @@ export const blog = pgTable(
     accentColor: text("accent_color").notNull().default("#f06445"),
     customCss: text("custom_css").notNull().default(""),
     publicUrl: text("public_url"),
+    mediaStorageQuotaBytes: bigint("media_storage_quota_bytes", {
+      mode: "number",
+    })
+      .notNull()
+      .default(1_073_741_824),
     ...timestamps,
   },
   (table) => [
+    check(
+      "blog_media_storage_quota_bytes_check",
+      sql`${table.mediaStorageQuotaBytes} > 0`,
+    ),
     check(
       "blog_default_locale_check",
       sql`cardinality(${table.locales}) > 0 and ${table.locale} = any(${table.locales})`,
@@ -93,6 +103,87 @@ export const category = pgTable(
   ],
 );
 
+export const mediaAsset = pgTable(
+  "media_asset",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    blogId: uuid("blog_id")
+      .notNull()
+      .references(() => blog.id, { onDelete: "cascade" }),
+    originalFilename: text("original_filename").notNull(),
+    declaredMimeType: text("declared_mime_type").notNull(),
+    detectedMimeType: text("detected_mime_type"),
+    byteSize: bigint("byte_size", { mode: "number" }).notNull(),
+    storageBytes: bigint("storage_bytes", { mode: "number" }).notNull(),
+    width: integer("width"),
+    height: integer("height"),
+    checksumSha256: text("checksum_sha256"),
+    status: text("status", {
+      enum: ["pending", "processing", "ready", "failed", "deleted"],
+    })
+      .notNull()
+      .default("pending"),
+    uploadStorageKey: text("upload_storage_key").notNull().unique(),
+    failureReason: text("failure_reason"),
+    createdById: text("created_by_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    uploadExpiresAt: timestamp("upload_expires_at", {
+      withTimezone: true,
+    }).notNull(),
+    uploadedAt: timestamp("uploaded_at", { withTimezone: true }),
+    backedUpAt: timestamp("backed_up_at", { withTimezone: true }),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [
+    unique("media_asset_id_blog_id_unique").on(table.id, table.blogId),
+    index("media_asset_blog_status_created_idx").on(
+      table.blogId,
+      table.status,
+      table.createdAt,
+    ),
+    check("media_asset_byte_size_check", sql`${table.byteSize} > 0`),
+    check("media_asset_storage_bytes_check", sql`${table.storageBytes} > 0`),
+    check(
+      "media_asset_status_check",
+      sql`${table.status} in ('pending', 'processing', 'ready', 'failed', 'deleted')`,
+    ),
+  ],
+);
+
+export const mediaVariant = pgTable(
+  "media_variant",
+  {
+    assetId: uuid("asset_id")
+      .notNull()
+      .references(() => mediaAsset.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: ["original", "large", "thumbnail"] }).notNull(),
+    storageKey: text("storage_key").notNull().unique(),
+    publicUrl: text("public_url").notNull(),
+    mimeType: text("mime_type").notNull(),
+    byteSize: bigint("byte_size", { mode: "number" }).notNull(),
+    width: integer("width").notNull(),
+    height: integer("height").notNull(),
+    checksumSha256: text("checksum_sha256").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.assetId, table.kind] }),
+    check(
+      "media_variant_kind_check",
+      sql`${table.kind} in ('original', 'large', 'thumbnail')`,
+    ),
+    check("media_variant_byte_size_check", sql`${table.byteSize} > 0`),
+    check(
+      "media_variant_dimensions_check",
+      sql`${table.width} > 0 and ${table.height} > 0`,
+    ),
+  ],
+);
+
 export const post = pgTable(
   "post",
   {
@@ -106,6 +197,7 @@ export const post = pgTable(
     excerpt: text("excerpt").notNull().default(""),
     contentMarkdown: text("content_markdown").notNull().default(""),
     contentHtml: text("content_html").notNull().default(""),
+    coverImageAssetId: uuid("cover_image_asset_id"),
     coverImageUrl: text("cover_image_url"),
     coverImageAlt: text("cover_image_alt"),
     status: text("status", {
@@ -136,6 +228,11 @@ export const post = pgTable(
       name: "post_author_blog_fk",
       columns: [table.authorId, table.blogId],
       foreignColumns: [author.id, author.blogId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "post_cover_media_asset_blog_fk",
+      columns: [table.coverImageAssetId, table.blogId],
+      foreignColumns: [mediaAsset.id, mediaAsset.blogId],
     }).onDelete("restrict"),
     uniqueIndex("post_blog_slug_unique").on(table.blogId, table.slug),
     index("post_blog_status_published_idx").on(
@@ -351,6 +448,20 @@ export const blogRelations = relations(blog, ({ one, many }) => ({
   authors: many(author),
   categories: many(category),
   posts: many(post),
+  mediaAssets: many(mediaAsset),
+}));
+
+export const mediaAssetRelations = relations(mediaAsset, ({ one, many }) => ({
+  blog: one(blog, { fields: [mediaAsset.blogId], references: [blog.id] }),
+  variants: many(mediaVariant),
+  coverPosts: many(post),
+}));
+
+export const mediaVariantRelations = relations(mediaVariant, ({ one }) => ({
+  asset: one(mediaAsset, {
+    fields: [mediaVariant.assetId],
+    references: [mediaAsset.id],
+  }),
 }));
 
 export const authorRelations = relations(author, ({ one, many }) => ({
@@ -368,6 +479,10 @@ export const postRelations = relations(post, ({ one, many }) => ({
   author: one(author, {
     fields: [post.authorId, post.blogId],
     references: [author.id, author.blogId],
+  }),
+  coverImageAsset: one(mediaAsset, {
+    fields: [post.coverImageAssetId, post.blogId],
+    references: [mediaAsset.id, mediaAsset.blogId],
   }),
   categories: many(postCategory),
   revisions: many(postRevision),

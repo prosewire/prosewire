@@ -26,10 +26,17 @@ export function actionErrorRedirect(
     case "InvalidPasswordChange":
     case "InvalidWorkspaceInput":
     case "SelfHostedWorkspaceAlreadyExists":
+    case "MediaInvalidUpload":
+    case "MediaQuotaExceeded":
+    case "MediaAssetInUse":
+    case "MediaInvalidState":
+    case "MediaUploadExpired":
+    case "MediaBackupNotConfigured":
       return `${fallbackPath.includes("?") ? `${fallbackPath}&` : `${fallbackPath}?`}error=${encodeURIComponent(error.message)}`;
     case "PostNotFound":
     case "PostRevisionNotFound":
     case "BlogNotFound":
+    case "MediaAssetNotFound":
       return `${fallbackPath}?error=${encodeURIComponent(error.message)}`;
     default:
       return undefined;

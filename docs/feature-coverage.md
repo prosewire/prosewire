@@ -12,7 +12,7 @@ missing.
 | Draft, schedule, publish, archive, and republish | Implemented in the dashboard and management API |
 | Tiptap rich-text editor, Markdown source, live preview, excerpt, and reading time | Implemented; Markdown remains the portable source of record |
 | Content and search checks | Implemented as deterministic guidance; not a guarantee of ranking or accessibility compliance |
-| Cover image URL and alt text | Implemented as metadata; no media library or upload workflow |
+| Cover images and media library | External URL metadata remains supported; managed JPEG, PNG, WebP, and AVIF uploads use signed object-storage requests, validated and sanitized variants, CDN URLs, per-publication quotas, post references, guarded deletion, optional backup copies, and portable exports |
 | Featured or pinned posts | Implemented as one `featured` flag used by the public homepage |
 | Revisions | History browsing and confirmed restore are implemented in the dashboard, management API, SDK, CLI, and MCP; each restore first saves the version it replaces |
 | Bulk operations | Bulk archive is implemented; bulk editing of other fields is not |
@@ -52,11 +52,11 @@ missing.
 | JavaScript embed | Implemented without an iframe; loads a publication index or one article |
 | Rendered HTML API | Implemented with sanitized post content and stable `pw-*` classes |
 | Public JSON API | Implemented for published lists and individual posts |
-| Private management API | Implemented for health, publication listing, post list/get/create/update/archive, and revision list/restore |
+| Private management API | Implemented for health, publication listing, post list/get/create/update/archive, revision list/restore, and media upload/list/backup/delete |
 | TypeScript SDK | Promise and Effect clients are published as pre-1.0 packages |
 | CLI | Public read commands and authenticated create/update/archive commands are published |
 | MCP server | Read, mutating, and destructive tools are published with operation metadata and approval requirements |
-| Portable export | Versioned JSON includes publication relationships and revisions; CSV covers posts and related identifiers |
+| Portable export | Versioned JSON includes publication relationships, revisions, and the media manifest; CSV includes managed cover identifiers; a separate ZIP contains sanitized original media files |
 
 ## Operations
 
@@ -68,6 +68,6 @@ missing.
 | Scheduled publishing | A named Effect workflow runs the database scan and atomic publication updates; the single workflow worker recovers persisted executions after restart |
 | Invitation delivery | Invitation state and a typed email intent commit together in Postgres; `LISTEN`/`NOTIFY` starts an outbox workflow immediately, a 30-second scan covers missed notifications, and an idempotent email workflow waits on Effect `DurableQueue` in Redis |
 | Background workflow scaling | Workflow messages and results persist in Postgres; the pinned Effect SQL runner requires exactly one Prosewire worker process per database, with configurable in-process email concurrency |
-| Backups and restore | Postgres ownership and verification steps are documented; automated offsite backups are deployment-owned |
+| Backups and restore | Postgres and object-storage recovery are documented; media supports an optional second-bucket copy, while snapshot schedules and offsite retention remain deployment-owned |
 | Stable public container | Release automation exists, but documentation does not assume registry access until a public image is independently verified |
 | Cloud legal baseline | Public Terms, Privacy, acceptable use, retention, subprocessor, data-location, security, copyright, data-request, and DPA pages are implemented; the maintainer runbook keeps business sales gated until provider, region, processor, transfer, and deletion facts are verified |
