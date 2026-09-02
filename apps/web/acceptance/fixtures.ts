@@ -15,6 +15,14 @@ export const acceptance = {
     id: "acceptance-other-owner",
     email: "other-owner@acceptance.test",
   },
+  workspaceLessOwner: {
+    id: "acceptance-workspace-less-owner",
+    email: "workspace-less-owner@acceptance.test",
+  },
+  publicationLessOwner: {
+    id: "acceptance-publication-less-owner",
+    email: "publication-less-owner@acceptance.test",
+  },
   organization: {
     id: "acceptance-organization",
     slug: "acceptance-workspace",
@@ -22,6 +30,10 @@ export const acceptance = {
   otherOrganization: {
     id: "acceptance-other-organization",
     slug: "acceptance-other-workspace",
+  },
+  publicationLessOrganization: {
+    id: "acceptance-publication-less-organization",
+    slug: "acceptance-publication-less-workspace",
   },
   blog: {
     id: "11111111-1111-4111-8111-111111111111",

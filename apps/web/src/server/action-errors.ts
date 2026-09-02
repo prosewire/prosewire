@@ -10,7 +10,7 @@ export type ActionBoundaryError =
   | PostErrors.PostRevisionNotFound
   | BlogErrors.BlogNotFound
   | BlogErrors.InvalidBlogSettings
-  | ({ readonly _tag: string } & Error);
+  | { readonly _tag: string; readonly message: string };
 
 export function actionErrorRedirect(
   error: ActionBoundaryError,

@@ -5,7 +5,7 @@ import { cookies } from "next/headers";
 import { forbidden, redirect } from "next/navigation";
 import { changeRequiredPassword as runChangeRequiredPassword } from "./account-entrypoints.ts";
 import { actionErrorRedirect } from "./action-errors.ts";
-import { BlogAccessDenied, WorkspaceAccessDenied } from "./authorization.ts";
+import { decodeErrorTag, decodeTaggedError } from "./boundary-errors.ts";
 import {
   bulkArchive as runBulkArchive,
   restorePostRevision as runRestorePostRevision,
@@ -61,34 +61,23 @@ async function authorizedMutation<A>(operation: Promise<A>): Promise<A> {
   try {
     return await operation;
   } catch (error) {
-    if (
-      error instanceof BlogAccessDenied ||
-      error instanceof WorkspaceAccessDenied
-    ) {
+    if (isAccessDenied(error)) {
       forbidden();
     }
     throw error;
   }
 }
 
-function taggedError(
-  error: unknown,
-): ({ readonly _tag: string } & Error) | undefined {
-  if (!(error instanceof Error) || !("_tag" in error)) return undefined;
-  const tag = error._tag;
-  return typeof tag === "string"
-    ? Object.assign(error, { _tag: tag })
-    : undefined;
+function isAccessDenied(error: unknown): boolean {
+  const tag = decodeErrorTag(error);
+  return tag === "BlogAccessDenied" || tag === "WorkspaceAccessDenied";
 }
 
 function redirectActionError(error: unknown, fallbackPath: string): never {
-  if (
-    error instanceof BlogAccessDenied ||
-    error instanceof WorkspaceAccessDenied
-  ) {
+  if (isAccessDenied(error)) {
     forbidden();
   }
-  const tagged = taggedError(error);
+  const tagged = decodeTaggedError(error);
   const destination = tagged
     ? actionErrorRedirect(tagged, fallbackPath)
     : undefined;
@@ -367,10 +356,7 @@ export async function createApiKey(
     revalidatePath("/integrate");
     return { apiKey };
   } catch (error) {
-    if (
-      error instanceof BlogAccessDenied ||
-      error instanceof WorkspaceAccessDenied
-    ) {
+    if (isAccessDenied(error)) {
       forbidden();
     }
     return {
