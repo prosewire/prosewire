@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { resolveProductionSiteOrigin } from "../apps/site/site-origin.mjs";
 
 const forbiddenOrigin = [
   "https://prosewire-site",
@@ -26,12 +27,13 @@ if (matches) {
 }
 
 if (process.argv.includes("--production")) {
-  if (!process.env.SITE_URL) {
+  const productionSiteOrigin = resolveProductionSiteOrigin();
+  if (!productionSiteOrigin) {
     throw new Error(
-      "SITE_URL is required for a production documentation build",
+      "SITE_URL or VERCEL_PROJECT_PRODUCTION_URL is required for a production documentation build",
     );
   }
-  const site = new URL(process.env.SITE_URL);
+  const site = new URL(productionSiteOrigin);
   const placeholderHost =
     site.hostname === "localhost" ||
     site.hostname.endsWith(".localhost") ||

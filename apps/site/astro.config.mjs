@@ -11,12 +11,9 @@ import {
   remarkNpm,
   remarkStructure,
 } from "fumadocs-core/mdx-plugins";
+import { resolveSiteOrigin } from "./site-origin.mjs";
 
-const site =
-  process.env.SITE_URL ??
-  (process.env.WORKERS_CI === "1"
-    ? "https://prosewire.com"
-    : "http://localhost:4321");
+const site = resolveSiteOrigin();
 
 export default defineConfig({
   site,

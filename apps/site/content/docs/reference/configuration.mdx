@@ -95,7 +95,7 @@ The separate Astro landing page and documentation site uses `SITE_URL` for canon
 SITE_URL=https://docs.example.com pnpm --filter @prosewire/site build:production
 ```
 
-A production build rejects a missing, local, reserved, or known dead origin. `SITE_URL` configures the documentation site only; it does not configure the Prosewire publishing application.
+On Vercel, `VERCEL_PROJECT_PRODUCTION_URL` supplies the origin when system environment variables are enabled. `SITE_URL` overrides it for manual or non-Vercel builds. A production build rejects a missing, local, reserved, or known dead origin. These variables configure the documentation site only; they do not configure the Prosewire publishing application.
 
 ## Security checks
 

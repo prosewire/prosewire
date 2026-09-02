@@ -2,16 +2,11 @@ import assert from "node:assert/strict";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveSiteOrigin } from "../apps/site/site-origin.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const dist = join(root, "apps", "site", "dist");
-const expectedOrigin = new URL(
-  process.argv[2] ??
-    process.env.SITE_URL ??
-    (process.env.WORKERS_CI === "1"
-      ? "https://prosewire.com"
-      : "http://localhost:4321"),
-);
+const expectedOrigin = new URL(process.argv[2] ?? resolveSiteOrigin());
 
 async function walk(directory) {
   const files = [];

@@ -1,9 +1,10 @@
 # Repository automation
 
 Pull requests do not start GitHub Actions workflows and no Actions check is
-required to merge. Cloudflare Workers Builds owns previews and production
-deployments for `apps/site`; its build watch paths must exclude unrelated
-repository files.
+required to merge. Vercel's Git integration owns previews and production
+deployments for `apps/site`. The Vercel project uses `apps/site` as its root
+directory, and Vercel skips deployments when the site and its workspace
+dependencies have not changed.
 
 The repository has three workflows.
 
