@@ -24,7 +24,7 @@ customer data.
 
 ## Report a vulnerability privately
 
-Email the maintainer at [akshitkrnagpal@gmail.com](mailto:akshitkrnagpal@gmail.com).
+Email the maintainer at [security@prosewire.com](mailto:security@prosewire.com).
 Do not include exploit details, credentials, or affected user data in a public
 issue. Include the affected version or commit, reproduction steps, impact, and
 any suggested mitigation. Encrypt especially sensitive attachments before
@@ -35,3 +35,9 @@ publish disclosure and upgrade guidance when affected artifacts are available.
 Please allow time for a fix to reach supported packages or images before public
 disclosure. This project does not offer a bug-bounty program or a guaranteed
 response-time SLA.
+
+The public [Security and Incident Response](https://prosewire.com/legal/security/)
+page explains the Cloud breach process, customer-notification target, and safe
+research boundaries. Maintainers use the
+[legal operations runbook](docs/legal-operations.md) for incident records,
+containment, investigation, notification, recovery, and review.

@@ -20,12 +20,14 @@ const providerDetails = {
 
 export function SignInForm({
   allowSignUp,
+  cloudDeployment,
   passwordChanged,
   returnTo,
   showDevelopmentCredentials,
   socialProviders,
 }: {
   allowSignUp: boolean;
+  cloudDeployment: boolean;
   passwordChanged: boolean;
   returnTo: string;
   showDevelopmentCredentials: boolean;
@@ -66,7 +68,7 @@ export function SignInForm({
   }
 
   return (
-    <main className="noise grid min-h-svh place-items-center overflow-hidden bg-[#f4f3ed] px-5 py-10 sm:py-14">
+    <main className="noise grid min-h-svh place-items-center overflow-x-hidden bg-[#f4f3ed] px-5 py-10 sm:py-14">
       <ThemeToggle className="fixed right-4 top-4 z-20 sm:right-6 sm:top-6" />
       <section
         className="relative z-10 w-full max-w-[436px]"
@@ -221,6 +223,33 @@ export function SignInForm({
             Local seed: <code>admin@prosewire.local</code> /{" "}
             <code>prosewire-local-dev</code>.
           </p>
+        ) : null}
+        {cloudDeployment ? (
+          <div className="mt-6 text-center text-xs leading-5 text-[#687279]">
+            <p>
+              By continuing, you agree to the{" "}
+              <a
+                href="https://prosewire.com/legal/terms/"
+                className="font-semibold underline underline-offset-3"
+              >
+                Terms
+              </a>{" "}
+              and acknowledge the{" "}
+              <a
+                href="https://prosewire.com/legal/privacy/"
+                className="font-semibold underline underline-offset-3"
+              >
+                Privacy Policy
+              </a>
+              .
+            </p>
+            <a
+              href="https://prosewire.com/legal/security/"
+              className="mt-1 inline-block underline-offset-4 hover:underline"
+            >
+              Security and incident reporting
+            </a>
+          </div>
         ) : null}
       </section>
     </main>

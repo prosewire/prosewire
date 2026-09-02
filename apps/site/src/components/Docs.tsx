@@ -60,6 +60,7 @@ export function Docs({
         }}
         links={[
           { text: "Website", url: "/" },
+          { text: "Legal", url: "/legal/" },
           {
             text: "GitHub",
             url: "https://github.com/prosewire/prosewire",

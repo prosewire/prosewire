@@ -22,6 +22,7 @@ export default async function SignInPage({
   return (
     <SignInForm
       allowSignUp={state.openRegistration}
+      cloudDeployment={state.cloudDeployment}
       passwordChanged={passwordChanged === "1"}
       returnTo={safeReturnTo}
       showDevelopmentCredentials={process.env["NODE_ENV"] !== "production"}
