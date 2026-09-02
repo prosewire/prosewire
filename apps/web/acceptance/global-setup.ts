@@ -116,6 +116,18 @@ export default async function globalSetup(): Promise<void> {
         name: "Other Tenant Owner",
         emailVerified: true,
       },
+      {
+        id: acceptance.workspaceLessOwner.id,
+        email: acceptance.workspaceLessOwner.email,
+        name: "Workspace-less Owner",
+        emailVerified: true,
+      },
+      {
+        id: acceptance.publicationLessOwner.id,
+        email: acceptance.publicationLessOwner.email,
+        name: "Publication-less Owner",
+        emailVerified: true,
+      },
     ]);
     await database.insert(schema.account).values([
       {
@@ -142,6 +154,22 @@ export default async function globalSetup(): Promise<void> {
         issuer: "local:credential",
         password,
       },
+      {
+        id: "acceptance-workspace-less-owner-account",
+        userId: acceptance.workspaceLessOwner.id,
+        accountId: acceptance.workspaceLessOwner.id,
+        providerId: "credential",
+        issuer: "local:credential",
+        password,
+      },
+      {
+        id: "acceptance-publication-less-owner-account",
+        userId: acceptance.publicationLessOwner.id,
+        accountId: acceptance.publicationLessOwner.id,
+        providerId: "credential",
+        issuer: "local:credential",
+        password,
+      },
     ]);
     await database.insert(schema.organization).values([
       {
@@ -153,6 +181,11 @@ export default async function globalSetup(): Promise<void> {
         id: acceptance.otherOrganization.id,
         name: "Other Workspace",
         slug: acceptance.otherOrganization.slug,
+      },
+      {
+        id: acceptance.publicationLessOrganization.id,
+        name: "Publication-less Workspace",
+        slug: acceptance.publicationLessOrganization.slug,
       },
     ]);
     await database.insert(schema.member).values([
@@ -172,6 +205,12 @@ export default async function globalSetup(): Promise<void> {
         id: "acceptance-other-owner-member",
         organizationId: acceptance.otherOrganization.id,
         userId: acceptance.otherOwner.id,
+        role: "owner",
+      },
+      {
+        id: "acceptance-publication-less-owner-member",
+        organizationId: acceptance.publicationLessOrganization.id,
+        userId: acceptance.publicationLessOwner.id,
         role: "owner",
       },
     ]);

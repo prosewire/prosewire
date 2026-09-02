@@ -3,13 +3,12 @@ import { Effect, Option, Result, Schema } from "effect";
 import { requireSessionWithHeadersEffect } from "@/lib/session";
 import { runAppEffect } from "./app-runtime.ts";
 import { getAuth } from "./auth-service.ts";
-import { BlogAccess } from "./authorization.ts";
+import { decodeErrorTag } from "./boundary-errors.ts";
 import { BlogSlug, PostId, UserId } from "./domain.ts";
 import { promiseEffect } from "./external-effect.ts";
 import { PostExport } from "./post-export.ts";
 import { PublicContent } from "./public-content.ts";
 import { serializePublicBlog, serializePublicPost } from "./serialize.ts";
-import { SessionErrors } from "./session-errors.ts";
 
 const ViewEvent = Schema.Struct({
   postId: Schema.String.check(Schema.isUUID()),
@@ -222,17 +221,15 @@ export async function exportPosts(
       },
     });
   }
-  if (result.failure instanceof SessionErrors.AuthenticationRequired) {
-    return new Response("Unauthorized", { status: 401 });
-  }
-  if (result.failure instanceof SessionErrors.PasswordChangeRequired) {
-    return new Response("Password change required", { status: 403 });
-  }
-  if (result.failure instanceof BlogAccess.BlogAccessDenied) {
-    return new Response("Forbidden", { status: 403 });
-  }
-  if (result.failure instanceof PostExport.BlogNotFound) {
-    return new Response("Blog not found", { status: 404 });
+  switch (decodeErrorTag(result.failure)) {
+    case "AuthenticationRequired":
+      return new Response("Unauthorized", { status: 401 });
+    case "PasswordChangeRequired":
+      return new Response("Password change required", { status: 403 });
+    case "BlogAccessDenied":
+      return new Response("Forbidden", { status: 403 });
+    case "BlogNotFound":
+      return new Response("Blog not found", { status: 404 });
   }
   throw result.failure;
 }

@@ -3,14 +3,13 @@ import { io } from "next/cache";
 import { cookies } from "next/headers";
 import { requireDashboardSessionEffect } from "@/lib/session";
 import { type AppServices, runAppEffect } from "./app-runtime.ts";
-import { BlogAccess } from "./authorization.ts";
+import { decodeErrorTag } from "./boundary-errors.ts";
 import { WebConfig } from "./config.ts";
 import type { PublicPostOptions } from "./content-queries.ts";
 import { Dashboard } from "./dashboard.ts";
 import { BlogId, BlogSlug, OrganizationId, PostId, UserId } from "./domain.ts";
 import { promiseEffect } from "./external-effect.ts";
 import { PublicContent } from "./public-content.ts";
-import { SessionErrors } from "./session-errors.ts";
 
 export class PageBoundaryError extends Schema.TaggedError<PageBoundaryError>()(
   "PageBoundaryError",
@@ -62,23 +61,17 @@ async function runDashboardPage<A, E extends Error>(
   if (Result.isSuccess(result)) {
     return { _tag: "Success", value: result.success };
   }
-  if (result.failure instanceof SessionErrors.AuthenticationRequired) {
-    return { _tag: "Unauthorized" };
-  }
-  if (result.failure instanceof SessionErrors.PasswordChangeRequired) {
-    return { _tag: "PasswordChangeRequired" };
-  }
-  if (
-    result.failure instanceof BlogAccess.BlogAccessDenied ||
-    result.failure instanceof BlogAccess.WorkspaceAccessDenied
-  ) {
-    return { _tag: "Forbidden" };
-  }
-  if (
-    result.failure instanceof BlogAccess.NoWorkspaceAvailable ||
-    result.failure instanceof BlogAccess.NoPublicationAvailable
-  ) {
-    return { _tag: "NeedsOnboarding" };
+  switch (decodeErrorTag(result.failure)) {
+    case "AuthenticationRequired":
+      return { _tag: "Unauthorized" };
+    case "PasswordChangeRequired":
+      return { _tag: "PasswordChangeRequired" };
+    case "BlogAccessDenied":
+    case "WorkspaceAccessDenied":
+      return { _tag: "Forbidden" };
+    case "NoWorkspaceAvailable":
+    case "NoPublicationAvailable":
+      return { _tag: "NeedsOnboarding" };
   }
   throw result.failure;
 }

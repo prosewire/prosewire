@@ -39,10 +39,18 @@ interface ToolText {
 async function signIn(
   page: Page,
   email: string,
-  options: { navigate?: boolean; expectedPath?: string } = {},
+  options: {
+    navigate?: boolean;
+    returnTo?: string;
+    expectedPath?: string;
+  } = {},
 ): Promise<void> {
-  const { navigate = true, expectedPath = "/posts" } = options;
-  if (navigate) await page.goto(`/sign-in?returnTo=${expectedPath}`);
+  const {
+    navigate = true,
+    returnTo = options.expectedPath ?? "/posts",
+    expectedPath = "/posts",
+  } = options;
+  if (navigate) await page.goto(`/sign-in?returnTo=${returnTo}`);
   await expect(page.locator("form")).toHaveAttribute("data-hydrated", "true");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(acceptance.password);
@@ -81,6 +89,36 @@ test.describe
     test("routes guests from the root to sign in", async ({ page }) => {
       await page.goto("/");
       await expect(page).toHaveURL(/\/sign-in$/);
+    });
+
+    test("routes workspace-less dashboard users to onboarding", async ({
+      browser,
+    }) => {
+      for (const [index, user] of [
+        acceptance.workspaceLessOwner,
+        acceptance.publicationLessOwner,
+      ].entries()) {
+        const context = await browser.newContext({
+          extraHTTPHeaders: { "x-forwarded-for": `192.0.2.${index + 1}` },
+        });
+        try {
+          const page = await context.newPage();
+          await signIn(page, user.email, {
+            returnTo: "/dashboard",
+            expectedPath: "/onboarding",
+          });
+          await expect(
+            page.getByRole("heading", {
+              name:
+                user === acceptance.workspaceLessOwner
+                  ? "Create your publishing workspace"
+                  : "Create a publication",
+            }),
+          ).toBeVisible();
+        } finally {
+          await context.close();
+        }
+      }
     });
 
     test("public raw, rendered, browser, embed, RSS, and sitemap expose only due published content", async ({
