@@ -353,7 +353,7 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
     {
       id: Argument.string("id"),
       yes: Flag.boolean("yes").pipe(
-        Flag.withDescription("Confirm permanent primary-storage deletion"),
+        Flag.withDescription("Confirm permanent media deletion"),
       ),
     },
     Effect.fn("Cli.mediaDelete")(function* ({ id, yes }) {
@@ -376,26 +376,6 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
     }),
   ).pipe(Command.withDescription("Delete an unreferenced media asset"));
 
-  const mediaBackup = Command.make(
-    "media-backup",
-    { id: Argument.string("id") },
-    Effect.fn("Cli.mediaBackup")(function* ({ id }) {
-      const parent = yield* root;
-      const key =
-        Option.getOrUndefined(parent.key) ??
-        dependencies.env["PROSEWIRE_API_KEY"];
-      if (!key) {
-        return yield* userError("--key or PROSEWIRE_API_KEY is required");
-      }
-      const result = yield* fromPromise(() =>
-        dependencies
-          .createClient({ baseUrl: parent.url, apiKey: key })
-          .media.backup({ params: { id } }),
-      );
-      yield* Effect.sync(() => dependencies.output(result));
-    }),
-  ).pipe(Command.withDescription("Copy a media asset to the backup bucket"));
-
   return root.pipe(
     Command.withSubcommands([
       posts,
@@ -408,7 +388,6 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
       mediaList,
       mediaUpload,
       mediaDelete,
-      mediaBackup,
     ]),
   );
 }

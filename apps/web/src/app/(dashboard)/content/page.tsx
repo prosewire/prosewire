@@ -1,13 +1,12 @@
 import {
   BracketsCurly,
-  CloudArrowUp,
   Folder,
   ImageSquare,
   Quotes,
   Trash,
   User,
 } from "@phosphor-icons/react/ssr";
-import { backupMediaAsset, deleteMediaAsset } from "@/server/actions";
+import { deleteMediaAsset } from "@/server/actions";
 import { loadDashboardContentLibrary } from "@/server/page-entrypoints";
 import { dashboardData } from "../dashboard-result";
 
@@ -127,25 +126,6 @@ export default async function ContentPage({
                       : `Used by ${asset.references.map((reference) => reference.title).join(", ")}`}
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {media.backupConfigured && asset.status === "ready" ? (
-                      asset.backedUpAt ? (
-                        <span className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[#eef6f1] px-2.5 text-[9px] font-semibold text-[#1f6e52]">
-                          <CloudArrowUp className="size-3" /> Backed up
-                        </span>
-                      ) : (
-                        <form action={backupMediaAsset}>
-                          <input type="hidden" name="blogId" value={blog.id} />
-                          <input
-                            type="hidden"
-                            name="assetId"
-                            value={asset.id}
-                          />
-                          <button className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#d8dad4] px-2.5 text-[9px] font-semibold">
-                            <CloudArrowUp className="size-3" /> Back up
-                          </button>
-                        </form>
-                      )
-                    ) : null}
                     {asset.references.length === 0 ? (
                       <details className="relative">
                         <summary className="inline-flex h-8 cursor-pointer list-none items-center gap-1.5 rounded-lg border border-[#e6c8c0] px-2.5 text-[9px] font-semibold text-[#a44230]">
@@ -162,8 +142,7 @@ export default async function ContentPage({
                             value={asset.id}
                           />
                           <p className="text-[10px] leading-4 text-[#687279]">
-                            Delete the primary objects? A configured backup is
-                            retained.
+                            Permanently delete this asset and its stored files?
                           </p>
                           <button className="mt-2 h-8 w-full rounded-lg bg-[#a44230] px-2.5 text-[9px] font-semibold text-white">
                             Confirm delete

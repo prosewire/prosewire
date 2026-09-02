@@ -118,8 +118,6 @@ export function createEffectClient(options: ProsewireClientOptions) {
         provideFetch(generated.media.startUpload({ payload: input })),
       completeUpload: (input: { readonly params: { readonly id: string } }) =>
         provideFetch(generated.media.completeUpload(input)),
-      backup: (input: { readonly params: { readonly id: string } }) =>
-        provideFetch(generated.media.backup(input)),
       delete: (input: { readonly params: { readonly id: string } }) =>
         provideFetch(generated.media.delete(input)),
     },
@@ -165,8 +163,6 @@ export function createClient(options: ProsewireClientOptions) {
         Effect.runPromise(client.media.startUpload(input)),
       completeUpload: (input: { readonly params: { readonly id: string } }) =>
         Effect.runPromise(client.media.completeUpload(input)),
-      backup: (input: { readonly params: { readonly id: string } }) =>
-        Effect.runPromise(client.media.backup(input)),
       delete: (input: { readonly params: { readonly id: string } }) =>
         Effect.runPromise(client.media.delete(input)),
     },

@@ -41,11 +41,11 @@ Restart the MCP client after changing the command or environment. If the server 
 | Tools | Classification | Behavior |
 | --- | --- | --- |
 | `publication_get`, `posts_list`, `posts_get`, `posts_revisions_list`, `media_list` | Read-only | Retrieve publication, post, revision, media reference, or quota data without persistence |
-| `posts_create`, `posts_update`, `media_upload_start`, `media_upload_complete`, `media_backup` | Mutating | Write content, reserve or process storage, or create a backup copy; require client approval |
+| `posts_create`, `posts_update`, `media_upload_start`, `media_upload_complete` | Mutating | Write content or reserve and process storage; require client approval |
 | `posts_revision_restore`, `posts_archive`, `media_delete` | Destructive | Restore saved content, remove a post from public surfaces, or delete unreferenced primary media; require client approval |
 
 The server advertises read-only, idempotent, destructive, and approval metadata to MCP clients. Client support for those annotations varies, so confirm the target post and intended change before approving any mutation, especially an archive.
 
 The API key determines the publication boundary. The optional `blog` argument on `posts_list` asserts that its slug or UUID matches the key's publication; a mismatch is rejected.
 
-The MCP upload tools deliberately split reservation and completion. The client must send the file itself to the signed URL between those calls using the returned method and headers. Do not pass image bytes through the MCP tool input. `media_delete` fails while a current post references the asset and retains a configured backup copy.
+The MCP upload tools deliberately split reservation and completion. The client must send the file itself to the signed URL between those calls using the returned method and headers. Do not pass image bytes through the MCP tool input. `media_delete` fails while a current post references the asset.

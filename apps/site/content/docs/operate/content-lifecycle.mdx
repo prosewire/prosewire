@@ -25,7 +25,7 @@ New snapshots include category relationships. Older snapshots created before cat
 
 Editors can keep using an external cover URL or choose a managed media asset. A managed upload is reserved against the publication quota, sent directly to object storage with a short-lived signed request, then completed through Prosewire. Completion validates the stored size, detects the real image MIME type, rejects unsupported or animated inputs, removes metadata, and generates original, large, and thumbnail variants. Posts store both the asset reference and the large CDN URL so every reader and framework integration keeps the same public post contract.
 
-The content library shows direct post references. An asset cannot be deleted while a current post uses it. Deletion removes primary objects and the active library record but deliberately retains a configured backup copy. Revision snapshots can retain an old asset identifier; restoring such a revision clears the managed reference if that asset is no longer ready.
+The content library shows direct post references. An asset cannot be deleted while a current post uses it. Deletion permanently removes its stored objects and active library record. Revision snapshots can retain an old asset identifier; restoring such a revision clears the managed reference if that asset is no longer ready.
 
 ## Portable exports
 

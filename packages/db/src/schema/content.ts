@@ -132,7 +132,6 @@ export const mediaAsset = pgTable(
       withTimezone: true,
     }).notNull(),
     uploadedAt: timestamp("uploaded_at", { withTimezone: true }),
-    backedUpAt: timestamp("backed_up_at", { withTimezone: true }),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     ...timestamps,
   },

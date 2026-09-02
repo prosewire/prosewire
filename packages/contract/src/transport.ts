@@ -58,7 +58,6 @@ export type PrivateApiRequest =
       readonly input: MediaStartUploadInput;
     }
   | { readonly _tag: "CompleteMediaUpload"; readonly id: string }
-  | { readonly _tag: "BackupMedia"; readonly id: string }
   | { readonly _tag: "DeleteMedia"; readonly id: string };
 
 async function decode<S extends Schema.ConstraintDecoder<unknown>>(
@@ -141,7 +140,7 @@ async function revisionRoute(pathname: string): Promise<
 async function mediaIdentifier(pathname: string): Promise<
   | {
       readonly id: string;
-      readonly action: "get" | "complete" | "backup";
+      readonly action: "get" | "complete";
     }
   | undefined
 > {
@@ -156,9 +155,7 @@ async function mediaIdentifier(pathname: string): Promise<
       ? "get"
       : segments[1] === "complete"
         ? "complete"
-        : segments[1] === "backup"
-          ? "backup"
-          : undefined;
+        : undefined;
   if (!action) return undefined;
   let id: string;
   try {
@@ -201,9 +198,6 @@ export async function decodePrivateApiRequest(
   }
   if (media?.action === "complete" && request.method === "POST") {
     return { _tag: "CompleteMediaUpload", id: media.id };
-  }
-  if (media?.action === "backup" && request.method === "POST") {
-    return { _tag: "BackupMedia", id: media.id };
   }
   if (media?.action === "get" && request.method === "DELETE") {
     return { _tag: "DeleteMedia", id: media.id };

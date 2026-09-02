@@ -57,7 +57,6 @@ function toApiError(error: unknown) {
     case "MediaStorageNotConfigured":
     case "MediaObjectStorageError":
     case "MediaImageProcessingError":
-    case "MediaBackupNotConfigured":
       return new ApiMediaUnavailable({ message: tagged.message });
     case "ApiAccessPersistenceError":
     case "ApiContentPersistenceError":
@@ -357,21 +356,6 @@ export function completeMediaUpload(request: Request, id: string) {
         new CompleteUploadInput({ blogId: actor.blogId, assetId }),
         { _tag: "Api", keyId: actor.keyId },
       );
-    }),
-  );
-}
-
-export function backupMedia(request: Request, id: string) {
-  return runApi(
-    request,
-    Effect.gen(function* () {
-      const actor = yield* principal(request, "content:write");
-      const assetId = yield* decodeMediaAssetId(id);
-      const media = yield* Media.Service;
-      return yield* media.backup(actor.blogId, assetId, {
-        _tag: "Api",
-        keyId: actor.keyId,
-      });
     }),
   );
 }

@@ -70,7 +70,7 @@ Available Promise operations are:
 - `posts.update()` and `posts.archive()`
 - `posts.revisions()` and `posts.restore()`
 - `media.list()`, `media.get()`, and `media.startUpload()`
-- `media.completeUpload()`, `media.backup()`, and `media.delete()`
+- `media.completeUpload()` and `media.delete()`
 
 Management keys are publication-scoped. Post, revision, and media reads require `content:read`. Create, update, archive, revision restore, and media mutations require `content:write`. A restore saves the current post as a new revision before replacing it. Media deletion fails while a current post references the asset. Never expose a management key or signed upload reservation in untrusted code.
 

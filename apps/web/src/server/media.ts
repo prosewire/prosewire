@@ -75,11 +75,6 @@ export class InvalidState extends Schema.TaggedError<InvalidState>()(
   }
 }
 
-export class BackupNotConfigured extends Schema.TaggedError<BackupNotConfigured>()(
-  "MediaBackupNotConfigured",
-  { message: Schema.String },
-) {}
-
 export class PersistenceError extends Schema.TaggedError<PersistenceError>()(
   "MediaPersistenceError",
   { operation: Schema.String, cause: Schema.Defect() },
@@ -132,7 +127,6 @@ export interface MediaAsset {
   readonly variants: ReadonlyArray<MediaVariant>;
   readonly references: ReadonlyArray<MediaReference>;
   readonly uploadedAt: string | null;
-  readonly backedUpAt: string | null;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -198,7 +192,6 @@ function assetOutput(
       slug: reference.slug,
     })),
     uploadedAt: asset.uploadedAt?.toISOString() ?? null,
-    backedUpAt: asset.backedUpAt?.toISOString() ?? null,
     createdAt: asset.createdAt.toISOString(),
     updatedAt: asset.updatedAt.toISOString(),
   };
@@ -338,7 +331,6 @@ export const create = Effect.fn("Media.create")(function* () {
       items: rows.map((row) => assetOutput(row, row.variants, row.coverPosts)),
       usage: yield* usage(blogId),
       configured: storage.configured,
-      backupConfigured: storage.backupConfigured,
       maxUploadBytes: storage.maxUploadBytes,
     };
   });
@@ -637,7 +629,6 @@ export const create = Effect.fn("Media.create")(function* () {
           storage.put(variant.storageKey, variant.mimeType, variant.body),
         { concurrency: 3, discard: true },
       );
-      const backedUp = yield* storage.backup(variantKeys);
       yield* storage.delete([asset.uploadStorageKey]);
       const now = new Date(yield* Clock.currentTimeMillis);
       const storageBytes = variants.reduce(
@@ -740,7 +731,6 @@ export const create = Effect.fn("Media.create")(function* () {
                 checksumSha256: processed.checksumSha256,
                 status: "ready",
                 uploadedAt: now,
-                backedUpAt: backedUp ? now : null,
                 failureReason: null,
                 updatedAt: now,
               })
@@ -759,7 +749,6 @@ export const create = Effect.fn("Media.create")(function* () {
                 width: processed.width,
                 height: processed.height,
                 storageBytes,
-                backedUp,
               },
             });
             return Result.succeed(undefined);
@@ -779,64 +768,7 @@ export const create = Effect.fn("Media.create")(function* () {
     yield* storage
       .delete([asset.uploadStorageKey, ...variantKeys])
       .pipe(Effect.ignore);
-    yield* storage.deleteBackup(variantKeys).pipe(Effect.ignore);
     return yield* outcome.failure;
-  });
-
-  const backup = Effect.fn("Media.backup")(function* (
-    blogId: BlogId,
-    assetId: MediaAssetId,
-    actor: Actor,
-  ) {
-    yield* authorize(blogId, actor, "write");
-    const asset = yield* execute("mediaAsset.getForBackup", (client) =>
-      client.query.mediaAsset.findFirst({
-        where: and(
-          eq(schema.mediaAsset.id, assetId),
-          eq(schema.mediaAsset.blogId, blogId),
-        ),
-        with: { variants: true },
-      }),
-    );
-    if (!asset) return yield* new AssetNotFound({ assetId });
-    if (asset.status !== "ready") {
-      return yield* new InvalidState({ assetId, status: asset.status });
-    }
-    const copied = yield* storage.backup(
-      asset.variants.map((variant) => variant.storageKey),
-    );
-    if (!copied) {
-      return yield* new BackupNotConfigured({
-        message: "PROSEWIRE_MEDIA_BACKUP_BUCKET is not configured",
-      });
-    }
-    const now = new Date(yield* Clock.currentTimeMillis);
-    yield* execute("mediaAsset.markBackedUp", (client) =>
-      client.transaction(async (tx) => {
-        const [publication] = await tx
-          .select({ organizationId: schema.blog.organizationId })
-          .from(schema.blog)
-          .where(eq(schema.blog.id, blogId));
-        await tx
-          .update(schema.mediaAsset)
-          .set({ backedUpAt: now, updatedAt: now })
-          .where(eq(schema.mediaAsset.id, assetId));
-        await tx.insert(schema.auditLog).values({
-          organizationId: publication?.organizationId ?? null,
-          blogId,
-          actorId: actor._tag === "Dashboard" ? actor.userId : null,
-          action: "media.backed_up",
-          entityType: "media_asset",
-          entityId: assetId,
-          after: {
-            source: actor._tag === "Dashboard" ? "dashboard" : "api",
-            ...(actor._tag === "Api" ? { apiKeyId: actor.keyId } : {}),
-            backedUpAt: now,
-          },
-        });
-      }),
-    );
-    return yield* loadAsset(blogId, assetId);
   });
 
   const remove = Effect.fn("Media.remove")(function* (
@@ -925,7 +857,6 @@ export const create = Effect.fn("Media.create")(function* () {
             after: {
               source: actor._tag === "Dashboard" ? "dashboard" : "api",
               ...(actor._tag === "Api" ? { apiKeyId: actor.keyId } : {}),
-              retainedBackup: asset.backedUpAt !== null,
             },
           });
         }
@@ -952,7 +883,6 @@ export const create = Effect.fn("Media.create")(function* () {
     usage,
     startUpload,
     completeUpload,
-    backup,
     remove,
   };
 });

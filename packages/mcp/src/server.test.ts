@@ -61,7 +61,6 @@ const mediaAsset = {
   variants: [],
   references: [],
   uploadedAt: now,
-  backedUpAt: null,
   createdAt: now,
   updatedAt: now,
 };
@@ -95,7 +94,6 @@ function mockClient(): ProsewireMcpClient {
             remainingBytes: 800,
           },
           configured: true,
-          backupConfigured: true,
           maxUploadBytes: 500,
         }),
       ),
@@ -116,7 +114,6 @@ function mockClient(): ProsewireMcpClient {
         }),
       ),
       completeUpload: vi.fn(() => Effect.succeed(mediaAsset)),
-      backup: vi.fn(() => Effect.succeed(mediaAsset)),
       delete: vi.fn(() => Effect.succeed({ ok: true as const })),
     },
   };
@@ -164,7 +161,6 @@ describe("Prosewire Effect MCP server", () => {
       "media_list",
       "media_upload_start",
       "media_upload_complete",
-      "media_backup",
       "media_delete",
     ]);
     expect(
@@ -275,9 +271,6 @@ describe("Prosewire Effect MCP server", () => {
       ),
     ).resolves.toMatchObject({ id });
     await expect(
-      runTool(client, (toolkit) => toolkit.handle("media_backup", { id })),
-    ).resolves.toMatchObject({ id });
-    await expect(
       runTool(client, (toolkit) => toolkit.handle("media_delete", { id })),
     ).resolves.toEqual({ ok: true });
     await expect(
@@ -325,7 +318,6 @@ describe("Prosewire Effect MCP server", () => {
     expect(client.media.completeUpload).toHaveBeenCalledWith({
       params: { id },
     });
-    expect(client.media.backup).toHaveBeenCalledWith({ params: { id } });
     expect(client.media.delete).toHaveBeenCalledWith({ params: { id } });
   });
 

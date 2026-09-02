@@ -282,7 +282,6 @@ export const mediaAssetOutput = Schema.Struct({
   variants: Schema.Array(mediaVariantOutput),
   references: Schema.Array(mediaReferenceOutput),
   uploadedAt: nullable(isoDateTime),
-  backedUpAt: nullable(isoDateTime),
   createdAt: isoDateTime,
   updatedAt: isoDateTime,
 });
@@ -297,7 +296,6 @@ export const mediaListOutput = Schema.Struct({
   items: Schema.Array(mediaAssetOutput),
   usage: mediaUsageOutput,
   configured: Schema.Boolean,
-  backupConfigured: Schema.Boolean,
   maxUploadBytes: Schema.Int,
 });
 

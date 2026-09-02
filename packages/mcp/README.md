@@ -26,8 +26,8 @@ Create the API key in **Integrate → Scoped API keys**. The key selects one pub
 grant only `content:read` unless the client needs write tools.
 
 The `publication_get`, `posts_list`, `posts_get`, `posts_revisions_list`, and `media_list` tools are read-only.
-`posts_create`, `posts_update`, `media_upload_start`, `media_upload_complete`, and `media_backup` mutate content or storage and require approval.
-`posts_revision_restore`, `posts_archive`, and `media_delete` are destructive and require approval. Restore saves the current version before applying the selected revision. Archive removes the post from public surfaces. Media deletion removes primary objects only when no current post uses the asset. The server publishes those safety annotations to MCP clients;
+`posts_create`, `posts_update`, `media_upload_start`, and `media_upload_complete` mutate content or storage and require approval.
+`posts_revision_restore`, `posts_archive`, and `media_delete` are destructive and require approval. Restore saves the current version before applying the selected revision. Archive removes the post from public surfaces. Media deletion removes stored objects only when no current post uses the asset. The server publishes those safety annotations to MCP clients;
 clients should still confirm the exact mutation with the user.
 
 Media uploads use two tools. After `media_upload_start`, the client sends the file bytes directly to the returned signed URL using its method and headers, then calls `media_upload_complete`. The bytes do not pass through MCP.

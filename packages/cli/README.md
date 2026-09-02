@@ -29,7 +29,6 @@ prosewire restore 00000000-0000-4000-8000-000000000000 00000000-0000-4000-8000-0
 prosewire archive 00000000-0000-4000-8000-000000000000 --yes
 prosewire media-list
 prosewire media-upload ./cover.webp --blog-id 00000000-0000-4000-8000-000000000000
-prosewire media-backup 00000000-0000-4000-8000-000000000002
 prosewire media-delete 00000000-0000-4000-8000-000000000002 --yes
 ```
 
@@ -41,7 +40,7 @@ environment files when supplying them.
 
 `create --data` expects a JSON object with `blogId`, `authorId`, `title`, and `slug`; other fields follow the management post-create contract. `update <id> --data` accepts a partial post object. Both identifiers are UUIDs. The current management API does not expose a standalone author-list endpoint, so resolve author IDs from an existing authenticated post response or portable export.
 
-`media-upload` accepts JPEG, PNG, WebP, and AVIF files. It performs the signed upload and completion flow for you. Pass the publication UUID with `--blog-id`. `media-backup` retries the optional second-bucket copy.
+`media-upload` accepts JPEG, PNG, WebP, and AVIF files. It performs the signed upload and completion flow for you. Pass the publication UUID with `--blog-id`.
 
 Commands write formatted JSON to standard output. Treat that output as potentially containing unpublished content when using private commands.
 

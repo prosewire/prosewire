@@ -43,7 +43,7 @@ PROSEWIRE_IMAGE=registry.example.com/team/prosewire:0.2.0 \
 
 Your `.env` must contain the external database, Redis URL, public origins, authentication secret, server-action encryption key, SMTP settings, and media storage settings. The deployment ID is already part of the image. The cloud file does not provision Postgres, Redis, object storage, a CDN, SMTP, TLS, backups, or a load balancer.
 
-Keep the media bucket private. Grant the web process permission to get, put, copy, inspect, and delete objects only in the primary media bucket and the optional backup bucket. Configure the dashboard origin in the bucket CORS policy for signed `PUT` requests with `Content-Type`. The CDN should expose processed `publications/` keys and deny the temporary `_uploads/` prefix. Configure `PROSEWIRE_MEDIA_BACKUP_BUCKET` for an application-managed second copy, then enable provider snapshots, versioning, replication, and retention according to your recovery target.
+Keep the media bucket private. Grant the web process permission to get, put, inspect, and delete objects only in that bucket. Configure the dashboard origin in the bucket CORS policy for signed `PUT` requests with `Content-Type`. The CDN should expose processed `publications/` keys and deny the temporary `_uploads/` prefix. Enable provider snapshots, versioning, replication, and retention according to your recovery target.
 
 ## Bootstrap the first owner
 

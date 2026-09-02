@@ -251,13 +251,6 @@ const media = HttpApiGroup.make("media")
     ).annotate(OpenApi.Summary, "Validate and process an uploaded image"),
   )
   .add(
-    HttpApiEndpoint.post("backup", `${privateApiPaths.media}/:id/backup`, {
-      params: { id: privateApiMediaId },
-      success: mediaAssetOutput,
-      error: apiErrors,
-    }).annotate(OpenApi.Summary, "Copy a media asset to the backup bucket"),
-  )
-  .add(
     HttpApiEndpoint.delete("delete", `${privateApiPaths.media}/:id`, {
       params: { id: privateApiMediaId },
       success: Schema.Struct({ ok: Schema.Literal(true) }),

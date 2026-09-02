@@ -7,7 +7,6 @@ import { changeRequiredPassword as runChangeRequiredPassword } from "./account-e
 import { actionErrorRedirect } from "./action-errors.ts";
 import { decodeErrorTag, decodeTaggedError } from "./boundary-errors.ts";
 import {
-  backup as runBackupMedia,
   completeUpload as runCompleteMediaUpload,
   remove as runRemoveMedia,
   startUpload as runStartMediaUpload,
@@ -206,16 +205,6 @@ export async function deleteMediaAsset(formData: FormData): Promise<void> {
   }
   revalidatePath("/content");
   redirect("/content?mediaDeleted=1");
-}
-
-export async function backupMediaAsset(formData: FormData): Promise<void> {
-  try {
-    await runBackupMedia(text(formData, "blogId"), text(formData, "assetId"));
-  } catch (error) {
-    redirectActionError(error, "/content");
-  }
-  revalidatePath("/content");
-  redirect("/content?mediaBackedUp=1");
 }
 
 export async function changeRequiredPassword(

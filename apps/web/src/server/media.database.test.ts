@@ -25,7 +25,6 @@ interface MemoryStorage {
     string,
     { readonly body: Uint8Array; readonly mimeType: string }
   >;
-  readonly backups: Map<string, Uint8Array>;
   readonly uploadKey: (url: string) => string;
 }
 
@@ -34,7 +33,6 @@ function memoryStorage(): MemoryStorage {
     string,
     { readonly body: Uint8Array; readonly mimeType: string }
   >();
-  const backups = new Map<string, Uint8Array>();
   const missing = (operation: string, key: string) =>
     new ObjectStorage.StorageError({
       operation,
@@ -42,11 +40,9 @@ function memoryStorage(): MemoryStorage {
     });
   return {
     objects,
-    backups,
     uploadKey: (url) => decodeURIComponent(new URL(url).pathname.slice(1)),
     service: {
       configured: true,
-      backupConfigured: true,
       maxUploadBytes: 20 * 1_024 * 1_024,
       uploadUrlExpiresSeconds: 600,
       publicUrl: (key) => `https://media.example/${encodeURIComponent(key)}`,
@@ -73,19 +69,6 @@ function memoryStorage(): MemoryStorage {
       put: (key, mimeType, body) =>
         Effect.sync(() => {
           objects.set(key, { body, mimeType });
-        }),
-      backup: (keys) =>
-        Effect.sync(() => {
-          for (const key of keys) {
-            const object = objects.get(key);
-            if (!object) throw missing("backup", key);
-            backups.set(key, object.body);
-          }
-          return true;
-        }),
-      deleteBackup: (keys) =>
-        Effect.sync(() => {
-          for (const key of keys) backups.delete(key);
         }),
       delete: (keys) =>
         Effect.sync(() => {
@@ -114,7 +97,7 @@ async function mediaService(
 }
 
 describe.skipIf(!databaseUrl)("PostgreSQL media lifecycle", () => {
-  it("processes, backs up, protects references, deletes, and releases quota", async () => {
+  it("processes, protects references, deletes, and releases quota", async () => {
     if (!databaseUrl) throw new Error("DATABASE_URL is required");
     const resource = openDb(databaseUrl);
     const ownerId = UserId.make(`user-${randomUUID()}`);
@@ -206,7 +189,6 @@ describe.skipIf(!databaseUrl)("PostgreSQL media lifecycle", () => {
         mimeType: "image/png",
         width: 800,
         height: 400,
-        backedUpAt: expect.any(String),
       });
       expect(asset.variants.map(({ kind }) => kind)).toEqual([
         "original",
@@ -214,9 +196,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL media lifecycle", () => {
         "thumbnail",
       ]);
       expect(storage.objects.size).toBe(3);
-      expect(storage.backups.size).toBe(3);
 
-      await Effect.runPromise(service.backup(blogId, asset.id, actor));
       await resource.client.insert(schema.post).values({
         id: postId,
         blogId,
@@ -241,7 +221,6 @@ describe.skipIf(!databaseUrl)("PostgreSQL media lifecycle", () => {
       await Effect.runPromise(service.remove(blogId, asset.id, actor));
 
       expect(storage.objects.size).toBe(0);
-      expect(storage.backups.size).toBe(3);
       await expect(
         Effect.runPromise(service.list(blogId, actor)),
       ).resolves.toMatchObject({
@@ -253,7 +232,6 @@ describe.skipIf(!databaseUrl)("PostgreSQL media lifecycle", () => {
         where: eq(schema.auditLog.blogId, blogId),
       });
       expect(audits.map(({ action }) => action).sort()).toEqual([
-        "media.backed_up",
         "media.deleted",
         "media.upload_completed",
         "media.upload_reserved",

@@ -1,5 +1,4 @@
 import {
-  CopyObjectCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
   HeadObjectCommand,
@@ -39,7 +38,6 @@ export interface UploadTarget {
 
 export interface Shape {
   readonly configured: boolean;
-  readonly backupConfigured: boolean;
   readonly maxUploadBytes: number;
   readonly uploadUrlExpiresSeconds: number;
   readonly publicUrl: (key: string) => string;
@@ -59,12 +57,6 @@ export interface Shape {
     contentType: string,
     body: Uint8Array,
   ) => Effect.Effect<void, NotConfigured | StorageError>;
-  readonly backup: (
-    keys: ReadonlyArray<string>,
-  ) => Effect.Effect<boolean, NotConfigured | StorageError>;
-  readonly deleteBackup: (
-    keys: ReadonlyArray<string>,
-  ) => Effect.Effect<void, NotConfigured | StorageError>;
   readonly delete: (
     keys: ReadonlyArray<string>,
   ) => Effect.Effect<void, NotConfigured | StorageError>;
@@ -81,7 +73,6 @@ const unavailable = () =>
 
 export const disabled: Shape = {
   configured: false,
-  backupConfigured: false,
   maxUploadBytes: 0,
   uploadUrlExpiresSeconds: 0,
   publicUrl: () => "",
@@ -89,20 +80,11 @@ export const disabled: Shape = {
   head: () => Effect.fail(unavailable()),
   get: () => Effect.fail(unavailable()),
   put: () => Effect.fail(unavailable()),
-  backup: () => Effect.fail(unavailable()),
-  deleteBackup: () => Effect.fail(unavailable()),
   delete: () => Effect.fail(unavailable()),
 };
 
 function storageError(operation: string, cause: unknown): StorageError {
   return new StorageError({ operation, cause });
-}
-
-function copySource(bucket: string, key: string): string {
-  return `${bucket}/${key
-    .split("/")
-    .map((part) => encodeURIComponent(part))
-    .join("/")}`;
 }
 
 function batches<T>(values: ReadonlyArray<T>, size: number): Array<Array<T>> {
@@ -168,7 +150,6 @@ export function make(
 
   return {
     configured: true,
-    backupConfigured: config.backupBucket !== undefined,
     maxUploadBytes: config.maxUploadBytes,
     uploadUrlExpiresSeconds: config.uploadUrlExpiresSeconds,
     publicUrl: (key) =>
@@ -226,31 +207,6 @@ export function make(
           )
           .then(() => undefined),
       ),
-    backup: (keys) => {
-      if (!config.backupBucket || keys.length === 0) {
-        return Effect.succeed(false);
-      }
-      return Effect.forEach(
-        keys,
-        (key) =>
-          request("back up object", () =>
-            client
-              .send(
-                new CopyObjectCommand({
-                  Bucket: config.backupBucket,
-                  Key: key,
-                  CopySource: copySource(config.bucket, key),
-                }),
-              )
-              .then(() => undefined),
-          ),
-        { concurrency: 3, discard: true },
-      ).pipe(Effect.as(true));
-    },
-    deleteBackup: (keys) =>
-      config.backupBucket
-        ? deleteFromBucket(config.backupBucket, keys, "delete backup objects")
-        : Effect.void,
     delete: (keys) => deleteFromBucket(config.bucket, keys, "delete objects"),
   };
 }

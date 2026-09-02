@@ -31,7 +31,6 @@ export function actionErrorRedirect(
     case "MediaAssetInUse":
     case "MediaInvalidState":
     case "MediaUploadExpired":
-    case "MediaBackupNotConfigured":
       return `${fallbackPath.includes("?") ? `${fallbackPath}&` : `${fallbackPath}?`}error=${encodeURIComponent(error.message)}`;
     case "PostNotFound":
     case "PostRevisionNotFound":

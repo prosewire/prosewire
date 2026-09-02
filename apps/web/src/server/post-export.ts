@@ -179,7 +179,6 @@ export const create = Effect.fn("PostExport.create")(function* () {
               status: asset.status,
               failureReason: asset.failureReason,
               uploadedAt: asset.uploadedAt,
-              backedUpAt: asset.backedUpAt,
               deletedAt: asset.deletedAt,
               createdAt: asset.createdAt,
               updatedAt: asset.updatedAt,

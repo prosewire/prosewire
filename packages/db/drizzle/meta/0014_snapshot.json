@@ -1573,12 +1573,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "backed_up_at": {
-          "name": "backed_up_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
         "deleted_at": {
           "name": "deleted_at",
           "type": "timestamp with time zone",

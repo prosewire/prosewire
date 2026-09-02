@@ -58,19 +58,4 @@ export function remove(blogId: string, assetId: string) {
   );
 }
 
-export function backup(blogId: string, assetId: string) {
-  return runAppEffect(
-    Effect.gen(function* () {
-      const decodedBlogId = yield* Schema.decodeEffect(BlogId)(blogId).pipe(
-        Effect.mapError(() => invalidUpload("Invalid publication id")),
-      );
-      const decodedAssetId = yield* Schema.decodeEffect(MediaAssetId)(
-        assetId,
-      ).pipe(Effect.mapError(() => invalidUpload("Invalid media asset id")));
-      const media = yield* Media.Service;
-      return yield* media.backup(decodedBlogId, decodedAssetId, yield* actor());
-    }),
-  );
-}
-
 export * as MediaEntrypoints from "./media-entrypoints";

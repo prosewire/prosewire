@@ -42,7 +42,6 @@ const mediaAsset = {
   createdById: null,
   uploadExpiresAt: new Date("2026-08-20T00:10:00.000Z"),
   uploadedAt: new Date("2026-08-20T00:00:00.000Z"),
-  backedUpAt: null,
   deletedAt: null,
   createdAt: new Date("2026-08-20T00:00:00.000Z"),
   updatedAt: new Date("2026-08-20T00:00:00.000Z"),

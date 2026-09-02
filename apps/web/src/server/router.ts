@@ -14,7 +14,6 @@ import {
 } from "@prosewire/contract";
 import {
   archivePost,
-  backupMedia,
   completeMediaUpload,
   createPost,
   deleteMedia,
@@ -95,8 +94,6 @@ async function dispatch(request: Request): Promise<unknown> {
       return startMediaUpload(request, operation.input);
     case "CompleteMediaUpload":
       return completeMediaUpload(request, operation.id);
-    case "BackupMedia":
-      return backupMedia(request, operation.id);
     case "DeleteMedia":
       return deleteMedia(request, operation.id);
   }

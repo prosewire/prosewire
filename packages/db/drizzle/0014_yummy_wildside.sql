@@ -15,7 +15,6 @@ CREATE TABLE "media_asset" (
 	"created_by_id" text,
 	"upload_expires_at" timestamp with time zone NOT NULL,
 	"uploaded_at" timestamp with time zone,
-	"backed_up_at" timestamp with time zone,
 	"deleted_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,

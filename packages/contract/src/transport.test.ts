@@ -72,7 +72,7 @@ describe("private API request contract", () => {
     });
   });
 
-  it("decodes media reads, upload steps, backup, and deletion", async () => {
+  it("decodes media reads, upload steps, and deletion", async () => {
     const id = "11111111-1111-4111-8111-111111111111";
     const blogId = "22222222-2222-4222-8222-222222222222";
 
@@ -108,13 +108,6 @@ describe("private API request contract", () => {
         }),
       ),
     ).resolves.toEqual({ _tag: "CompleteMediaUpload", id });
-    await expect(
-      decodePrivateApiRequest(
-        new Request(`http://localhost/api/v1/media/${id}/backup`, {
-          method: "POST",
-        }),
-      ),
-    ).resolves.toEqual({ _tag: "BackupMedia", id });
     await expect(
       decodePrivateApiRequest(
         new Request(`http://localhost/api/v1/media/${id}`, {

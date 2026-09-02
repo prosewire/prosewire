@@ -111,7 +111,6 @@ const mediaAsset = {
   ],
   references: [],
   uploadedAt: "2026-01-03T00:00:00.000Z",
-  backedUpAt: null,
   createdAt: "2026-01-03T00:00:00.000Z",
   updatedAt: "2026-01-03T00:00:00.000Z",
 };
@@ -181,7 +180,6 @@ describe("Prosewire SDK", () => {
                 remainingBytes: 2_048,
               },
               configured: true,
-              backupConfigured: true,
               maxUploadBytes: 20_971_520,
             }),
           );
@@ -280,9 +278,6 @@ describe("Prosewire SDK", () => {
       client.media.completeUpload({ params: { id: mediaAsset.id } }),
     ).resolves.toMatchObject({ id: mediaAsset.id });
     await expect(
-      client.media.backup({ params: { id: mediaAsset.id } }),
-    ).resolves.toMatchObject({ id: mediaAsset.id });
-    await expect(
       client.media.delete({ params: { id: mediaAsset.id } }),
     ).resolves.toEqual({ ok: true });
 
@@ -297,7 +292,6 @@ describe("Prosewire SDK", () => {
       "POST",
       "GET",
       "GET",
-      "POST",
       "POST",
       "POST",
       "DELETE",
@@ -320,7 +314,6 @@ describe("Prosewire SDK", () => {
       byteSize: 1_024,
     });
     expect(requests[11]?.url).toContain(`/media/${mediaAsset.id}/complete`);
-    expect(requests[12]?.url).toContain(`/media/${mediaAsset.id}/backup`);
   });
 
   it("queries every public content endpoint and encodes user input", async () => {

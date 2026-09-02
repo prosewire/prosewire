@@ -21,7 +21,6 @@ export interface MediaStorageConfig {
   readonly forcePathStyle: boolean;
   readonly maxUploadBytes: number;
   readonly uploadUrlExpiresSeconds: number;
-  readonly backupBucket?: string;
 }
 
 const localDevelopmentAuthSecret =
@@ -128,10 +127,6 @@ export class WebConfig extends Context.Service<WebConfig, WebConfigShape>()(
       const mediaUploadUrlExpiresSeconds = yield* Config.int(
         "PROSEWIRE_MEDIA_UPLOAD_URL_EXPIRES_SECONDS",
       ).pipe(Config.withDefault(600));
-      const mediaBackupBucket = yield* Config.option(
-        Config.string("PROSEWIRE_MEDIA_BACKUP_BUCKET"),
-      );
-
       if (Redacted.value(databaseUrl).trim() === "") {
         return yield* new ConfigurationError({
           message: "DATABASE_URL cannot be empty",
@@ -231,9 +226,6 @@ export class WebConfig extends Context.Service<WebConfig, WebConfigShape>()(
           forcePathStyle: mediaForcePathStyle,
           maxUploadBytes: mediaMaxUploadBytes,
           uploadUrlExpiresSeconds: mediaUploadUrlExpiresSeconds,
-          ...(Option.isSome(mediaBackupBucket)
-            ? { backupBucket: mediaBackupBucket.value }
-            : {}),
         };
       }
 

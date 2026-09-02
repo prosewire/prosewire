@@ -21,7 +21,6 @@ function privateClient(
       get: vi.fn(),
       startUpload: vi.fn(),
       completeUpload: vi.fn(),
-      backup: vi.fn(),
       delete: vi.fn(),
       ...mediaOverrides,
     },
@@ -304,7 +303,7 @@ describe("Prosewire CLI", () => {
     expect(restore).toHaveBeenCalledOnce();
   });
 
-  it("uploads, lists, backs up, and explicitly deletes media", async () => {
+  it("uploads, lists, and explicitly deletes media", async () => {
     const blogId = "11111111-1111-4111-8111-111111111111";
     const assetId = "22222222-2222-4222-8222-222222222222";
     const list = vi.fn().mockResolvedValue({ items: [], configured: true });
@@ -319,10 +318,6 @@ describe("Prosewire CLI", () => {
     const completeUpload = vi
       .fn()
       .mockResolvedValue({ id: assetId, status: "ready" });
-    const backup = vi.fn().mockResolvedValue({
-      id: assetId,
-      backedUpAt: "2026-08-20T00:00:00.000Z",
-    });
     const remove = vi.fn().mockResolvedValue({ ok: true });
     const client = privateClient(
       {},
@@ -330,7 +325,6 @@ describe("Prosewire CLI", () => {
         list,
         startUpload,
         completeUpload,
-        backup,
         delete: remove,
       },
     );
@@ -365,10 +359,6 @@ describe("Prosewire CLI", () => {
       dependencies,
     );
     await runProgram(
-      ["node", "prosewire", "--key", "pw_test", "media-backup", assetId],
-      dependencies,
-    );
-    await runProgram(
       [
         "node",
         "prosewire",
@@ -394,9 +384,8 @@ describe("Prosewire CLI", () => {
       body,
     });
     expect(completeUpload).toHaveBeenCalledWith({ params: { id: assetId } });
-    expect(backup).toHaveBeenCalledWith({ params: { id: assetId } });
     expect(remove).toHaveBeenCalledWith({ params: { id: assetId } });
-    expect(output).toHaveBeenCalledTimes(4);
+    expect(output).toHaveBeenCalledTimes(3);
 
     await expect(
       runProgram(

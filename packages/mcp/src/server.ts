@@ -142,7 +142,7 @@ const mediaId = Schema.String.check(Schema.isUUID());
 
 export const MediaList = Tool.make("media_list", {
   description:
-    "List media assets, post references, backup state, and quota usage (safe, read-only).",
+    "List media assets, post references, and quota usage (safe, read-only).",
   success: mediaListOutput,
   failure: ProsewireToolFailure,
 })
@@ -180,22 +180,9 @@ export const MediaUploadComplete = Tool.make("media_upload_complete", {
   .annotate(Tool.Idempotent, true)
   .annotate(Tool.OpenWorld, true);
 
-export const MediaBackup = Tool.make("media_backup", {
-  description: "Copy a ready media asset to the configured backup bucket.",
-  parameters: Schema.Struct({ id: mediaId }),
-  success: mediaAssetOutput,
-  failure: ProsewireToolFailure,
-  needsApproval: true,
-})
-  .annotate(Tool.Title, "Back up media asset")
-  .annotate(Tool.Readonly, false)
-  .annotate(Tool.Destructive, false)
-  .annotate(Tool.Idempotent, true)
-  .annotate(Tool.OpenWorld, true);
-
 export const MediaDelete = Tool.make("media_delete", {
   description:
-    "Delete an unreferenced media asset from primary storage (destructive, confirm with the user first).",
+    "Delete an unreferenced media asset and its stored files (destructive, confirm with the user first).",
   parameters: Schema.Struct({ id: mediaId }),
   success: Schema.Struct({ ok: Schema.Literal(true) }),
   failure: ProsewireToolFailure,
@@ -219,7 +206,6 @@ export const ProsewireToolkit = Toolkit.make(
   MediaList,
   MediaUploadStart,
   MediaUploadComplete,
-  MediaBackup,
   MediaDelete,
 );
 
@@ -261,7 +247,6 @@ export interface ProsewireMcpClient {
     readonly completeUpload: McpOperation<
       EffectClient["media"]["completeUpload"]
     >;
-    readonly backup: McpOperation<EffectClient["media"]["backup"]>;
     readonly delete: McpOperation<EffectClient["media"]["delete"]>;
   };
 }
@@ -293,7 +278,6 @@ export function createProsewireMcpHandlers(client: ProsewireMcpClient) {
     media_upload_start: (input) => call(client.media.startUpload(input)),
     media_upload_complete: ({ id }) =>
       call(client.media.completeUpload({ params: { id } })),
-    media_backup: ({ id }) => call(client.media.backup({ params: { id } })),
     media_delete: ({ id }) => call(client.media.delete({ params: { id } })),
   });
 }

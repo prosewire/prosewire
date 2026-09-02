@@ -117,6 +117,6 @@ const asset = await management.media.completeUpload({
 });
 ```
 
-Use `media.list()` and `media.get()` to inspect quota, variants, references, and backup state. `media.backup()` retries a copy to the configured backup bucket. `media.delete()` permanently removes primary objects and is rejected while a current post references the asset.
+Use `media.list()` and `media.get()` to inspect quota, variants, and references. `media.delete()` permanently removes stored objects and is rejected while a current post references the asset.
 
 `createEffectClient` exposes the same operations as Effects. Create, update, and media inputs are validated by the shared contract; see [Use raw JSON or rendered HTML](/docs/integrate/http-api/) for limits and HTTP behavior.
