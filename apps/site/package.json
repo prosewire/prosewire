@@ -12,9 +12,7 @@
     "build:production": "node ../../scripts/check-site-origin.mjs --production && astro build && node ../../scripts/validate-docs.mjs",
     "preview": "astro preview --host 0.0.0.0",
     "lint": "astro sync && biome lint .",
-    "typecheck": "astro check",
-    "deploy": "pnpm build:production && wrangler deploy",
-    "deploy:dry": "pnpm build:production && wrangler deploy --dry-run"
+    "typecheck": "astro check"
   },
   "dependencies": {
     "@astrojs/markdown-remark": "^7.2.3",
@@ -35,7 +33,6 @@
     "@types/node": "^26.2.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
-    "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "wrangler": "^4.124.0"
+    "typescript": "npm:@typescript/typescript6@^6.0.2"
   }
 }

@@ -9,7 +9,7 @@
         "NEXT_DEPLOYMENT_ID",
         "PROSEWIRE_EXPOSE_TESTING_API",
         "SITE_URL",
-        "WORKERS_CI"
+        "VERCEL_PROJECT_PRODUCTION_URL"
       ],
       "outputs": [".next/**", "!.next/cache/**", "dist/**"]
     },

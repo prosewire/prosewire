@@ -1,7 +1,7 @@
 # Maintainer release checklist
 
 Use this checklist for manual package and stable image releases. Items labeled
-**External** require GitHub, npm, GHCR, or Cloudflare access and are not changed
+**External** require GitHub, npm, GHCR, Vercel, or DNS access and are not changed
 by repository code.
 
 ## Package release
@@ -41,8 +41,12 @@ by repository code.
 
 ## Site deployment
 
-- [ ] **External, Cloudflare:** confirm Workers Build watch paths include the
-      site and its build inputs and exclude unrelated repository changes.
+- [ ] **External, Vercel:** confirm the Git project uses `apps/site` as its root
+      directory and exposes Vercel's system environment variables to builds.
+- [ ] **External, Vercel:** confirm preview deployments run for site changes and
+      production deploys from `main`.
+- [ ] **External, DNS:** attach `prosewire.com` to the Vercel project, apply the
+      records Vercel reports, and remove the old Worker route after cutover.
 - [ ] Verify canonical URLs, sitemap, `robots.txt`, documentation links, and the
       custom domain after a production deployment.
 

@@ -19,7 +19,7 @@ The location from which a page responds is not proof of where all records, logs,
 
 | Service | Hosting model | Location disclosure |
 | --- | --- | --- |
-| `prosewire.com`, documentation, and legal pages | Static assets on Cloudflare | Requests may be served and logged on Cloudflare's global network. Prosewire has not committed to a Cloudflare Customer Metadata Boundary |
+| `prosewire.com`, documentation, and legal pages | Static assets on Vercel; authoritative DNS on Cloudflare | Pages may be served and logged on Vercel's global network. DNS queries may be processed on Cloudflare's global network. Prosewire has not committed to a regional boundary for either provider |
 | `cloud.prosewire.com` application and customer data | Railway infrastructure | The primary service uses a Railway deployment region selected by Prosewire. Railway and its subprocessors may process operational, security, and support data in other countries |
 | Protected backups | Infrastructure backup systems | Backups may be stored or replicated outside the live service region and follow the deletion window in the [retention policy](/legal/deletion-retention/) |
 | Managed invitation email | Not approved for business use | A named SMTP provider and its processing locations must be published before this feature handles business customer addresses |

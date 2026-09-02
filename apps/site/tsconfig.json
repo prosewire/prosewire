@@ -10,5 +10,5 @@
     "lib": ["DOM", "DOM.Iterable", "ES2023"],
     "noEmit": true
   },
-  "exclude": ["dist", "node_modules", ".wrangler", "worker-configuration.d.ts"]
+  "exclude": ["dist", "node_modules", ".vercel"]
 }

@@ -14,7 +14,8 @@ A subprocessor is a provider that Prosewire uses to process customer personal da
 | Provider | Purpose | Data involved | Processing location |
 | --- | --- | --- | --- |
 | [Railway Corporation](https://railway.com/legal/dpa) | Cloud application hosting and managed infrastructure | Customer content, account records, authentication data, logs, and service metadata | The configured Railway deployment region, plus locations used for support, security, and Railway's own subprocessors |
-| [Cloudflare, Inc.](https://www.cloudflare.com/cloudflare-customer-dpa/) | DNS and static hosting for `prosewire.com`, including these legal pages | Website requests and limited network metadata. Cloudflare does not host Prosewire Cloud workspace content through this site role | Cloudflare's global network. No Customer Metadata Boundary is promised |
+| [Cloudflare, Inc.](https://www.cloudflare.com/cloudflare-customer-dpa/) | Authoritative DNS for `prosewire.com` | DNS queries and limited service metadata. Cloudflare does not host the website or Prosewire Cloud workspace content through this role | Cloudflare's global network. No Customer Metadata Boundary is promised |
+| [Vercel Inc.](https://vercel.com/legal/dpa) | Build and static hosting for `prosewire.com`, including these legal pages | Public site source and assets, build metadata, website requests, and limited network logs. Vercel does not host Prosewire Cloud workspace content through this site role | Vercel's global network and locations used by its subprocessors. No regional boundary is promised |
 
 Railway may use infrastructure and operations providers on its own [subprocessor list](https://trust.railway.com/item/subprocessors). Those providers are included through Railway's processing chain.
 
