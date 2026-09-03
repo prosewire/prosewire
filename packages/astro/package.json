@@ -61,9 +61,9 @@
     "astro": ">=5 <8"
   },
   "devDependencies": {
-    "@astrojs/compiler": "^2.13.1",
+    "@astrojs/compiler": "^4.0.0",
     "@prosewire/config": "workspace:*",
-    "@types/node": "^26.2.0",
+    "@types/node": "^26.4.0",
     "astro": "^7.2.3",
     "tsdown": "^0.22.0",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
