@@ -19,10 +19,10 @@
     "@effect/sql-pg": "4.0.0-rc.112",
     "@prosewire/db": "workspace:*",
     "@prosewire/jobs": "workspace:*",
-    "better-auth": "^1.7.1",
+    "better-auth": "^1.7.2",
     "drizzle-orm": "^0.45.2",
     "effect": "4.0.0-rc.112",
-    "nodemailer": "^9.0.5"
+    "nodemailer": "^9.0.6"
   },
   "devDependencies": {
     "@effect/vitest": "4.0.0-rc.112",
