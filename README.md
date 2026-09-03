@@ -43,18 +43,18 @@ The entire stack is portable and Apache-2.0 licensed. Run it locally, self-host 
 
 **Fits the site you already have.** Add a complete reader with one script, fetch rendered HTML, or build a native experience in Next.js, Astro, or another framework with the public API and SDK.
 
-**Portable by design.** Content, authors, categories, redirects, and metadata live in your Postgres database and remain exportable. Custom CSS lets the reader belong to your product instead of a third-party template.
+**Portable by design.** Content, authors, categories, redirects, media references, and metadata live in your Postgres database and remain exportable. Managed media stays in your object storage. Custom CSS lets the reader belong to your product instead of a third-party template.
 
 **Ready for people and agents.** The dashboard, API, SDK, CLI, and MCP server share the same publishing model. API keys are scoped, mutations are audited, and destructive agent tools are clearly marked.
 
 ## Features
 
 - **Editorial workflow** — drafts, scheduled publishing, featured posts, archives, saved revisions, reusable snippets, authors, credentials, categories, and localization
-- **Writing experience** — Markdown formatting controls, live preview, cover-image metadata, reading time, and deterministic content checks
+- **Writing experience** — Markdown formatting controls, live preview, managed cover uploads or external URLs, reading time, and deterministic content checks
 - **Discovery** — canonical URLs, automatic slug redirects, search, related posts, table of contents, RSS, XML sitemap, and JSON-LD
 - **Reader experience** — server-rendered blog and author pages, reading progress, view events, and custom CSS
 - **Integration surfaces** — headless Next.js and Astro readers, a safe scaffolding CLI, JavaScript embed without an iframe, rendered HTML, public JSON, TypeScript SDK, CLI, and MCP server
-- **Operations.** Better Auth sessions, scoped hashed API keys, audit records, portable JSON and CSV exports, a transactional Postgres outbox with `LISTEN`/`NOTIFY` wakeups, Postgres-backed Effect workflows, Redis-backed `DurableQueue`, and Docker Compose
+- **Operations.** Better Auth sessions, scoped hashed API keys, audit records, signed S3-compatible media uploads with image variants and quotas, portable JSON, CSV, and media ZIP exports, a transactional Postgres outbox with `LISTEN`/`NOTIFY` wakeups, Postgres-backed Effect workflows, Redis-backed `DurableQueue`, and Docker Compose
 
 See [the product coverage map](docs/feature-coverage.md) for implemented behavior, partial workflows, and known gaps.
 
@@ -141,7 +141,7 @@ See the [integration documentation](https://prosewire.com/docs/integrate/) for e
 
 The public SDK, CLI, and MCP packages are pre-1.0. Prosewire is usable, but its public contracts may still change before `1.0`. Pin package and container versions, review changelogs before upgrading, and back up Postgres before applying migrations.
 
-The repository does not currently provide a dashboard workflow for revision restore, content import, owner transfer, or workspace deletion. Those gaps are called out in the [product coverage map](docs/feature-coverage.md) instead of being presented as finished behavior.
+The repository does not currently provide a content import, owner transfer, or workspace deletion workflow. Those gaps are called out in the [product coverage map](docs/feature-coverage.md) instead of being presented as finished behavior.
 
 ## Platform
 

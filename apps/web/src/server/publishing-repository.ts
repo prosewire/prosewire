@@ -19,6 +19,7 @@ import {
   AuthorId,
   BlogId,
   CategoryId,
+  MediaAssetId,
   OrganizationId,
   PostId,
   UserId,
@@ -222,6 +223,43 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
     return undefined;
   };
 
+  const resolveManagedCover = async (
+    tx: TransactionClient,
+    blogId: BlogId,
+    assetId: MediaAssetId,
+  ): Promise<
+    | { readonly assetId: MediaAssetId; readonly url: string }
+    | PostErrors.InvalidPost
+  > => {
+    const rows = await tx
+      .select({
+        id: schema.mediaAsset.id,
+        url: schema.mediaVariant.publicUrl,
+      })
+      .from(schema.mediaAsset)
+      .innerJoin(
+        schema.mediaVariant,
+        and(
+          eq(schema.mediaVariant.assetId, schema.mediaAsset.id),
+          eq(schema.mediaVariant.kind, "large"),
+        ),
+      )
+      .where(
+        and(
+          eq(schema.mediaAsset.id, assetId),
+          eq(schema.mediaAsset.blogId, blogId),
+          eq(schema.mediaAsset.status, "ready"),
+        ),
+      )
+      .for("update");
+    const asset = rows[0];
+    return asset
+      ? { assetId: MediaAssetId.make(asset.id), url: asset.url }
+      : new PostErrors.InvalidPost({
+          message: "Cover image asset is not ready in this publication",
+        });
+  };
+
   const getPostCategoryIds = async (
     tx: TransactionClient,
     postId: string,
@@ -244,6 +282,9 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
       excerpt: post.excerpt,
       contentMarkdown: post.contentMarkdown,
       contentHtml: post.contentHtml,
+      coverImageAssetId: post.coverImageAssetId
+        ? MediaAssetId.make(post.coverImageAssetId)
+        : null,
       coverImageUrl: post.coverImageUrl,
       coverImageAlt: post.coverImageAlt,
       status: post.status,
@@ -407,6 +448,16 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
           categoryIds,
         );
         if (invalidLink) return Result.fail(invalidLink);
+        const managedCover = command.coverImageAssetId
+          ? await resolveManagedCover(
+              tx,
+              command.blogId,
+              command.coverImageAssetId,
+            )
+          : undefined;
+        if (managedCover instanceof PostErrors.InvalidPost) {
+          return Result.fail(managedCover);
+        }
 
         const [created] = await tx
           .insert(schema.post)
@@ -418,7 +469,8 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
             excerpt: command.excerpt || createExcerpt(command.contentMarkdown),
             contentMarkdown: command.contentMarkdown,
             contentHtml,
-            coverImageUrl: command.coverImageUrl ?? null,
+            coverImageAssetId: managedCover?.assetId ?? null,
+            coverImageUrl: managedCover?.url ?? command.coverImageUrl ?? null,
             coverImageAlt: command.coverImageAlt ?? null,
             status: command.status,
             locale,
@@ -469,6 +521,7 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
             slug: command.slug,
             status: command.status,
             categoryIds,
+            coverImageAssetId: managedCover?.assetId ?? null,
           },
         });
         return Result.succeed({ postId, blogSlug: locked.blogSlug });
@@ -616,6 +669,30 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
         );
         if (invalidLink) return Result.fail(invalidLink);
 
+        const managedCover = command.coverImageAssetId
+          ? await resolveManagedCover(
+              tx,
+              command.blogId,
+              command.coverImageAssetId,
+            )
+          : undefined;
+        if (managedCover instanceof PostErrors.InvalidPost) {
+          return Result.fail(managedCover);
+        }
+        const nextCoverImageAssetId =
+          command.coverImageAssetId !== undefined
+            ? (managedCover?.assetId ?? null)
+            : command.coverImageUrl !== undefined
+              ? null
+              : existing.coverImageAssetId;
+        const nextCoverImageUrl = managedCover
+          ? managedCover.url
+          : command.coverImageAssetId !== undefined
+            ? (command.coverImageUrl ?? null)
+            : command.coverImageUrl !== undefined
+              ? command.coverImageUrl
+              : existing.coverImageUrl;
+
         await captureRevision(
           tx,
           existing,
@@ -639,10 +716,8 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
             excerpt: nextExcerpt,
             contentMarkdown: nextMarkdown,
             contentHtml: renderedHtml ?? existing.contentHtml,
-            coverImageUrl:
-              command.coverImageUrl === undefined
-                ? existing.coverImageUrl
-                : command.coverImageUrl,
+            coverImageAssetId: nextCoverImageAssetId,
+            coverImageUrl: nextCoverImageUrl,
             coverImageAlt:
               command.coverImageAlt === undefined
                 ? existing.coverImageAlt
@@ -706,6 +781,7 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
             title: command.title ?? existing.title,
             slug: nextSlug,
             status: nextStatus,
+            coverImageAssetId: nextCoverImageAssetId,
             ...(categoryIds === undefined ? {} : { categoryIds }),
           },
         });
@@ -853,6 +929,23 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
             restoredCategoryIds,
           );
           if (invalidLink) return Result.fail(invalidLink);
+          const managedCover = snapshot.coverImageAssetId
+            ? await resolveManagedCover(
+                tx,
+                command.blogId,
+                snapshot.coverImageAssetId,
+              )
+            : undefined;
+          const restoredCoverImageAssetId =
+            managedCover instanceof PostErrors.InvalidPost
+              ? null
+              : (managedCover?.assetId ?? null);
+          const restoredCoverImageUrl =
+            managedCover instanceof PostErrors.InvalidPost
+              ? null
+              : managedCover
+                ? managedCover.url
+                : snapshot.coverImageUrl;
 
           await captureRevision(
             tx,
@@ -870,7 +963,8 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
               excerpt: snapshot.excerpt,
               contentMarkdown: snapshot.contentMarkdown,
               contentHtml: snapshot.contentHtml,
-              coverImageUrl: snapshot.coverImageUrl,
+              coverImageAssetId: restoredCoverImageAssetId,
+              coverImageUrl: restoredCoverImageUrl,
               coverImageAlt: snapshot.coverImageAlt,
               status: snapshot.status,
               locale: snapshot.locale,
@@ -926,6 +1020,7 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
               title: snapshot.title,
               slug: snapshot.slug,
               status: snapshot.status,
+              coverImageAssetId: restoredCoverImageAssetId,
               ...(snapshot.categoryIds === undefined
                 ? {}
                 : { categoryIds: restoredCategoryIds }),

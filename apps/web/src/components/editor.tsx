@@ -25,7 +25,12 @@ import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
 import { cn } from "@/lib/cn";
 import { localeName } from "@/lib/locales";
-import { restorePostRevision, savePost } from "@/server/actions";
+import {
+  finishMediaUpload,
+  requestMediaUpload,
+  restorePostRevision,
+  savePost,
+} from "@/server/actions";
 import { Select } from "./select";
 import { TiptapMarkdownEditor } from "./tiptap-markdown-editor";
 
@@ -66,6 +71,7 @@ interface EditorPost {
   status: PostStatus;
   locale: string;
   featured: boolean;
+  coverImageAssetId: string;
   coverImageUrl: string;
   coverImageAlt: string;
   seoTitle: string;
@@ -92,6 +98,16 @@ interface EditorProps {
   readonly restored: boolean;
   readonly error: string | undefined;
   readonly canPublish: boolean;
+  readonly media: {
+    readonly configured: boolean;
+    readonly maxUploadBytes: number;
+    readonly items: ReadonlyArray<{
+      readonly id: string;
+      readonly filename: string;
+      readonly status: string;
+      readonly url: string | null;
+    }>;
+  };
 }
 
 type SidebarTab = "post" | "seo" | "social";
@@ -274,6 +290,7 @@ export function Editor({
   restored,
   error,
   canPublish,
+  media,
 }: EditorProps) {
   const [title, setTitle] = useState(post.title);
   const [slug, setSlug] = useState(post.slug);
@@ -283,6 +300,9 @@ export function Editor({
   const [description, setDescription] = useState(post.seoDescription);
   const [focusKeyword, setFocusKeyword] = useState(post.focusKeyword);
   const [canonicalUrl, setCanonicalUrl] = useState(post.canonicalUrl);
+  const [coverImageAssetId, setCoverImageAssetId] = useState(
+    post.coverImageAssetId,
+  );
   const [coverImageUrl, setCoverImageUrl] = useState(post.coverImageUrl);
   const [coverImageAlt, setCoverImageAlt] = useState(post.coverImageAlt);
   const [authorId, setAuthorId] = useState(post.authorId);
@@ -294,6 +314,8 @@ export function Editor({
   const [previewing, setPreviewing] = useState(false);
   const [sourceEditing, setSourceEditing] = useState(false);
   const [previewHtml, setPreviewHtml] = useState(post.contentHtml);
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const [uploadError, setUploadError] = useState<string>();
 
   const analysis = useMemo(
     () =>
@@ -318,6 +340,51 @@ export function Editor({
   const searchTitle = seoTitle || title || "Untitled post";
   const searchDescription = description || excerpt || "Add a post summary.";
   const hasCoverPreview = /^https?:\/\//.test(coverImageUrl);
+  const readyMedia = media.items.filter(
+    (asset) => asset.status === "ready" && asset.url,
+  );
+
+  async function uploadCover(file: File): Promise<void> {
+    setUploadError(undefined);
+    if (file.size > media.maxUploadBytes) {
+      setUploadError(
+        `Choose an image smaller than ${Math.floor(media.maxUploadBytes / 1_048_576)} MB.`,
+      );
+      return;
+    }
+    setUploadingCover(true);
+    try {
+      const reservation = await requestMediaUpload({
+        blogId: post.blogId,
+        filename: file.name,
+        mimeType: file.type,
+        byteSize: file.size,
+      });
+      const response = await fetch(reservation.upload.url, {
+        method: reservation.upload.method,
+        headers: reservation.upload.headers,
+        body: file,
+      });
+      if (!response.ok) {
+        throw new Error(
+          `Object storage rejected the upload (${response.status})`,
+        );
+      }
+      const asset = await finishMediaUpload(post.blogId, reservation.asset.id);
+      if (!asset.url)
+        throw new Error("The processed image has no delivery URL");
+      setCoverImageAssetId(asset.id);
+      setCoverImageUrl(asset.url);
+      toast.success("Cover image uploaded");
+    } catch (cause) {
+      const message =
+        cause instanceof Error ? cause.message : "Unable to upload image";
+      setUploadError(message);
+      toast.error("Cover image was not uploaded", { description: message });
+    } finally {
+      setUploadingCover(false);
+    }
+  }
 
   useEffect(() => {
     if (saved)
@@ -355,6 +422,7 @@ export function Editor({
       {post.id ? <input type="hidden" name="id" value={post.id} /> : null}
       <input type="hidden" name="blogId" value={post.blogId} />
       <input type="hidden" name="contentMarkdown" value={markdown} />
+      <input type="hidden" name="coverImageAssetId" value={coverImageAssetId} />
 
       <header className="sticky top-16 z-10 flex min-h-[59px] flex-wrap items-center justify-between gap-3 border-b border-[#d9dbd5] bg-[#f8f7f2]/95 px-3 py-2 backdrop-blur sm:px-5 lg:top-0">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
@@ -893,13 +961,75 @@ export function Editor({
                     </div>
                   </div>
 
+                  {media.configured ? (
+                    <div className="mt-5 rounded-xl border border-[#dcded8] bg-white p-3">
+                      <label className="block">
+                        <span className={fieldLabelClass}>Upload image</span>
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/avif"
+                          disabled={uploadingCover}
+                          onChange={(event) => {
+                            const file = event.target.files?.[0];
+                            if (file) void uploadCover(file);
+                            event.target.value = "";
+                          }}
+                          className="block w-full text-[10px] text-[#687279] file:mr-3 file:rounded-lg file:border-0 file:bg-[#172329] file:px-3 file:py-2 file:text-[10px] file:font-semibold file:text-white disabled:opacity-60"
+                        />
+                      </label>
+                      <p className="mt-2 text-[9px] leading-4 text-[#7b8589]">
+                        {uploadingCover
+                          ? "Uploading and processing image…"
+                          : `JPEG, PNG, WebP, or AVIF. Maximum ${Math.floor(media.maxUploadBytes / 1_048_576)} MB.`}
+                      </p>
+                      {uploadError ? (
+                        <p className="mt-2 text-[9px] leading-4 text-[#b84432]">
+                          {uploadError}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {readyMedia.length > 0 ? (
+                    <div className="mt-4">
+                      <Select
+                        name="coverImageLibrary"
+                        label="Media library"
+                        labelClassName={fieldLabelClass}
+                        value={coverImageAssetId || "external"}
+                        onValueChange={(value) => {
+                          const asset = readyMedia.find(
+                            (item) => item.id === value,
+                          );
+                          setCoverImageAssetId(asset?.id ?? "");
+                          if (asset?.url) setCoverImageUrl(asset.url);
+                        }}
+                        options={[
+                          {
+                            value: "external",
+                            label: "Use an external URL",
+                          },
+                          ...readyMedia.map((asset) => ({
+                            value: asset.id,
+                            label: asset.filename,
+                          })),
+                        ]}
+                        size="small"
+                        className="h-10 rounded-lg px-3 text-xs shadow-none"
+                      />
+                    </div>
+                  ) : null}
+
                   <label className="mt-5 block">
                     <span className={fieldLabelClass}>Cover image URL</span>
                     <input
                       name="coverImageUrl"
                       type="url"
                       value={coverImageUrl}
-                      onChange={(event) => setCoverImageUrl(event.target.value)}
+                      onChange={(event) => {
+                        setCoverImageAssetId("");
+                        setCoverImageUrl(event.target.value);
+                      }}
                       placeholder="https://…"
                       className={fieldClass}
                     />

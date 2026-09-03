@@ -42,9 +42,14 @@ prosewire update 00000000-0000-4000-8000-000000000000 --data changes.json
 prosewire revisions 00000000-0000-4000-8000-000000000000
 prosewire restore 00000000-0000-4000-8000-000000000000 00000000-0000-4000-8000-000000000001 --yes
 prosewire archive 00000000-0000-4000-8000-000000000000 --yes
+prosewire media-list
+prosewire media-upload ./cover.webp --blog-id 00000000-0000-4000-8000-000000000000
+prosewire media-delete 00000000-0000-4000-8000-000000000002 --yes
 ```
 
-`revisions` reads private history and requires `content:read`. `create` and `update` are mutating. `restore` and `archive` are destructive and refuse to run without explicit `--yes` confirmation. Restore saves the current post first. Archive removes the post from public surfaces. All private commands are limited to the publication and scopes of the supplied key.
+`revisions` and `media-list` are private reads and require `content:read`. `create`, `update`, and `media-upload` mutate data. `restore`, `archive`, and `media-delete` are destructive and refuse to run without explicit `--yes` confirmation. Restore saves the current post first. Archive removes the post from public surfaces. Media deletion permanently removes stored objects only when no current post refers to the asset. All private commands are limited to the publication and scopes of the supplied key.
+
+`media-upload` recognizes `.jpg`, `.jpeg`, `.png`, `.webp`, and `.avif`. It reserves quota, sends the exact file bytes to the signed object-storage URL, completes image validation and processing, then prints the ready asset. The `--blog-id` value is the publication UUID, not its slug.
 
 ## JSON request files
 

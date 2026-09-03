@@ -2,6 +2,10 @@ import {
   ApiAccessDenied,
   ApiAuthenticationFailed,
   ApiInputRejected,
+  ApiMediaConflict,
+  ApiMediaNotFound,
+  ApiMediaTooLarge,
+  ApiMediaUnavailable,
   ApiPostNotFound,
   ApiRevisionNotFound,
   ApiUnavailable,
@@ -10,13 +14,18 @@ import {
 } from "@prosewire/contract";
 import {
   archivePost,
+  completeMediaUpload,
   createPost,
+  deleteMedia,
+  getMedia,
   getPost,
   health,
   listBlogs,
+  listMedia,
   listPostRevisions,
   listPosts,
   restorePostRevision,
+  startMediaUpload,
   updatePost,
 } from "./api-entrypoints.ts";
 
@@ -26,6 +35,10 @@ type ApiError =
   | ApiAccessDenied
   | ApiPostNotFound
   | ApiRevisionNotFound
+  | ApiMediaNotFound
+  | ApiMediaConflict
+  | ApiMediaTooLarge
+  | ApiMediaUnavailable
   | ApiUnavailable;
 
 function isApiError(error: unknown): error is ApiError {
@@ -35,6 +48,10 @@ function isApiError(error: unknown): error is ApiError {
     error instanceof ApiAccessDenied ||
     error instanceof ApiPostNotFound ||
     error instanceof ApiRevisionNotFound ||
+    error instanceof ApiMediaNotFound ||
+    error instanceof ApiMediaConflict ||
+    error instanceof ApiMediaTooLarge ||
+    error instanceof ApiMediaUnavailable ||
     error instanceof ApiUnavailable
   );
 }
@@ -69,6 +86,16 @@ async function dispatch(request: Request): Promise<unknown> {
       return archivePost(request, operation.id);
     case "RestorePostRevision":
       return restorePostRevision(request, operation.id, operation.revisionId);
+    case "ListMedia":
+      return listMedia(request);
+    case "GetMedia":
+      return getMedia(request, operation.id);
+    case "StartMediaUpload":
+      return startMediaUpload(request, operation.input);
+    case "CompleteMediaUpload":
+      return completeMediaUpload(request, operation.id);
+    case "DeleteMedia":
+      return deleteMedia(request, operation.id);
   }
 }
 

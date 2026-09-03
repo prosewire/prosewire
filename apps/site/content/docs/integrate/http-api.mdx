@@ -66,9 +66,18 @@ Authorization: Bearer pw_live_...
 | `PATCH` | `/api/v1/posts/:id` | `content:write` | Update supplied fields |
 | `POST` | `/api/v1/posts/:id/revisions/:revisionId/restore` | `content:write` | Save the current version, then restore the selected revision |
 | `DELETE` | `/api/v1/posts/:id` | `content:write` | Archive the post; it does not delete the row |
+| `GET` | `/api/v1/media` | `content:read` | List media assets, post references, and quota usage |
+| `GET` | `/api/v1/media/:id` | `content:read` | Retrieve one media asset |
+| `POST` | `/api/v1/media/uploads` | `content:write` | Reserve quota and return a signed direct-upload request |
+| `POST` | `/api/v1/media/:id/complete` | `content:write` | Validate the stored upload and create sanitized variants |
+| `DELETE` | `/api/v1/media/:id` | `content:write` | Delete an asset that has no current post references |
 
 The private list accepts `search`, `status`, `page`, and `pageSize`. Create requires `blogId`, `authorId`, `title`, and `slug`; optional fields have the same limits enforced by the SDK and CLI. Slugs contain lowercase letters, numbers, and single hyphens, with a maximum length of 120 characters.
 
-Create and update operations render and sanitize Markdown before persistence. Restore applies content that Prosewire rendered and stored in an earlier revision. Every mutation creates an audit record. Expect 400 for invalid input, 401 for a missing or invalid key, 403 for an insufficient scope or publication boundary, 404 for a missing post or revision, and 500 when the service cannot complete the operation.
+Create and update operations render and sanitize Markdown before persistence. Restore applies content that Prosewire rendered and stored in an earlier revision. Every mutation creates an audit record.
+
+A media upload has three steps. First, create a reservation with the publication UUID, filename, MIME type, and exact byte count. Second, send the unchanged body to the returned URL with the returned method and headers before `expiresAt`. Third, call the completion endpoint. Completion verifies the object metadata and file contents before making it available. Only JPEG, PNG, WebP, and AVIF are accepted. Uploads may also fail when their processed variants exceed the publication quota.
+
+Expect 400 for invalid input, 401 for a missing or invalid key, 403 for an insufficient scope or publication boundary, and 404 for a missing post, revision, or media asset. Media reference and state conflicts return 409, quota failures return 413, and unavailable object storage returns 503. Other service failures return 500.
 
 Keep management tokens on trusted servers. Browser applications should use the public JSON or rendered endpoints unless they are backed by a server that holds the token.

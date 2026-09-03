@@ -27,15 +27,20 @@ prosewire update 00000000-0000-4000-8000-000000000000 --data changes.json
 prosewire revisions 00000000-0000-4000-8000-000000000000
 prosewire restore 00000000-0000-4000-8000-000000000000 00000000-0000-4000-8000-000000000001 --yes
 prosewire archive 00000000-0000-4000-8000-000000000000 --yes
+prosewire media-list
+prosewire media-upload ./cover.webp --blog-id 00000000-0000-4000-8000-000000000000
+prosewire media-delete 00000000-0000-4000-8000-000000000002 --yes
 ```
 
 `--url`, `--blog`, and `--key` override the corresponding environment variables. The URL defaults to `http://localhost:3000`; public commands still require a publication slug through `--blog` or `PROSEWIRE_BLOG`.
 
-`posts` and `get` are read-only and use the public content API. `revisions` is a private read and requires a read-scoped key. `create` and `update` mutate content and require `PROSEWIRE_API_KEY` (or `--key`). `restore` and `archive` are destructive, require a write-scoped key, and refuse to run without `--yes`. Restore saves the version it replaces before applying the selected revision.
+`posts` and `get` are read-only and use the public content API. `revisions` and `media-list` are private reads and require a read-scoped key. Content and media mutations require `PROSEWIRE_API_KEY` (or `--key`). `restore`, `archive`, and `media-delete` are destructive, require a write-scoped key, and refuse to run without `--yes`. Restore saves the version it replaces before applying the selected revision. Media deletion is refused while a current post uses the asset.
 Create keys in **Integrate → Scoped API keys** and avoid shell history or committed
 environment files when supplying them.
 
 `create --data` expects a JSON object with `blogId`, `authorId`, `title`, and `slug`; other fields follow the management post-create contract. `update <id> --data` accepts a partial post object. Both identifiers are UUIDs. The current management API does not expose a standalone author-list endpoint, so resolve author IDs from an existing authenticated post response or portable export.
+
+`media-upload` accepts JPEG, PNG, WebP, and AVIF files. It performs the signed upload and completion flow for you. Pass the publication UUID with `--blog-id`.
 
 Commands write formatted JSON to standard output. Treat that output as potentially containing unpublished content when using private commands.
 

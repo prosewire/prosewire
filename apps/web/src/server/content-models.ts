@@ -9,6 +9,7 @@ import {
   BlogSlug,
   CategoryId,
   InvitationId,
+  MediaAssetId,
   MemberId,
   OrganizationId,
   OrganizationSlug,
@@ -131,6 +132,7 @@ const postFields = {
   excerpt: Schema.String,
   contentMarkdown: Schema.String,
   contentHtml: Schema.String,
+  coverImageAssetId: Schema.NullOr(MediaAssetId),
   coverImageUrl: nullableString,
   coverImageAlt: nullableString,
   status: Schema.Literals(["draft", "scheduled", "published", "archived"]),
@@ -295,6 +297,9 @@ const postValues = (row: PostRow) => ({
   id: PostId.make(row.id),
   blogId: BlogId.make(row.blogId),
   authorId: AuthorId.make(row.authorId),
+  coverImageAssetId: row.coverImageAssetId
+    ? MediaAssetId.make(row.coverImageAssetId)
+    : null,
   createdById: row.createdById ? UserId.make(row.createdById) : null,
   updatedById: row.updatedById ? UserId.make(row.updatedById) : null,
 });

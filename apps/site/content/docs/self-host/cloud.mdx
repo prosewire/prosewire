@@ -17,7 +17,7 @@ A cloud deployment runs three commands from the same immutable image:
 | Web | `node apps/web/server.js` | One or more replicas |
 | Worker | `node apps/worker/dist/index.mjs` | Exactly one per database |
 
-Provide Postgres through `DATABASE_URL` and Redis through `REDIS_URL`. Run the migration job to completion before replacing web replicas or the worker. Do not let an orchestrator repeatedly restart a completed migration as a long-running service.
+Provide Postgres through `DATABASE_URL`, Redis through `REDIS_URL`, and a private S3-compatible bucket plus CDN through the `PROSEWIRE_MEDIA_*` variables. Cloud mode refuses to start without media storage. Run the migration job to completion before replacing web replicas or the worker. Do not let an orchestrator repeatedly restart a completed migration as a long-running service.
 
 ## Build and publish an image
 
@@ -41,7 +41,9 @@ PROSEWIRE_IMAGE=registry.example.com/team/prosewire:0.2.0 \
   docker compose -f docker-compose.cloud.yml up -d
 ```
 
-Your `.env` must contain the external database, Redis URL, public origins, authentication secret, server-action encryption key, and SMTP settings. The deployment ID is already part of the image. The cloud file does not provision Postgres, Redis, SMTP, TLS, backups, or a load balancer.
+Your `.env` must contain the external database, Redis URL, public origins, authentication secret, server-action encryption key, SMTP settings, and media storage settings. The deployment ID is already part of the image. The cloud file does not provision Postgres, Redis, object storage, a CDN, SMTP, TLS, backups, or a load balancer.
+
+Keep the media bucket private. Grant the web process permission to get, put, inspect, and delete objects only in that bucket. Configure the dashboard origin in the bucket CORS policy for signed `PUT` requests with `Content-Type`. The CDN should expose processed `publications/` keys and deny the temporary `_uploads/` prefix. Enable provider snapshots, versioning, replication, and retention according to your recovery target.
 
 ## Bootstrap the first owner
 
@@ -55,10 +57,11 @@ Set `PROSEWIRE_ALLOW_SIGN_UP=true` only while creating the first account and wor
 - Allow graceful termination so in-flight requests can finish
 - Run web, worker, and migration from the same immutable image digest
 - Back up Postgres and Redis independently of the application lifecycle, preserve matching recovery points for the email outbox and queue, and test restoration
+- Back up both media buckets, preserve the database and object-store recovery point together, and verify stored checksums after restoration
 - Encrypt and network-restrict Postgres connections
 - Configure Redis persistence, backups, and replication; disable key eviction; and restrict it to the private application network
 - Keep exactly one supervised worker running for each database; the Effect SQL workflow runner in this release does not support multiple Prosewire worker processes
 - Set `PROSEWIRE_EMAIL_WORKER_CONCURRENCY` so in-process concurrency stays within SMTP provider limits
 - Capture migration, web, and worker logs in the platform's logging system
 
-No managed Prosewire control plane or billing service is required. The runtime is self-contained apart from Postgres, Redis, SMTP, TLS termination, and the infrastructure services you choose.
+No managed Prosewire control plane or billing service is required. The runtime is self-contained apart from Postgres, Redis, object storage and CDN delivery, SMTP, TLS termination, and the infrastructure services you choose.

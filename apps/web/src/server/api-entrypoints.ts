@@ -2,9 +2,14 @@ import {
   ApiAccessDenied,
   ApiAuthenticationFailed,
   ApiInputRejected,
+  ApiMediaConflict,
+  ApiMediaNotFound,
+  ApiMediaTooLarge,
+  ApiMediaUnavailable,
   ApiPostNotFound,
   ApiRevisionNotFound,
   ApiUnavailable,
+  type MediaStartUploadInput,
   type PostCreateInput,
   type PostUpdateInput,
 } from "@prosewire/contract";
@@ -13,7 +18,8 @@ import { ApiAccess, type Scope } from "./api-access.ts";
 import { ApiContent, type PostListInput } from "./api-content.ts";
 import { type AppServices, runAppEffect } from "./app-runtime.ts";
 import { decodeTaggedError } from "./boundary-errors.ts";
-import { BlogId, PostId, PostRevisionId } from "./domain.ts";
+import { BlogId, MediaAssetId, PostId, PostRevisionId } from "./domain.ts";
+import { CompleteUploadInput, Media, StartUploadInput } from "./media.ts";
 import { PostErrors } from "./post-errors.ts";
 import {
   ArchivePostsCommand,
@@ -37,10 +43,25 @@ function toApiError(error: unknown) {
     case "PostRevisionNotFound":
       return new ApiRevisionNotFound({ message: tagged.message });
     case "InvalidPost":
+    case "MediaInvalidUpload":
+    case "MediaInvalidImage":
       return new ApiInputRejected({ message: tagged.message });
+    case "MediaAssetNotFound":
+      return new ApiMediaNotFound({ message: tagged.message });
+    case "MediaAssetInUse":
+    case "MediaInvalidState":
+    case "MediaUploadExpired":
+      return new ApiMediaConflict({ message: tagged.message });
+    case "MediaQuotaExceeded":
+      return new ApiMediaTooLarge({ message: tagged.message });
+    case "MediaStorageNotConfigured":
+    case "MediaObjectStorageError":
+    case "MediaImageProcessingError":
+      return new ApiMediaUnavailable({ message: tagged.message });
     case "ApiAccessPersistenceError":
     case "ApiContentPersistenceError":
     case "PublishingRepositoryPersistenceError":
+    case "MediaPersistenceError":
     case "InvalidPostRevision":
     case "PostRenderingFailed":
       return new ApiUnavailable({ message: tagged.message });
@@ -77,6 +98,16 @@ const decodeRevisionId = (value: unknown) =>
 const decodeBlogId = (value: unknown) =>
   Schema.decodeUnknownEffect(BlogId)(value).pipe(
     Effect.mapError(() => invalidInput("Invalid blog id")),
+  );
+
+const decodeMediaAssetId = (value: unknown) =>
+  Schema.decodeUnknownEffect(MediaAssetId)(value).pipe(
+    Effect.mapError(() => invalidInput("Invalid media asset id")),
+  );
+
+const decodeStartUploadInput = (value: unknown) =>
+  Schema.decodeUnknownEffect(StartUploadInput)(value).pipe(
+    Effect.mapError(() => invalidInput("Invalid media upload")),
   );
 
 const decodeCreateInput = (value: unknown) =>
@@ -261,6 +292,85 @@ export function restorePostRevision(
       );
       const content = yield* ApiContent.Service;
       return yield* content.getPost(actor.blogId, result.postId);
+    }),
+  );
+}
+
+export function listMedia(request: Request) {
+  return runApi(
+    request,
+    Effect.gen(function* () {
+      const actor = yield* principal(request, "content:read");
+      const media = yield* Media.Service;
+      return yield* media.list(actor.blogId, {
+        _tag: "Api",
+        keyId: actor.keyId,
+      });
+    }),
+  );
+}
+
+export function getMedia(request: Request, id: string) {
+  return runApi(
+    request,
+    Effect.gen(function* () {
+      const actor = yield* principal(request, "content:read");
+      const assetId = yield* decodeMediaAssetId(id);
+      const media = yield* Media.Service;
+      return yield* media.get(actor.blogId, assetId, {
+        _tag: "Api",
+        keyId: actor.keyId,
+      });
+    }),
+  );
+}
+
+export function startMediaUpload(
+  request: Request,
+  input: MediaStartUploadInput,
+) {
+  return runApi(
+    request,
+    Effect.gen(function* () {
+      const actor = yield* principal(request, "content:write");
+      const access = yield* ApiAccess.Service;
+      const command = yield* decodeStartUploadInput(input);
+      yield* access.requireBlog(actor, command.blogId);
+      const media = yield* Media.Service;
+      return yield* media.startUpload(command, {
+        _tag: "Api",
+        keyId: actor.keyId,
+      });
+    }),
+  );
+}
+
+export function completeMediaUpload(request: Request, id: string) {
+  return runApi(
+    request,
+    Effect.gen(function* () {
+      const actor = yield* principal(request, "content:write");
+      const assetId = yield* decodeMediaAssetId(id);
+      const media = yield* Media.Service;
+      return yield* media.completeUpload(
+        new CompleteUploadInput({ blogId: actor.blogId, assetId }),
+        { _tag: "Api", keyId: actor.keyId },
+      );
+    }),
+  );
+}
+
+export function deleteMedia(request: Request, id: string) {
+  return runApi(
+    request,
+    Effect.gen(function* () {
+      const actor = yield* principal(request, "content:write");
+      const assetId = yield* decodeMediaAssetId(id);
+      const media = yield* Media.Service;
+      return yield* media.remove(actor.blogId, assetId, {
+        _tag: "Api",
+        keyId: actor.keyId,
+      });
     }),
   );
 }

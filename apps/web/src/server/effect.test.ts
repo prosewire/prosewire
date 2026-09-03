@@ -109,6 +109,11 @@ describe("web infrastructure", () => {
         PROSEWIRE_DEPLOYMENT: "cloud",
         PROSEWIRE_GOOGLE_CLIENT_ID: "google-client-id",
         PROSEWIRE_GOOGLE_CLIENT_SECRET: "google-client-secret",
+        PROSEWIRE_MEDIA_ENDPOINT: "https://storage.example.com",
+        PROSEWIRE_MEDIA_BUCKET: "prosewire-media",
+        PROSEWIRE_MEDIA_ACCESS_KEY_ID: "media-access-key",
+        PROSEWIRE_MEDIA_SECRET_ACCESS_KEY: "media-secret-key",
+        PROSEWIRE_MEDIA_PUBLIC_URL: "https://media.example.com",
       }),
     );
     const runtime = ManagedRuntime.make(
@@ -122,6 +127,7 @@ describe("web infrastructure", () => {
         "google-client-id",
       );
       expect(config.cloudSocialProviders?.github).toBeUndefined();
+      expect(config.mediaStorage?.bucket).toBe("prosewire-media");
     } finally {
       await runtime.dispose();
     }
@@ -170,6 +176,29 @@ describe("web infrastructure", () => {
     try {
       await expect(runtime.runPromise(WebConfig)).rejects.toThrow(
         /PROSEWIRE_GITHUB_CLIENT_SECRET/,
+      );
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
+  it("requires object storage for cloud deployments", async () => {
+    const cloudConfig = Layer.succeed(
+      ConfigProvider.ConfigProvider,
+      ConfigProvider.fromUnknown({
+        NODE_ENV: "production",
+        DATABASE_URL: "postgres://localhost/prosewire",
+        BETTER_AUTH_SECRET: "cloud-auth-secret-with-at-least-32-characters",
+        PROSEWIRE_DEPLOYMENT: "cloud",
+      }),
+    );
+    const runtime = ManagedRuntime.make(
+      WebConfig.layer.pipe(Layer.provide(cloudConfig)),
+    );
+
+    try {
+      await expect(runtime.runPromise(WebConfig)).rejects.toThrow(
+        /media storage/,
       );
     } finally {
       await runtime.dispose();

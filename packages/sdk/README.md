@@ -69,8 +69,12 @@ Available Promise operations are:
 - `posts.list()`, `posts.get()`, and `posts.create()`
 - `posts.update()` and `posts.archive()`
 - `posts.revisions()` and `posts.restore()`
+- `media.list()`, `media.get()`, and `media.startUpload()`
+- `media.completeUpload()` and `media.delete()`
 
-Management keys are publication-scoped. Post and revision reads require `content:read`. Create, update, archive, and revision restore require `content:write`. A restore saves the current post as a new revision before replacing it. Never expose a management key in browser JavaScript.
+Management keys are publication-scoped. Post, revision, and media reads require `content:read`. Create, update, archive, revision restore, and media mutations require `content:write`. A restore saves the current post as a new revision before replacing it. Media deletion fails while a current post references the asset. Never expose a management key or signed upload reservation in untrusted code.
+
+Start a managed upload with the publication UUID, filename, MIME type, and exact byte count. Send the bytes to the returned signed URL using its method and headers, then call `media.completeUpload()` with the reserved asset ID. Completion returns the sanitized variants and CDN URL.
 
 The optional `blog` value on `posts.list()` is a safety assertion. It must match the API key's publication slug or UUID; it cannot select another publication.
 

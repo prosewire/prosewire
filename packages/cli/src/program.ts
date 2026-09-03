@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { basename, extname } from "node:path";
 import { postCreateInput, postUpdateInput } from "@prosewire/contract";
 import {
   type Client,
@@ -12,10 +13,12 @@ import { nodeServicesLayer } from "./node-services.ts";
 import { version } from "./version.ts";
 
 export interface CliPrivateClient {
+  readonly blogs: Client["blogs"];
   readonly posts: Pick<
     Client["posts"],
     "create" | "update" | "archive" | "revisions" | "restore"
   >;
+  readonly media: Client["media"];
 }
 
 interface CliDependencies {
@@ -24,6 +27,7 @@ interface CliDependencies {
   readonly createPublicClient: typeof createPublicClient;
   readonly output: (value: unknown) => void;
   readonly env: NodeJS.ProcessEnv;
+  readonly fetch: typeof fetch;
 }
 
 const defaults: CliDependencies = {
@@ -33,6 +37,7 @@ const defaults: CliDependencies = {
   output: (value) =>
     process.stdout.write(`${JSON.stringify(value, null, 2)}\n`),
   env: process.env,
+  fetch: globalThis.fetch,
 };
 
 const userError = (message: string) =>
@@ -261,6 +266,116 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
     }),
   ).pipe(Command.withDescription("Restore a post revision"));
 
+  const mediaList = Command.make(
+    "media-list",
+    {},
+    Effect.fn("Cli.mediaList")(function* () {
+      const parent = yield* root;
+      const key =
+        Option.getOrUndefined(parent.key) ??
+        dependencies.env["PROSEWIRE_API_KEY"];
+      if (!key) {
+        return yield* userError("--key or PROSEWIRE_API_KEY is required");
+      }
+      const result = yield* fromPromise(() =>
+        dependencies
+          .createClient({ baseUrl: parent.url, apiKey: key })
+          .media.list(),
+      );
+      yield* Effect.sync(() => dependencies.output(result));
+    }),
+  ).pipe(Command.withDescription("List media assets and quota usage"));
+
+  const uploadMimeTypes: Readonly<Record<string, string>> = {
+    ".avif": "image/avif",
+    ".jpeg": "image/jpeg",
+    ".jpg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+  };
+
+  const mediaUpload = Command.make(
+    "media-upload",
+    {
+      file: Argument.string("file"),
+      blogId: Flag.string("blog-id").pipe(
+        Flag.withDescription("Publication UUID"),
+      ),
+    },
+    Effect.fn("Cli.mediaUpload")(function* ({ blogId, file }) {
+      const parent = yield* root;
+      const key =
+        Option.getOrUndefined(parent.key) ??
+        dependencies.env["PROSEWIRE_API_KEY"];
+      if (!key) {
+        return yield* userError("--key or PROSEWIRE_API_KEY is required");
+      }
+      const mimeType = uploadMimeTypes[extname(file).toLowerCase()];
+      if (!mimeType) {
+        return yield* userError("Upload a JPEG, PNG, WebP, or AVIF image");
+      }
+      const body = yield* fromPromise(() => dependencies.readFile(file));
+      const client = dependencies.createClient({
+        baseUrl: parent.url,
+        apiKey: key,
+      });
+      const reservation = yield* fromPromise(() =>
+        client.media.startUpload({
+          blogId,
+          filename: basename(file),
+          mimeType,
+          byteSize: body.byteLength,
+        }),
+      );
+      yield* fromPromise(async () => {
+        const response = await dependencies.fetch(reservation.upload.url, {
+          method: reservation.upload.method,
+          headers: reservation.upload.headers,
+          body,
+        });
+        if (!response.ok) {
+          throw new Error(
+            `Object storage rejected the upload (${String(response.status)})`,
+          );
+        }
+      });
+      const asset = yield* fromPromise(() =>
+        client.media.completeUpload({
+          params: { id: reservation.asset.id },
+        }),
+      );
+      yield* Effect.sync(() => dependencies.output(asset));
+    }),
+  ).pipe(Command.withDescription("Upload and process a media asset"));
+
+  const mediaDelete = Command.make(
+    "media-delete",
+    {
+      id: Argument.string("id"),
+      yes: Flag.boolean("yes").pipe(
+        Flag.withDescription("Confirm permanent media deletion"),
+      ),
+    },
+    Effect.fn("Cli.mediaDelete")(function* ({ id, yes }) {
+      if (!yes) {
+        return yield* userError("--yes is required to delete a media asset");
+      }
+      const parent = yield* root;
+      const key =
+        Option.getOrUndefined(parent.key) ??
+        dependencies.env["PROSEWIRE_API_KEY"];
+      if (!key) {
+        return yield* userError("--key or PROSEWIRE_API_KEY is required");
+      }
+      const result = yield* fromPromise(() =>
+        dependencies
+          .createClient({ baseUrl: parent.url, apiKey: key })
+          .media.delete({ params: { id } }),
+      );
+      yield* Effect.sync(() => dependencies.output(result));
+    }),
+  ).pipe(Command.withDescription("Delete an unreferenced media asset"));
+
   return root.pipe(
     Command.withSubcommands([
       posts,
@@ -270,6 +385,9 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
       archive,
       revisions,
       restore,
+      mediaList,
+      mediaUpload,
+      mediaDelete,
     ]),
   );
 }

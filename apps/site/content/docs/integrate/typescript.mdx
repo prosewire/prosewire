@@ -92,4 +92,31 @@ await management.posts.restore({
 await management.posts.archive({ params: { id: postId } });
 ```
 
-`createEffectClient` exposes the same operations as Effects. Create and update inputs are validated by the shared contract; see [Use raw JSON or rendered HTML](/docs/integrate/http-api/) for field limits and HTTP behavior.
+Managed media uses a signed direct upload. Keep this flow in trusted server code because it starts with a write-scoped management key:
+
+```typescript
+import { readFile } from "node:fs/promises";
+
+const bytes = await readFile("cover.webp");
+const reservation = await management.media.startUpload({
+  blogId,
+  filename: "cover.webp",
+  mimeType: "image/webp",
+  byteSize: bytes.byteLength,
+});
+
+const uploaded = await fetch(reservation.upload.url, {
+  method: reservation.upload.method,
+  headers: reservation.upload.headers,
+  body: bytes,
+});
+if (!uploaded.ok) throw new Error(`Upload failed: ${uploaded.status}`);
+
+const asset = await management.media.completeUpload({
+  params: { id: reservation.asset.id },
+});
+```
+
+Use `media.list()` and `media.get()` to inspect quota, variants, and references. `media.delete()` permanently removes stored objects and is rejected while a current post references the asset.
+
+`createEffectClient` exposes the same operations as Effects. Create, update, and media inputs are validated by the shared contract; see [Use raw JSON or rendered HTML](/docs/integrate/http-api/) for limits and HTTP behavior.

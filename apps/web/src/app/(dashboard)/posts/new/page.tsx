@@ -11,7 +11,7 @@ export default async function NewPostPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const [query, result] = await Promise.all([searchParams, loadNewPost()]);
-  const { blog, authors, categories, context } = dashboardData(result);
+  const { blog, authors, categories, context, media } = dashboardData(result);
   const author = authors[0];
   if (!author) throw new Error("Create an author before writing a post");
   return (
@@ -22,6 +22,7 @@ export default async function NewPostPage({
       saved={false}
       restored={false}
       error={query.error}
+      media={media}
       authors={authors.map(({ id, name }) => ({ id, name }))}
       categories={categories.map(({ id, name }) => ({ id, name }))}
       locales={blog.locales}
@@ -37,6 +38,7 @@ export default async function NewPostPage({
         status: "draft",
         locale: blog.locale,
         featured: false,
+        coverImageAssetId: "",
         coverImageUrl: "",
         coverImageAlt: "",
         seoTitle: "",

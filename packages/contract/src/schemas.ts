@@ -48,6 +48,7 @@ export const postOutput = Schema.Struct({
   excerpt: Schema.String,
   contentMarkdown: Schema.String,
   contentHtml: Schema.String,
+  coverImageAssetId: nullable(uuid),
   coverImageUrl: nullable(Schema.String),
   coverImageAlt: nullable(Schema.String),
   status: postStatus,
@@ -71,6 +72,7 @@ export const postRevisionSnapshot = Schema.Struct({
   slug: Schema.String,
   excerpt: Schema.String,
   contentMarkdown: Schema.String,
+  coverImageAssetId: Schema.optionalKey(nullable(uuid)),
   coverImageUrl: nullable(Schema.String),
   coverImageAlt: nullable(Schema.String),
   status: postStatus,
@@ -108,6 +110,7 @@ const slug = Schema.Trim.pipe(
 );
 const excerpt = Schema.String.check(Schema.isMaxLength(500));
 const contentMarkdown = Schema.String;
+const coverImageAssetId = nullable(uuid);
 const coverImageUrl = nullable(url);
 const coverImageAlt = nullable(Schema.String.check(Schema.isMaxLength(180)));
 const locale = Schema.String.check(
@@ -129,6 +132,7 @@ export const postCreateInput = Schema.Struct({
   slug,
   excerpt: Schema.optionalKey(excerpt),
   contentMarkdown: withDefault(contentMarkdown, ""),
+  coverImageAssetId: Schema.optionalKey(coverImageAssetId),
   coverImageUrl: Schema.optionalKey(coverImageUrl),
   coverImageAlt: Schema.optionalKey(coverImageAlt),
   status: withDefault(postStatus, "draft"),
@@ -148,6 +152,7 @@ export const postUpdateInput = Schema.Struct({
   slug: Schema.optionalKey(slug),
   excerpt: Schema.optionalKey(excerpt),
   contentMarkdown: Schema.optionalKey(contentMarkdown),
+  coverImageAssetId: Schema.optionalKey(coverImageAssetId),
   coverImageUrl: Schema.optionalKey(coverImageUrl),
   coverImageAlt: Schema.optionalKey(coverImageAlt),
   status: Schema.optionalKey(postStatus),
@@ -238,6 +243,80 @@ export const paginatedPosts = Schema.Struct({
   pageSize: Schema.Int,
 });
 
+export const mediaAssetStatus = Schema.Literals([
+  "pending",
+  "processing",
+  "ready",
+  "failed",
+  "deleted",
+]);
+
+export const mediaVariantOutput = Schema.Struct({
+  kind: Schema.Literals(["original", "large", "thumbnail"]),
+  url,
+  mimeType: Schema.String,
+  byteSize: Schema.Int,
+  width: Schema.Int,
+  height: Schema.Int,
+  checksumSha256: Schema.String,
+});
+
+export const mediaReferenceOutput = Schema.Struct({
+  postId: uuid,
+  title: Schema.String,
+  slug: Schema.String,
+});
+
+export const mediaAssetOutput = Schema.Struct({
+  id: uuid,
+  blogId: uuid,
+  filename: Schema.String,
+  mimeType: Schema.String,
+  byteSize: Schema.Int,
+  storageBytes: Schema.Int,
+  width: nullable(Schema.Int),
+  height: nullable(Schema.Int),
+  checksumSha256: nullable(Schema.String),
+  status: mediaAssetStatus,
+  url: nullable(url),
+  variants: Schema.Array(mediaVariantOutput),
+  references: Schema.Array(mediaReferenceOutput),
+  uploadedAt: nullable(isoDateTime),
+  createdAt: isoDateTime,
+  updatedAt: isoDateTime,
+});
+
+export const mediaUsageOutput = Schema.Struct({
+  usedBytes: Schema.Int,
+  quotaBytes: Schema.Int,
+  remainingBytes: Schema.Int,
+});
+
+export const mediaListOutput = Schema.Struct({
+  items: Schema.Array(mediaAssetOutput),
+  usage: mediaUsageOutput,
+  configured: Schema.Boolean,
+  maxUploadBytes: Schema.Int,
+});
+
+export const mediaStartUploadInput = Schema.Struct({
+  blogId: uuid,
+  filename: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(255)),
+  mimeType: Schema.String,
+  byteSize: Schema.Int.check(Schema.isGreaterThan(0)),
+});
+
+export const mediaUploadReservationOutput = Schema.Struct({
+  asset: mediaAssetOutput,
+  upload: Schema.Struct({
+    url,
+    method: Schema.Literal("PUT"),
+    headers: Schema.Record(Schema.String, Schema.String),
+    expiresAt: isoDateTime,
+  }),
+  usage: mediaUsageOutput,
+});
+
 export type PostStatus = typeof postStatus.Type;
 export type Post = typeof postOutput.Type;
 export type PostRevision = typeof postRevisionOutput.Type;
@@ -255,3 +334,11 @@ export type PostCreateEncodedInput = typeof postCreateInput.Encoded;
 export type PostUpdateInput = typeof postUpdateInput.Type;
 export type PostUpdateEncodedInput = typeof postUpdateInput.Encoded;
 export type PaginatedPosts = typeof paginatedPosts.Type;
+export type MediaAssetStatus = typeof mediaAssetStatus.Type;
+export type MediaVariant = typeof mediaVariantOutput.Type;
+export type MediaReference = typeof mediaReferenceOutput.Type;
+export type MediaAsset = typeof mediaAssetOutput.Type;
+export type MediaUsage = typeof mediaUsageOutput.Type;
+export type MediaList = typeof mediaListOutput.Type;
+export type MediaStartUploadInput = typeof mediaStartUploadInput.Type;
+export type MediaUploadReservation = typeof mediaUploadReservationOutput.Type;

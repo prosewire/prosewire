@@ -1,5 +1,11 @@
 import {
   api,
+  type MediaAsset,
+  type MediaList,
+  type MediaStartUploadInput,
+  type MediaUploadReservation,
+  type MediaUsage,
+  type MediaVariant,
   type PostCreateEncodedInput,
   type PostCreateInput,
   type PostRevision,
@@ -104,6 +110,17 @@ export function createEffectClient(options: ProsewireClientOptions) {
         };
       }) => provideFetch(generated.posts.restoreRevision(input)),
     },
+    media: {
+      list: () => provideFetch(generated.media.list()),
+      get: (input: { readonly params: { readonly id: string } }) =>
+        provideFetch(generated.media.get(input)),
+      startUpload: (input: MediaStartUploadInput) =>
+        provideFetch(generated.media.startUpload({ payload: input })),
+      completeUpload: (input: { readonly params: { readonly id: string } }) =>
+        provideFetch(generated.media.completeUpload(input)),
+      delete: (input: { readonly params: { readonly id: string } }) =>
+        provideFetch(generated.media.delete(input)),
+    },
   };
 }
 
@@ -138,12 +155,29 @@ export function createClient(options: ProsewireClientOptions) {
         };
       }) => Effect.runPromise(client.posts.restore(input)),
     },
+    media: {
+      list: () => Effect.runPromise(client.media.list()),
+      get: (input: { readonly params: { readonly id: string } }) =>
+        Effect.runPromise(client.media.get(input)),
+      startUpload: (input: MediaStartUploadInput) =>
+        Effect.runPromise(client.media.startUpload(input)),
+      completeUpload: (input: { readonly params: { readonly id: string } }) =>
+        Effect.runPromise(client.media.completeUpload(input)),
+      delete: (input: { readonly params: { readonly id: string } }) =>
+        Effect.runPromise(client.media.delete(input)),
+    },
   };
 }
 
 export type Client = ReturnType<typeof createClient>;
 
 export type {
+  MediaAsset,
+  MediaList,
+  MediaStartUploadInput,
+  MediaUploadReservation,
+  MediaUsage,
+  MediaVariant,
   PostRevision,
   PublicAuthor,
   PublicBlog,

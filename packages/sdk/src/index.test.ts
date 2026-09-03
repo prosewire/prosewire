@@ -50,6 +50,7 @@ const post = {
 const privatePost = {
   ...post,
   blogId: blog.id,
+  coverImageAssetId: null,
   focusKeyword: null,
   scheduledAt: null,
   createdAt: "2026-01-01T00:00:00.000Z",
@@ -82,6 +83,37 @@ const revision = {
     categoryIds: [],
   },
 } as const;
+
+const mediaAsset = {
+  id: "55555555-5555-4555-8555-555555555555",
+  blogId: blog.id,
+  filename: "cover.webp",
+  mimeType: "image/webp",
+  byteSize: 1_024,
+  storageBytes: 2_048,
+  width: 1_600,
+  height: 900,
+  checksumSha256:
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  status: "ready" as const,
+  url: "https://media.example/cover.webp",
+  variants: [
+    {
+      kind: "large" as const,
+      url: "https://media.example/cover.webp",
+      mimeType: "image/webp",
+      byteSize: 1_024,
+      width: 1_600,
+      height: 900,
+      checksumSha256:
+        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    },
+  ],
+  references: [],
+  uploadedAt: "2026-01-03T00:00:00.000Z",
+  createdAt: "2026-01-03T00:00:00.000Z",
+  updatedAt: "2026-01-03T00:00:00.000Z",
+};
 
 describe("Prosewire SDK", () => {
   it("calls the typed API with a normalized URL and bearer key", async () => {
@@ -138,6 +170,49 @@ describe("Prosewire SDK", () => {
         if (outgoing.method === "GET" && url.pathname.endsWith("/revisions")) {
           return Promise.resolve(Response.json([revision]));
         }
+        if (outgoing.method === "GET" && url.pathname.endsWith("/media")) {
+          return Promise.resolve(
+            Response.json({
+              items: [mediaAsset],
+              usage: {
+                usedBytes: 2_048,
+                quotaBytes: 4_096,
+                remainingBytes: 2_048,
+              },
+              configured: true,
+              maxUploadBytes: 20_971_520,
+            }),
+          );
+        }
+        if (
+          outgoing.method === "POST" &&
+          url.pathname.endsWith("/media/uploads")
+        ) {
+          return Promise.resolve(
+            Response.json(
+              {
+                asset: { ...mediaAsset, status: "pending", url: null },
+                upload: {
+                  url: "https://storage.example/signed",
+                  method: "PUT",
+                  headers: { "content-type": "image/webp" },
+                  expiresAt: "2026-01-03T00:10:00.000Z",
+                },
+                usage: {
+                  usedBytes: 1_024,
+                  quotaBytes: 4_096,
+                  remainingBytes: 3_072,
+                },
+              },
+              { status: 201 },
+            ),
+          );
+        }
+        if (url.pathname.includes("/media/")) {
+          return outgoing.method === "DELETE"
+            ? Promise.resolve(Response.json({ ok: true }))
+            : Promise.resolve(Response.json(mediaAsset));
+        }
         if (outgoing.method === "DELETE") {
           return Promise.resolve(Response.json({ ok: true }));
         }
@@ -184,6 +259,27 @@ describe("Prosewire SDK", () => {
         params: { id: privatePost.id, revisionId: revision.id },
       }),
     ).resolves.toMatchObject({ id: privatePost.id });
+    await expect(client.media.list()).resolves.toMatchObject({
+      items: [{ id: mediaAsset.id }],
+      configured: true,
+    });
+    await expect(
+      client.media.get({ params: { id: mediaAsset.id } }),
+    ).resolves.toMatchObject({ id: mediaAsset.id });
+    await expect(
+      client.media.startUpload({
+        blogId: blog.id,
+        filename: "cover.webp",
+        mimeType: "image/webp",
+        byteSize: 1_024,
+      }),
+    ).resolves.toMatchObject({ upload: { method: "PUT" } });
+    await expect(
+      client.media.completeUpload({ params: { id: mediaAsset.id } }),
+    ).resolves.toMatchObject({ id: mediaAsset.id });
+    await expect(
+      client.media.delete({ params: { id: mediaAsset.id } }),
+    ).resolves.toEqual({ ok: true });
 
     expect(requests.map(({ method }) => method)).toEqual([
       "GET",
@@ -194,6 +290,11 @@ describe("Prosewire SDK", () => {
       "PATCH",
       "DELETE",
       "POST",
+      "GET",
+      "GET",
+      "POST",
+      "POST",
+      "DELETE",
     ]);
     expect(requests[1]?.url).toContain("status=draft&page=2&pageSize=10");
     expect(requests[3]?.url).toContain(`/posts/${privatePost.id}/revisions`);
@@ -206,6 +307,13 @@ describe("Prosewire SDK", () => {
     expect(requests[7]?.url).toContain(
       `/posts/${privatePost.id}/revisions/${revision.id}/restore`,
     );
+    expect(requests[8]?.url).toContain("/api/v1/media");
+    await expect(requests[10]?.json()).resolves.toMatchObject({
+      blogId: blog.id,
+      filename: "cover.webp",
+      byteSize: 1_024,
+    });
+    expect(requests[11]?.url).toContain(`/media/${mediaAsset.id}/complete`);
   });
 
   it("queries every public content endpoint and encodes user input", async () => {

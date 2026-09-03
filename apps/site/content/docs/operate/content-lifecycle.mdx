@@ -21,9 +21,15 @@ Revision snapshots retain the actor and version for auditability. The dashboard 
 
 New snapshots include category relationships. Older snapshots created before category capture leave the post's current categories unchanged when restored. Changing an archived post back to a working status does not delete its revision history.
 
+## Managed cover images
+
+Editors can keep using an external cover URL or choose a managed media asset. A managed upload is reserved against the publication quota, sent directly to object storage with a short-lived signed request, then completed through Prosewire. Completion validates the stored size, detects the real image MIME type, rejects unsupported or animated inputs, removes metadata, and generates original, large, and thumbnail variants. Posts store both the asset reference and the large CDN URL so every reader and framework integration keeps the same public post contract.
+
+The content library shows direct post references. An asset cannot be deleted while a current post uses it. Deletion permanently removes its stored objects and active library record. Revision snapshots can retain an old asset identifier; restoring such a revision clears the managed reference if that asset is no longer ready.
+
 ## Portable exports
 
-The posts screen provides a versioned JSON export containing publication metadata, authors, categories, snippets, redirects, full posts, and revision snapshots. CSV contains post fields plus author and category identifiers for spreadsheet interoperability. Prosewire does not currently provide an import workflow, so test your own restore process before relying on exports as a backup.
+The posts screen provides a versioned JSON export containing publication metadata, authors, categories, snippets, redirects, media metadata and references, full posts, and revision snapshots. CSV contains post fields plus author, category, and managed cover identifiers for spreadsheet interoperability. The separate media ZIP contains the sanitized original for every ready asset and a checksum manifest. Prosewire does not currently provide an import workflow, so test your own restore process before relying on exports as a backup.
 
 ## Discovery follows publication
 

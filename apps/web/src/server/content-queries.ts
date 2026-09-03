@@ -484,6 +484,21 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
     },
   );
 
+  const getMediaExport = Effect.fn("ContentQueries.getMediaExport")(function* (
+    blogId: BlogId,
+  ) {
+    return yield* execute("mediaAsset.listExport", (client) =>
+      client.query.mediaAsset.findMany({
+        where: eq(schema.mediaAsset.blogId, blogId),
+        with: {
+          variants: true,
+          coverPosts: { columns: { id: true, title: true, slug: true } },
+        },
+        orderBy: [asc(schema.mediaAsset.createdAt)],
+      }),
+    );
+  });
+
   const recordPostView = Effect.fn("ContentQueries.recordPostView")(function* (
     postId: PostId,
     eventId: string,
@@ -532,6 +547,7 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
     getPublicPost,
     getPublicRedirect,
     getPublicRedirects,
+    getMediaExport,
     recordPostView,
   };
 });
