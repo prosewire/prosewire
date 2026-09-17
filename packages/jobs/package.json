@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@redis/client": "^6.2.1",
-    "effect": "4.0.0-rc.112"
+    "effect": "4.0.0-rc.113"
   },
   "devDependencies": {
     "@effect/vitest": "4.0.0-rc.112",
