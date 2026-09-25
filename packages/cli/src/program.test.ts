@@ -1,6 +1,7 @@
 import type { PublicContentClient } from "@prosewire/sdk";
+import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
-import { type CliPrivateClient, runProgram } from "./program.ts";
+import { type CliPrivateClient, programEffect, runProgram } from "./program.ts";
 
 function privateClient(
   overrides: Partial<CliPrivateClient["posts"]> = {},
@@ -47,21 +48,116 @@ describe("Prosewire CLI", () => {
     ["media-upload", "cover.webp", "--blog-id", "publication-id"],
     ["media-delete", "asset-id", "--yes"],
   ])("rejects media command %s without a key", async (...args) => {
-    const createClient = vi.fn();
+    const createEffectClient = vi.fn();
     const readFile = vi.fn();
     const output = vi.fn();
 
     await expect(
       runProgram(["node", "prosewire", ...args], {
-        createClient,
+        createEffectClient,
         readFile,
         output,
         env: {},
       }),
     ).rejects.toThrow("--key or PROSEWIRE_API_KEY is required");
-    expect(createClient).not.toHaveBeenCalled();
+    expect(createEffectClient).not.toHaveBeenCalled();
     expect(readFile).not.toHaveBeenCalled();
     expect(output).not.toHaveBeenCalled();
+  });
+
+
+  it.each([
+    ["private", ["--key", "pw_test", "media-list"]],
+    ["public", ["posts", "--blog", "fieldnotes"]],
+  ] as const)(
+    "aborts active %s HTTP requests when the command is interrupted",
+    async (_kind, args) => {
+      let started!: () => void;
+      const ready = new Promise<void>((resolve) => {
+        started = resolve;
+      });
+      let requestSignal: AbortSignal | undefined;
+      const request: typeof fetch = (input, init) => {
+        requestSignal = new Request(input, init).signal;
+        started();
+        return new Promise((_resolve, reject) => {
+          requestSignal?.addEventListener(
+            "abort",
+            () => reject(new DOMException("Canceled", "AbortError")),
+            { once: true },
+          );
+        });
+      };
+      const controller = new AbortController();
+      const output = vi.fn();
+      const running = Effect.runPromiseExit(
+        programEffect(args, { fetch: request, output, env: {} }),
+        { signal: controller.signal },
+      );
+      await ready;
+      controller.abort();
+      const exit = await running;
+      expect(exit._tag).toBe("Failure");
+      expect(requestSignal?.aborted).toBe(true);
+      expect(output).not.toHaveBeenCalled();
+    },
+  );
+
+  it("aborts an upload and does not issue its completion mutation", async () => {
+    let started!: () => void;
+    const ready = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    let uploadSignal: AbortSignal | null | undefined;
+    const completeUpload = vi.fn();
+    const request: typeof fetch = (_input, init) => {
+      uploadSignal = init?.signal;
+      started();
+      return new Promise((_resolve, reject) => {
+        uploadSignal?.addEventListener(
+          "abort",
+          () => reject(new DOMException("Canceled", "AbortError")),
+          { once: true },
+        );
+      });
+    };
+    const startUpload = vi.fn().mockReturnValue(
+      Effect.succeed({
+        asset: { id: "22222222-2222-4222-8222-222222222222" },
+        upload: {
+          url: "https://storage.example/signed",
+          method: "PUT",
+          headers: {},
+        },
+      }),
+    );
+    const controller = new AbortController();
+    const running = Effect.runPromiseExit(
+      programEffect(
+        [
+          "--key",
+          "pw_test",
+          "media-upload",
+          "cover.webp",
+          "--blog-id",
+          "11111111-1111-4111-8111-111111111111",
+        ],
+        {
+          env: {},
+          fetch: request,
+          readFile: vi.fn().mockResolvedValue(new Uint8Array([1])),
+          createEffectClient: () =>
+            privateClient({}, { startUpload, completeUpload }),
+          output: vi.fn(),
+        },
+      ),
+      { signal: controller.signal },
+    );
+    await ready;
+    controller.abort();
+    await running;
+    expect(uploadSignal?.aborted).toBe(true);
+    expect(completeUpload).not.toHaveBeenCalled();
   });
 
   it("lists and retrieves public posts with environment defaults", async () => {
@@ -86,6 +182,7 @@ describe("Prosewire CLI", () => {
     expect(createPublicClient).toHaveBeenCalledWith({
       baseUrl: "https://content.example",
       blog: "fieldnotes",
+      fetch: expect.any(Function),
     });
     expect(listPosts).toHaveBeenCalledWith({ search: "portable" });
 
@@ -97,8 +194,8 @@ describe("Prosewire CLI", () => {
   it("creates a post from JSON with a private API key", async () => {
     const create = vi
       .fn()
-      .mockResolvedValue({ id: "post-id", status: "draft" });
-    const createClient = vi.fn(() => privateClient({ create }));
+      .mockReturnValue(Effect.succeed({ id: "post-id", status: "draft" }));
+    const createEffectClient = vi.fn(() => privateClient({ create }));
     const output = vi.fn();
     const readFile = vi.fn().mockResolvedValue(
       JSON.stringify({
@@ -109,7 +206,7 @@ describe("Prosewire CLI", () => {
       }),
     );
     const dependencies = {
-      createClient,
+      createEffectClient,
       readFile,
       output,
       env: {},
@@ -130,10 +227,14 @@ describe("Prosewire CLI", () => {
       dependencies,
     );
 
-    expect(readFile).toHaveBeenCalledWith("post.json", "utf8");
-    expect(createClient).toHaveBeenCalledWith({
+    expect(readFile).toHaveBeenCalledWith("post.json", {
+      encoding: "utf8",
+      signal: expect.any(AbortSignal),
+    });
+    expect(createEffectClient).toHaveBeenCalledWith({
       baseUrl: "https://content.example",
       apiKey: "pw_test",
+      fetch: expect.any(Function),
     });
     expect(create).toHaveBeenCalledWith({
       blogId: "11111111-1111-4111-8111-111111111111",
@@ -163,7 +264,7 @@ describe("Prosewire CLI", () => {
           "post.json",
         ],
         {
-          createClient: vi.fn(() => privateClient({ create })),
+          createEffectClient: vi.fn(() => privateClient({ create })),
           readFile: vi.fn().mockResolvedValue('{"title":"Missing IDs"}'),
           env: {},
         },
@@ -233,12 +334,12 @@ describe("Prosewire CLI", () => {
   it("updates and explicitly archives posts through the private API", async () => {
     const update = vi
       .fn()
-      .mockResolvedValue({ id: "post-id", title: "Updated" });
-    const archive = vi.fn().mockResolvedValue({ ok: true });
-    const createClient = vi.fn(() => privateClient({ update, archive }));
+      .mockReturnValue(Effect.succeed({ id: "post-id", title: "Updated" }));
+    const archive = vi.fn().mockReturnValue(Effect.succeed({ ok: true }));
+    const createEffectClient = vi.fn(() => privateClient({ update, archive }));
     const output = vi.fn();
     const readFile = vi.fn().mockResolvedValue('{"title":"Updated"}');
-    const dependencies = { createClient, readFile, output, env: {} };
+    const dependencies = { createEffectClient, readFile, output, env: {} };
 
     await runProgram(
       [
@@ -278,11 +379,17 @@ describe("Prosewire CLI", () => {
   it("lists and explicitly restores post revisions", async () => {
     const postId = "11111111-1111-4111-8111-111111111111";
     const revisionId = "22222222-2222-4222-8222-222222222222";
-    const revisions = vi.fn().mockResolvedValue([{ id: revisionId }]);
-    const restore = vi.fn().mockResolvedValue({ id: postId, title: "Earlier" });
+    const revisions = vi
+      .fn()
+      .mockReturnValue(Effect.succeed([{ id: revisionId }]));
+    const restore = vi
+      .fn()
+      .mockReturnValue(Effect.succeed({ id: postId, title: "Earlier" }));
     const output = vi.fn();
-    const createClient = vi.fn(() => privateClient({ revisions, restore }));
-    const dependencies = { createClient, output, env: {} };
+    const createEffectClient = vi.fn(() =>
+      privateClient({ revisions, restore }),
+    );
+    const dependencies = { createEffectClient, output, env: {} };
 
     await runProgram(
       ["node", "prosewire", "--key", "pw_test", "revisions", postId],
@@ -328,19 +435,23 @@ describe("Prosewire CLI", () => {
   it("uploads, lists, and explicitly deletes media", async () => {
     const blogId = "11111111-1111-4111-8111-111111111111";
     const assetId = "22222222-2222-4222-8222-222222222222";
-    const list = vi.fn().mockResolvedValue({ items: [], configured: true });
-    const startUpload = vi.fn().mockResolvedValue({
-      asset: { id: assetId },
-      upload: {
-        url: "https://storage.example/signed",
-        method: "PUT",
-        headers: { "content-type": "image/webp" },
-      },
-    });
+    const list = vi
+      .fn()
+      .mockReturnValue(Effect.succeed({ items: [], configured: true }));
+    const startUpload = vi.fn().mockReturnValue(
+      Effect.succeed({
+        asset: { id: assetId },
+        upload: {
+          url: "https://storage.example/signed",
+          method: "PUT",
+          headers: { "content-type": "image/webp" },
+        },
+      }),
+    );
     const completeUpload = vi
       .fn()
-      .mockResolvedValue({ id: assetId, status: "ready" });
-    const remove = vi.fn().mockResolvedValue({ ok: true });
+      .mockReturnValue(Effect.succeed({ id: assetId, status: "ready" }));
+    const remove = vi.fn().mockReturnValue(Effect.succeed({ ok: true }));
     const client = privateClient(
       {},
       {
@@ -356,7 +467,7 @@ describe("Prosewire CLI", () => {
       .fn()
       .mockResolvedValue(new Response(null, { status: 200 }));
     const dependencies = {
-      createClient: vi.fn(() => client),
+      createEffectClient: vi.fn(() => client),
       readFile: vi.fn().mockResolvedValue(body),
       fetch,
       output,
@@ -404,6 +515,7 @@ describe("Prosewire CLI", () => {
       method: "PUT",
       headers: { "content-type": "image/webp" },
       body,
+      signal: expect.any(AbortSignal),
     });
     expect(completeUpload).toHaveBeenCalledWith({ params: { id: assetId } });
     expect(remove).toHaveBeenCalledWith({ params: { id: assetId } });
