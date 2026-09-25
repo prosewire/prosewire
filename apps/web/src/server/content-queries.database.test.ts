@@ -386,9 +386,6 @@ describe.skipIf(!databaseUrl)("PostgreSQL content queries", () => {
       const library = await Effect.runPromise(
         content.getContentLibrary(fixture.blogId),
       );
-      const media = await Effect.runPromise(
-        content.getMediaExport(fixture.blogId),
-      );
       const team = await Effect.runPromise(
         content.getTeam(fixture.organizationId, fixture.blogId),
       );
@@ -442,7 +439,6 @@ describe.skipIf(!databaseUrl)("PostgreSQL content queries", () => {
           }),
         ],
       });
-      expect(media).toEqual([]);
       expect(team.members).toEqual([
         expect.objectContaining({ userId: fixture.ownerId, role: "owner" }),
         expect.objectContaining({ userId: fixture.teammateId, role: "viewer" }),

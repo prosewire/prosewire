@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Layer } from "effect";
+import { Effect, Layer, Stream } from "effect";
 import { strFromU8, unzipSync } from "fflate";
 import { BlogAccess } from "./authorization.ts";
 import { BlogAuthorization } from "./authorization-models.ts";
@@ -17,6 +17,7 @@ import {
   testSnippet,
   testWorkspace,
 } from "./content-test-fixtures.ts";
+import { Database } from "./database.ts";
 import { BlogSlug, UserId } from "./domain.ts";
 import { ObjectStorage } from "./object-storage.ts";
 import { PostExport } from "./post-export.ts";
@@ -67,17 +68,28 @@ const mediaAsset = {
 
 const contentLayer = Layer.mock(ContentQueries.Service, {
   getPublicBlog: () => Effect.succeed(testBlog),
-  getDashboardPosts: () => Effect.succeed([testDashboardPost]),
-  getDashboardPost: () => Effect.succeed(testDashboardPostDetail),
-  getContentLibrary: () =>
-    Effect.succeed({
-      authors: [testAuthor],
-      categories: [testCategory],
-      snippets: [testSnippet],
-      redirects: [testRedirect],
-    }),
-  getMediaExport: () => Effect.succeed([mediaAsset]),
 });
+const fixtures: Record<string, unknown> = {
+  "export.posts": [testDashboardPost],
+  "export.revisions": testDashboardPostDetail.revisions,
+  "export.authors": [testAuthor],
+  "export.categories": [testCategory],
+  "export.snippets": [testSnippet],
+  "export.redirects": [testRedirect],
+  "export.media": [mediaAsset],
+  "export.mediaReferences": mediaAsset.coverPosts,
+  "export.mediaBytes": [{ bytes: mediaBody.byteLength }],
+};
+let mediaReads = 0;
+const databaseLayer = Layer.mock(Database, {
+  execute: <A>(operation: string) =>
+    Effect.sync(() => {
+      if (operation === "export.media") mediaReads++;
+      return fixtures[operation] as A;
+    }),
+});
+const collect = <E>(body: Stream.Stream<Uint8Array, E>) =>
+  Stream.runCollect(body).pipe(Effect.map((chunks) => Buffer.concat(chunks)));
 
 const accessLayer = Layer.mock(BlogAccess.Service, {
   requireRead: () =>
@@ -95,6 +107,7 @@ const testLayer = PostExport.layer.pipe(
   Layer.provide(
     Layer.mergeAll(
       contentLayer,
+      databaseLayer,
       accessLayer,
       Layer.succeed(ObjectStorage.Service, ObjectStorage.disabled),
     ),
@@ -105,14 +118,15 @@ const mediaTestLayer = PostExport.layer.pipe(
   Layer.provide(
     Layer.mergeAll(
       contentLayer,
+      databaseLayer,
       accessLayer,
       Layer.succeed(ObjectStorage.Service, {
         ...ObjectStorage.disabled,
         configured: true,
-        get: (key) =>
+        getStream: (key) =>
           key === mediaStorageKey
-            ? Effect.succeed(mediaBody)
-            : Effect.die(new Error(`Unexpected key ${key}`)),
+            ? Stream.make(mediaBody)
+            : Stream.die(new Error(`Unexpected key ${key}`)),
       }),
     ),
   ),
@@ -131,7 +145,9 @@ describe("PostExport", () => {
 
       expect(file.filename).toBe("fieldnotes-posts.csv");
       expect(file.contentType).toBe("text/csv; charset=utf-8");
-      expect(file.body).toContain('"\'=IMPORTXML unsafe title"');
+      expect((yield* collect(file.body)).toString()).toContain(
+        '"\'=IMPORTXML unsafe title"',
+      );
       expect(file).not.toHaveProperty("status");
     }).pipe(Effect.provide(testLayer)),
   );
@@ -145,7 +161,7 @@ describe("PostExport", () => {
           actorId: UserId.make("user-1"),
         }),
       );
-      const body = JSON.parse(file.body) as {
+      const body = JSON.parse((yield* collect(file.body)).toString()) as {
         format: string;
         version: number;
         posts: Array<{ revisions: Array<{ version: number }> }>;
@@ -171,6 +187,7 @@ describe("PostExport", () => {
 
   it.effect("exports sanitized originals with a checksum manifest", () =>
     Effect.gen(function* () {
+      mediaReads = 0;
       const service = yield* PostExport.Service;
       const file = yield* service.media(
         new PostExport.Input({
@@ -178,7 +195,7 @@ describe("PostExport", () => {
           actorId: UserId.make("user-1"),
         }),
       );
-      const files = unzipSync(file.body);
+      const files = unzipSync(yield* collect(file.body));
       const manifest = JSON.parse(
         strFromU8(files["manifest.json"] ?? new Uint8Array()),
       ) as {
@@ -198,6 +215,7 @@ describe("PostExport", () => {
         ],
       });
       expect(files[`assets/${mediaAssetId}/original.webp`]).toEqual(mediaBody);
+      expect(mediaReads).toBe(1);
     }).pipe(Effect.provide(mediaTestLayer)),
   );
 });
