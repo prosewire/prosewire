@@ -19,7 +19,8 @@ export function slugify(value: string): string {
     .trim()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
-    .slice(0, 120);
+    .slice(0, 120)
+    .replace(/-+$/g, "");
 }
 
 export function readingMinutes(markdown: string): number {

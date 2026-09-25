@@ -118,6 +118,40 @@ describe.skipIf(!databaseUrl)(
         ),
       );
 
+    it.effect(
+      "reads workspaces and publications whose slugs truncate at a separator",
+      () =>
+        Effect.gen(function* () {
+          yield* Effect.promise(() =>
+            testDatabase.client.insert(schema.user).values({
+              id: actor.id,
+              name: actor.name,
+              email: actor.email,
+            }),
+          );
+          const service = yield* WorkspaceManagement.Service;
+          const created = yield* service.createWorkspace(
+            new CreateWorkspaceInput({
+              workspaceName: `${"w".repeat(119)} team`,
+              workspaceSlug: "",
+              publicationName: "Publication",
+              publicationSlug: `${"p".repeat(119)} posts`,
+            }),
+            actor,
+          );
+          const selected = yield* service.switchPublication(
+            created.blogId,
+            actor,
+          );
+          expect(selected.blog.slug).toBe("p".repeat(119));
+          const workspace = yield* service.switchWorkspace(
+            created.organizationId,
+            actor,
+          );
+          expect(workspace).toBe(created.blogId);
+        }).pipe(Effect.provide(layer())),
+    );
+
     it.effect("detects self-hosted installation data", () =>
       Effect.gen(function* () {
         const management = yield* WorkspaceRepository.Service;
