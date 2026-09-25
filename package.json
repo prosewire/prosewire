@@ -44,17 +44,17 @@
     "sync:repos": "scripts/sync-repos.sh"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.9",
-    "@changesets/cli": "^3.0.1",
-    "@effect/tsgo": "^0.36.5",
+    "@biomejs/biome": "2.5.14",
+    "@changesets/cli": "^3.0.3",
+    "@effect/tsgo": "^0.45.0",
     "@typescript/native": "npm:typescript@^7.0.2",
-    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/coverage-v8": "^5.0.1",
     "effect-solutions": "^0.5.3",
     "fallow": "^3.28.0",
-    "lefthook": "^2.1.6",
-    "npm": "11.6.2",
-    "turbo": "^2.10.11",
+    "lefthook": "^2.1.14",
+    "npm": "12.0.2",
+    "turbo": "^2.10.13",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.1"
   }
 }

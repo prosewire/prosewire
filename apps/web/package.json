@@ -44,23 +44,23 @@
     "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {
-    "@effect/vitest": "4.0.0-rc.112",
+    "@effect/vitest": "4.0.0-rc.115",
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "@next/playwright": "16.3.1",
-    "@playwright/test": "^1.51.1",
+    "@next/playwright": "16.3.5",
+    "@playwright/test": "^1.63.0",
     "@prosewire/cli": "workspace:*",
     "@prosewire/config": "workspace:*",
     "@prosewire/mcp": "workspace:*",
     "@prosewire/sdk": "workspace:*",
     "@tailwindcss/postcss": "^4.3.1",
-    "@tiptap/core": "3.30.3",
-    "@types/node": "^26.2.0",
+    "@tiptap/core": "3.31.3",
+    "@types/node": "^26.6.1",
     "@types/pg": "^8.20.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "pg": "^8.20.0",
     "tailwindcss": "^4.3.1",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.1"
   }
 }
