@@ -60,6 +60,8 @@ missing.
 | MCP server | Read, mutating, and destructive tools are published with operation metadata and approval requirements |
 | Portable export | Versioned JSON includes publication relationships, revisions, and the media manifest; CSV includes managed cover identifiers; a separate ZIP contains sanitized original media files |
 
+Upload reservations return HTTP 201 and are checked through the generated SDK against the private API router.
+
 ## Operations
 
 | Capability | Coverage |
