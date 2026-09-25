@@ -74,6 +74,7 @@ jobs:
       - run: pnpm lint:workflows
       - run: pnpm typecheck
       - run: pnpm test:coverage
+      - run: pnpm test:scripts
       - run: pnpm db:migrate
       - run: pnpm test:database
       - run: pnpm --filter @prosewire/jobs exec vitest run src/email-queue.redis.test.ts

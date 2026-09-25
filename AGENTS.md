@@ -100,6 +100,17 @@ resource change.
 9. **Testing against the wrong system.** Development seeds are local-only.
    Inspect the deployment, process, database, workflow, and configuration that
    actually control the requested behavior before claiming a production result.
+10. **Defining one rule twice.** Role policy, branded IDs, and database access
+    each have one owning module. Import the owner; when a library needs its own
+    copy, as better-auth access control does, derive it from the owner or pin
+    both with an equality test.
+11. **Unbounded public writes and buffers.** Unauthenticated write endpoints
+    such as view events need an abuse bound that holds across replicas, not an
+    in-memory counter. Exports and uploads that scale with a quota must stream
+    instead of buffering the whole payload in the web process.
+12. **Recording job time as domain time.** Background work stamps the time the
+    domain promised, such as `scheduledAt`, not the time the job happened to
+    run, so worker lag never rewrites public dates or feed order.
 
 ## Check every affected surface
 
@@ -146,6 +157,15 @@ promise the same behavior.
   widths through the rendered application.
 - A green build is not evidence of a release, deployment, migration, or public
   registry result. Verify the requested live artifact or surface explicitly.
+- `pnpm lint:fallow` audits changed files against `main` and fails on new
+  unused files, exports, dependencies, duplicated blocks, and complexity; the
+  pre-push hook runs it. Fix the finding by deleting or extracting code rather
+  than suppressing it. A `fallow-ignore` comment needs a reason, and
+  `.fallowrc.json` is only for framework entry points fallow cannot see.
+- Every test file runs from a package or root script. A test nothing invokes is
+  dead code.
+- Update `docs/feature-coverage.md` in the same change that alters a
+  capability, including CLI, SDK, and MCP commands.
 
 ## Pull requests and releases
 
@@ -240,6 +260,9 @@ web process. The standalone worker owns and tests its own shutdown lifecycle.
   pure content logic.
 - Prefer business capabilities over generic database helpers and typed domain
   errors over catch-all failures.
+- A service or Layer must add policy, composition, or an error boundary. One
+  that only forwards another service's methods is deleted in favor of the
+  service it wraps.
 - Comments explain contracts and non-obvious constraints, not line-by-line code.
 - If a repository default conflicts with the requested task, surface the
   conflict before making the exception.

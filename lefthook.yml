@@ -9,6 +9,8 @@ pre-push:
   commands:
     quality:
       run: pnpm test:pre-push
+    fallow:
+      run: pnpm lint:fallow
     workflows:
       glob: ".github/workflows/*.{yml,yaml}"
       run: pnpm lint:workflows

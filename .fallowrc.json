@@ -1,0 +1,25 @@
+{
+  "$schema": "./node_modules/fallow/schema.json",
+  "entry": ["apps/site/content/**/*.mdx", "packages/astro/routes/*.astro"],
+  "ignoreExportsUsedInFile": true,
+  "usedClassMembers": ["message"],
+  "ignoreDependencies": [
+    "@floating-ui/dom",
+    "@tiptap/pm",
+    "@prosewire/cli",
+    "@prosewire/mcp",
+    "@typescript/native",
+    "effect-solutions",
+    "npm"
+  ],
+  "rules": {
+    "re-export-cycle": "off",
+    "duplicate-exports": "off"
+  },
+  "ignoreExports": [
+    {
+      "file": "apps/web/src/app/**/{page,layout}.tsx",
+      "exports": ["instant"]
+    }
+  ]
+}
