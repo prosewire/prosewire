@@ -28,7 +28,7 @@ Known duplicate post slugs return HTTP 409 with a typed `ApiPostConflict`; dashb
 | --- | --- |
 | Public reader and author pages | Implemented with server rendering |
 | Public visibility rules | Drafts, archived posts, and future scheduled posts are excluded from public surfaces |
-| Slugs and redirects | Slugs are unique per publication; changing a published slug creates a permanent redirect |
+| Slugs and redirects | Slugs are unique per publication; changing a published slug creates a permanent redirect; generated slugs remove separators left at the 120-character truncation boundary |
 | Search and categories | Implemented on the reader and public JSON list endpoint |
 | Related posts and table of contents | Implemented in the public article reader |
 | RSS, XML sitemap, canonical metadata, Open Graph and social cards, and JSON-LD | Implemented across the bundled, Next.js, and Astro readers |
@@ -79,5 +79,3 @@ Upload reservations return HTTP 201 and are checked through the generated SDK ag
 | Backups and restore | Postgres and object-storage recovery are documented; snapshot schedules, replication, and offsite retention remain deployment-owned |
 | Stable public container | Release automation exists, but documentation does not assume registry access until a public image is independently verified |
 | Cloud legal baseline | Public Terms, Privacy, acceptable use, retention, subprocessor, data-location, security, copyright, data-request, and DPA pages are implemented; the maintainer runbook keeps business sales gated until provider, region, processor, transfer, and deletion facts are verified |
-
-Generated workspace, publication, post, and heading slugs remove separators left at the 120-character truncation boundary, keeping them valid for shared domain readers.
