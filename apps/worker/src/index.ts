@@ -1,5 +1,5 @@
 import * as JobRedis from "@prosewire/jobs/redis";
-import { Clock, Effect } from "effect";
+import { Clock, Effect, Schedule } from "effect";
 import { disposeWorkerRuntime, runWorkerEffect } from "./app-runtime.ts";
 import { EmailOutboxNotifications } from "./email-outbox-notifications.ts";
 import { runUntilShutdown } from "./shutdown.ts";
@@ -33,10 +33,13 @@ const runWorker = Effect.gen(function* () {
   );
   const pruneAnalytics = repeatScheduled(
     "Analytics retention",
-    now.pipe(Effect.flatMap(startAnalyticsRetention)),
+    now.pipe(
+      Effect.flatMap(startAnalyticsRetention),
+      Effect.retry({ times: 3, schedule: Schedule.spaced("1 minute") }),
+    ),
     analyticsRetentionSchedule,
   );
-  const dispatchEmailOutbox = now.pipe(Effect.flatMap(startEmailOutbox));
+  const dispatchEmailOutbox = startEmailOutbox();
   const pollEmailOutbox = repeatScheduled(
     "Email outbox",
     dispatchEmailOutbox,
