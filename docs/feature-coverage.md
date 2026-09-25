@@ -9,7 +9,7 @@ missing.
 
 | Capability | Coverage |
 | --- | --- |
-| Draft, schedule, publish, archive, and republish | Implemented in the dashboard and management API |
+| Draft, schedule, publish, archive, and republish | Implemented in the dashboard and management API; all mutation entrypoints share field constraints and reject invalid calendar dates |
 | Tiptap rich-text editor, Markdown source, live preview, excerpt, and reading time | Implemented; Markdown remains the portable source of record |
 | Content and search checks | Implemented as deterministic guidance; not a guarantee of ranking or accessibility compliance |
 | Cover images and media library | External URL metadata remains supported; managed JPEG, PNG, WebP, and AVIF uploads use signed object-storage requests, validated and sanitized variants, CDN URLs, per-publication quotas, post references, guarded deletion, and portable exports |
@@ -73,6 +73,3 @@ missing.
 | Backups and restore | Postgres and object-storage recovery are documented; snapshot schedules, replication, and offsite retention remain deployment-owned |
 | Stable public container | Release automation exists, but documentation does not assume registry access until a public image is independently verified |
 | Cloud legal baseline | Public Terms, Privacy, acceptable use, retention, subprocessor, data-location, security, copyright, data-request, and DPA pages are implemented; the maintainer runbook keeps business sales gated until provider, region, processor, transfer, and deletion facts are verified |
-
-Post mutations share field constraints across the dashboard, private API, SDK,
-CLI, and MCP. Scheduling inputs reject invalid calendar dates before persistence.
