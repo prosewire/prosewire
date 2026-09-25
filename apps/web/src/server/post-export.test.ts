@@ -80,8 +80,13 @@ const fixtures: Record<string, unknown> = {
   "export.mediaReferences": mediaAsset.coverPosts,
   "export.mediaBytes": [{ bytes: mediaBody.byteLength }],
 };
+let mediaReads = 0;
 const databaseLayer = Layer.mock(Database, {
-  execute: <A>(operation: string) => Effect.succeed(fixtures[operation] as A),
+  execute: <A>(operation: string) =>
+    Effect.sync(() => {
+      if (operation === "export.media") mediaReads++;
+      return fixtures[operation] as A;
+    }),
 });
 const collect = <E>(body: Stream.Stream<Uint8Array, E>) =>
   Stream.runCollect(body).pipe(Effect.map((chunks) => Buffer.concat(chunks)));
@@ -182,6 +187,7 @@ describe("PostExport", () => {
 
   it.effect("exports sanitized originals with a checksum manifest", () =>
     Effect.gen(function* () {
+      mediaReads = 0;
       const service = yield* PostExport.Service;
       const file = yield* service.media(
         new PostExport.Input({
@@ -209,6 +215,7 @@ describe("PostExport", () => {
         ],
       });
       expect(files[`assets/${mediaAssetId}/original.webp`]).toEqual(mediaBody);
+      expect(mediaReads).toBe(1);
     }).pipe(Effect.provide(mediaTestLayer)),
   );
 });

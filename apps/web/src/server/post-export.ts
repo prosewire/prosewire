@@ -2,8 +2,9 @@ import { Clock, Context, Effect, Layer, Schema, Stream } from "effect";
 import { BlogAccess } from "./authorization.ts";
 import { PostRevision, toDashboardPost } from "./content-models.ts";
 import { ContentQueries } from "./content-queries.ts";
-import { Database, type DatabaseError } from "./database.ts";
+import { Database } from "./database.ts";
 import { BlogSlug, UserId } from "./domain.ts";
+import { temporaryManifest } from "./export-manifest.ts";
 import { exportQueries } from "./export-queries.ts";
 import {
   concat,
@@ -247,49 +248,61 @@ export const create = Effect.fn("PostExport.create")(function* () {
             ?.storageKey.split(".")
             .at(-1) ?? "bin"
         }`;
-      const manifest = jsonObject({
-        format: json("prosewire-media-export"),
-        version: json(1),
-        exportedAt: json(exportedAt),
-        publication: json({ id: blog.id, slug: blog.slug, name: blog.name }),
-        assets: jsonArray(
-          ready.pipe(
-            Stream.map((asset) =>
-              jsonObject({
-                id: json(asset.id),
-                filename: json(asset.originalFilename),
-                mimeType: json(asset.detectedMimeType),
-                byteSize: json(asset.byteSize),
-                checksumSha256: json(asset.checksumSha256),
-                sourcePath: json(sourcePath(asset)),
-                variants: json(
-                  asset.variants.map(
-                    ({ kind, publicUrl, byteSize, checksumSha256 }) => ({
-                      kind,
-                      publicUrl,
-                      byteSize,
-                      checksumSha256,
-                    }),
-                  ),
-                ),
-                references: jsonArray(
-                  queries
-                    .references(asset.id)
-                    .pipe(
-                      Stream.map((post) =>
-                        json({ postId: post.id, slug: post.slug }),
-                      ),
-                    ),
-                ),
+      const manifestAsset = (asset: Stream.Success<typeof ready>) =>
+        jsonObject({
+          id: json(asset.id),
+          filename: json(asset.originalFilename),
+          mimeType: json(asset.detectedMimeType),
+          byteSize: json(asset.byteSize),
+          checksumSha256: json(asset.checksumSha256),
+          sourcePath: json(sourcePath(asset)),
+          variants: json(
+            asset.variants.map(
+              ({ kind, publicUrl, byteSize, checksumSha256 }) => ({
+                kind,
+                publicUrl,
+                byteSize,
+                checksumSha256,
               }),
             ),
           ),
-        ),
-      });
+          references: jsonArray(
+            queries
+              .references(asset.id)
+              .pipe(
+                Stream.map((post) =>
+                  json({ postId: post.id, slug: post.slug }),
+                ),
+              ),
+          ),
+        });
       const body = Stream.unwrap(
-        Effect.sync(() => {
+        Effect.gen(function* () {
+          const manifest = yield* temporaryManifest();
+          const preamble = JSON.stringify({
+            format: "prosewire-media-export",
+            version: 1,
+            exportedAt,
+            publication: { id: blog.id, slug: blog.slug, name: blog.name },
+          }).slice(0, -1);
+          yield* manifest.append(
+            new TextEncoder().encode(`${preamble},"assets":[`),
+          );
           let bytes = 0;
+          let first = true;
           const entries = ready.pipe(
+            Stream.mapEffect(
+              Effect.fn("PostExport.appendManifestAsset")(function* (asset) {
+                if (!first)
+                  yield* manifest.append(new TextEncoder().encode(","));
+                first = false;
+                yield* Stream.runForEach(
+                  encode(manifestAsset(asset)),
+                  manifest.append,
+                );
+                return asset;
+              }),
+            ),
             Stream.flatMap((asset) => {
               const original = asset.variants.find(
                 (variant) => variant.kind === "original",
@@ -310,15 +323,22 @@ export const create = Effect.fn("PostExport.create")(function* () {
               });
             }),
           );
-          return zip<
-            | DatabaseError
+          const manifestBody = concat(
+            Stream.fromEffectDrain(
+              manifest.append(new TextEncoder().encode("]}")),
+            ),
+            manifest.body,
+          );
+          type ZipError =
+            | Stream.Error<typeof entries>
+            | Stream.Error<typeof manifestBody>
             | ObjectStorage.NotConfigured
             | ObjectStorage.StorageError
-            | MediaExportTooLarge
-          >(
+            | MediaExportTooLarge;
+          return zip<ZipError>(
             Stream.concat(
               entries,
-              Stream.make({ name: "manifest.json", body: encode(manifest) }),
+              Stream.make({ name: "manifest.json", body: manifestBody }),
             ),
           );
         }),

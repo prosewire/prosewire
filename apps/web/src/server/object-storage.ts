@@ -228,8 +228,8 @@ export function make(
                 },
                 catch: (cause) => storageError("close object stream", cause),
               }).pipe(
-                Effect.tapError((error) =>
-                  Effect.logError("Failed to close object stream", error),
+                Effect.tapError(() =>
+                  Effect.logError("Failed to close object stream"),
                 ),
                 Effect.ignore,
               ),

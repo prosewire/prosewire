@@ -91,8 +91,8 @@ export function responseBody<E>(
   });
   return Stream.toReadableStream(
     body.pipe(
-      Stream.tapError((error) =>
-        Effect.logError("Publication export stream failed", error),
+      Stream.tapError(() =>
+        Effect.logError("Publication export stream failed"),
       ),
       Stream.interruptWhen(aborted),
     ),

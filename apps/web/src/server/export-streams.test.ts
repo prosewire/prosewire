@@ -1,6 +1,6 @@
 import { Effect, Stream } from "effect";
 import { strFromU8, unzipSync } from "fflate";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { responseBody, zip } from "./export-streams.ts";
 
 describe("export stream ownership", () => {
@@ -65,4 +65,33 @@ describe("export stream ownership", () => {
       "firstsecond",
     );
   });
+});
+
+it("logs export failures without stored content or database parameters", async () => {
+  const logs: unknown[] = [];
+  const spies = ["log", "error", "warn"] as const;
+  const restore = spies.map((method) =>
+    vi.spyOn(console, method).mockImplementation((...args) => {
+      logs.push(args);
+    }),
+  );
+  try {
+    const reader = responseBody(
+      Stream.fail({
+        _tag: "DatabaseError",
+        cause: {
+          query: "private SQL",
+          params: ["synthetic-private-post-secret"],
+        },
+      }),
+      new AbortController().signal,
+    ).getReader();
+    await expect(reader.read()).rejects.toBeDefined();
+    const output = JSON.stringify(logs);
+    expect(output).toContain("Publication export stream failed");
+    expect(output).not.toContain("synthetic-private-post-secret");
+    expect(output).not.toContain("private SQL");
+  } finally {
+    for (const spy of restore) spy.mockRestore();
+  }
 });
