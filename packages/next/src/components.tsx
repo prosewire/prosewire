@@ -1,5 +1,5 @@
 import type { PublicPost } from "@prosewire/sdk";
-import Link from "next/link";
+import Link from "next/link.js";
 import { postJsonLd } from "./metadata.ts";
 import { type IndexPageProps, type PostPageProps, postPath } from "./shared.ts";
 

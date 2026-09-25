@@ -71,60 +71,60 @@ export class WebConfig extends Context.Service<WebConfig, WebConfigShape>()(
   static readonly layer = Layer.effect(
     WebConfig,
     Effect.gen(function* () {
-      const defaultBlog = yield* Config.string("PROSEWIRE_DEFAULT_BLOG").pipe(
+      const defaultBlog = yield* Config.String("PROSEWIRE_DEFAULT_BLOG").pipe(
         Config.withDefault("fieldnotes"),
       );
-      const publicUrl = yield* Config.string("PROSEWIRE_PUBLIC_URL").pipe(
+      const publicUrl = yield* Config.String("PROSEWIRE_PUBLIC_URL").pipe(
         Config.withDefault("http://localhost:3000"),
       );
-      const databaseUrl = yield* Config.redacted("DATABASE_URL");
-      const authSecret = yield* Config.redacted("BETTER_AUTH_SECRET");
-      const allowSignUp = yield* Config.boolean("PROSEWIRE_ALLOW_SIGN_UP").pipe(
+      const databaseUrl = yield* Config.Redacted("DATABASE_URL");
+      const authSecret = yield* Config.Redacted("BETTER_AUTH_SECRET");
+      const allowSignUp = yield* Config.Boolean("PROSEWIRE_ALLOW_SIGN_UP").pipe(
         Config.withDefault(false),
       );
-      const environment = yield* Config.string("NODE_ENV").pipe(
+      const environment = yield* Config.String("NODE_ENV").pipe(
         Config.withDefault("development"),
       );
-      const deployment = yield* Config.string("PROSEWIRE_DEPLOYMENT").pipe(
+      const deployment = yield* Config.String("PROSEWIRE_DEPLOYMENT").pipe(
         Config.withDefault("self-hosted"),
       );
       const googleClientId = yield* Config.option(
-        Config.string("PROSEWIRE_GOOGLE_CLIENT_ID"),
+        Config.String("PROSEWIRE_GOOGLE_CLIENT_ID"),
       );
       const googleClientSecret = yield* Config.option(
-        Config.redacted("PROSEWIRE_GOOGLE_CLIENT_SECRET"),
+        Config.Redacted("PROSEWIRE_GOOGLE_CLIENT_SECRET"),
       );
       const githubClientId = yield* Config.option(
-        Config.string("PROSEWIRE_GITHUB_CLIENT_ID"),
+        Config.String("PROSEWIRE_GITHUB_CLIENT_ID"),
       );
       const githubClientSecret = yield* Config.option(
-        Config.redacted("PROSEWIRE_GITHUB_CLIENT_SECRET"),
+        Config.Redacted("PROSEWIRE_GITHUB_CLIENT_SECRET"),
       );
       const mediaEndpoint = yield* Config.option(
-        Config.string("PROSEWIRE_MEDIA_ENDPOINT"),
+        Config.String("PROSEWIRE_MEDIA_ENDPOINT"),
       );
       const mediaBucket = yield* Config.option(
-        Config.string("PROSEWIRE_MEDIA_BUCKET"),
+        Config.String("PROSEWIRE_MEDIA_BUCKET"),
       );
       const mediaAccessKeyId = yield* Config.option(
-        Config.redacted("PROSEWIRE_MEDIA_ACCESS_KEY_ID"),
+        Config.Redacted("PROSEWIRE_MEDIA_ACCESS_KEY_ID"),
       );
       const mediaSecretAccessKey = yield* Config.option(
-        Config.redacted("PROSEWIRE_MEDIA_SECRET_ACCESS_KEY"),
+        Config.Redacted("PROSEWIRE_MEDIA_SECRET_ACCESS_KEY"),
       );
       const mediaPublicUrl = yield* Config.option(
-        Config.string("PROSEWIRE_MEDIA_PUBLIC_URL"),
+        Config.String("PROSEWIRE_MEDIA_PUBLIC_URL"),
       );
-      const mediaRegion = yield* Config.string("PROSEWIRE_MEDIA_REGION").pipe(
+      const mediaRegion = yield* Config.String("PROSEWIRE_MEDIA_REGION").pipe(
         Config.withDefault("auto"),
       );
-      const mediaForcePathStyle = yield* Config.boolean(
+      const mediaForcePathStyle = yield* Config.Boolean(
         "PROSEWIRE_MEDIA_FORCE_PATH_STYLE",
       ).pipe(Config.withDefault(false));
-      const mediaMaxUploadBytes = yield* Config.int(
+      const mediaMaxUploadBytes = yield* Config.Int(
         "PROSEWIRE_MEDIA_MAX_UPLOAD_BYTES",
       ).pipe(Config.withDefault(20 * 1_024 * 1_024));
-      const mediaUploadUrlExpiresSeconds = yield* Config.int(
+      const mediaUploadUrlExpiresSeconds = yield* Config.Int(
         "PROSEWIRE_MEDIA_UPLOAD_URL_EXPIRES_SECONDS",
       ).pipe(Config.withDefault(600));
       if (Redacted.value(databaseUrl).trim() === "") {

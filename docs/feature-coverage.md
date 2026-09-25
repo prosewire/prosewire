@@ -54,6 +54,7 @@ missing.
 | Public JSON API | Implemented for published lists and individual posts |
 | Private management API | Implemented for health, publication listing, post list/get/create/update/archive, revision list/restore, and media upload/list/delete |
 | TypeScript SDK | Promise and Effect clients are published as pre-1.0 packages |
+| Framework packages | Headless Next.js and Astro readers are published; the Next.js package supports direct Node.js ES module imports |
 | CLI | Public read commands and authenticated create/update/archive commands are published |
 | MCP server | Read, mutating, and destructive tools are published with operation metadata and approval requirements |
 | Portable export | Versioned JSON includes publication relationships, revisions, and the media manifest; CSV includes managed cover identifiers; a separate ZIP contains sanitized original media files |

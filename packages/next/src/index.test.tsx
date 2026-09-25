@@ -17,7 +17,7 @@ import {
   postPath,
 } from "./shared.ts";
 
-vi.mock("next/navigation", () => ({
+vi.mock("next/navigation.js", () => ({
   notFound: vi.fn(() => {
     throw new Error("not found");
   }),

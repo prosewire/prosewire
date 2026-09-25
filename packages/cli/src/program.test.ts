@@ -42,6 +42,28 @@ function publicClient(
 }
 
 describe("Prosewire CLI", () => {
+  it.each([
+    ["media-list"],
+    ["media-upload", "cover.webp", "--blog-id", "publication-id"],
+    ["media-delete", "asset-id", "--yes"],
+  ])("rejects media command %s without a key", async (...args) => {
+    const createClient = vi.fn();
+    const readFile = vi.fn();
+    const output = vi.fn();
+
+    await expect(
+      runProgram(["node", "prosewire", ...args], {
+        createClient,
+        readFile,
+        output,
+        env: {},
+      }),
+    ).rejects.toThrow("--key or PROSEWIRE_API_KEY is required");
+    expect(createClient).not.toHaveBeenCalled();
+    expect(readFile).not.toHaveBeenCalled();
+    expect(output).not.toHaveBeenCalled();
+  });
+
   it("lists and retrieves public posts with environment defaults", async () => {
     const listPosts = vi.fn().mockResolvedValue({ posts: [] });
     const getPost = vi.fn().mockResolvedValue({ post: { slug: "published" } });

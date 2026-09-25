@@ -31,29 +31,29 @@ export class WorkerConfig extends Context.Service<
   static readonly layer = Layer.effect(
     WorkerConfig,
     Effect.gen(function* () {
-      const databaseUrl = yield* Config.redacted("DATABASE_URL").pipe(
+      const databaseUrl = yield* Config.Redacted("DATABASE_URL").pipe(
         Effect.mapError(
           (cause) =>
             new WorkerConfigurationError({ variable: "DATABASE_URL", cause }),
         ),
       );
-      const redisUrl = yield* Config.redacted("REDIS_URL").pipe(
+      const redisUrl = yield* Config.Redacted("REDIS_URL").pipe(
         Effect.mapError(
           (cause) =>
             new WorkerConfigurationError({ variable: "REDIS_URL", cause }),
         ),
       );
-      const analyticsRetentionDays = yield* Config.number(
+      const analyticsRetentionDays = yield* Config.Number(
         "PROSEWIRE_ANALYTICS_RETENTION_DAYS",
       ).pipe(Config.withDefault(365));
-      const emailWorkerConcurrency = yield* Config.number(
+      const emailWorkerConcurrency = yield* Config.Number(
         "PROSEWIRE_EMAIL_WORKER_CONCURRENCY",
       ).pipe(Config.withDefault(4));
-      const smtpUrl = yield* Config.option(Config.redacted("SMTP_URL"));
-      const emailFrom = yield* Config.string("EMAIL_FROM").pipe(
+      const smtpUrl = yield* Config.option(Config.Redacted("SMTP_URL"));
+      const emailFrom = yield* Config.String("EMAIL_FROM").pipe(
         Config.withDefault("Prosewire <prosewire@localhost>"),
       );
-      const environment = yield* Config.string("NODE_ENV").pipe(
+      const environment = yield* Config.String("NODE_ENV").pipe(
         Config.withDefault("development"),
       );
       if (

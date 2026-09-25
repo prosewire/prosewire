@@ -5,7 +5,7 @@ import type {
   PublicRedirect,
 } from "@prosewire/sdk";
 import type { GetStaticPaths, GetStaticProps } from "next";
-import Head from "next/head";
+import Head from "next/head.js";
 import { createElement } from "react";
 import { ProsewireIndex, ProsewirePost } from "./components.tsx";
 import { postPresentationMetadata } from "./metadata.ts";

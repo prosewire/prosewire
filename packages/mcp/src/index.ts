@@ -15,10 +15,10 @@ import { createProsewireMcpServer } from "./server.ts";
 import { version } from "./version.ts";
 
 const configuration = Config.all({
-  baseUrl: Config.string("PROSEWIRE_API_URL").pipe(
+  baseUrl: Config.String("PROSEWIRE_API_URL").pipe(
     Config.withDefault("http://localhost:3000"),
   ),
-  apiKey: Config.redacted("PROSEWIRE_API_KEY"),
+  apiKey: Config.Redacted("PROSEWIRE_API_KEY"),
 });
 
 class McpProcessError extends Schema.TaggedError<McpProcessError>()(

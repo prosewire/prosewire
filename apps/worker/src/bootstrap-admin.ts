@@ -29,16 +29,16 @@ const knownPlaceholderPasswords = new Set([
 ]);
 
 export const loadBootstrapAdminConfig = Effect.gen(function* () {
-  const deployment = yield* Config.string("PROSEWIRE_DEPLOYMENT").pipe(
+  const deployment = yield* Config.String("PROSEWIRE_DEPLOYMENT").pipe(
     Config.withDefault("self-hosted"),
   );
   const configuredEmail = yield* Config.option(
-    Config.string("PROSEWIRE_BOOTSTRAP_ADMIN_EMAIL"),
+    Config.String("PROSEWIRE_BOOTSTRAP_ADMIN_EMAIL"),
   );
   const configuredPassword = yield* Config.option(
-    Config.redacted("PROSEWIRE_BOOTSTRAP_ADMIN_PASSWORD"),
+    Config.Redacted("PROSEWIRE_BOOTSTRAP_ADMIN_PASSWORD"),
   );
-  const name = yield* Config.string("PROSEWIRE_BOOTSTRAP_ADMIN_NAME").pipe(
+  const name = yield* Config.String("PROSEWIRE_BOOTSTRAP_ADMIN_NAME").pipe(
     Config.withDefault("Prosewire Admin"),
   );
   const email = Option.getOrUndefined(configuredEmail)?.trim().toLowerCase();
