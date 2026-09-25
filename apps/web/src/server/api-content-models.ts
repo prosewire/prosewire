@@ -3,8 +3,9 @@ import type {
   Post,
 } from "@prosewire/contract";
 import type * as databaseSchema from "@prosewire/db/schema";
-import { Schema } from "effect";
-import { PostRevisionSnapshot } from "./post-commands.ts";
+import { Effect } from "effect";
+import { PostRevisionId } from "./domain.ts";
+import { decodeRevisionSnapshot } from "./post-commands.ts";
 
 export type ApiPostRow = typeof databaseSchema.post.$inferSelect & {
   readonly author: typeof databaseSchema.author.$inferSelect;
@@ -54,10 +55,18 @@ export function toApiPost(row: ApiPostRow): Post {
   };
 }
 
-export function toApiPostRevision(
+export const toApiPostRevision = Effect.fn(
+  "ApiContentModels.toApiPostRevision",
+)(function* (
   row: typeof databaseSchema.postRevision.$inferSelect,
-): ApiPostRevision {
-  const snapshot = Schema.decodeUnknownSync(PostRevisionSnapshot)(row.snapshot);
+): Effect.fn.Return<
+  ApiPostRevision,
+  import("./post-errors.ts").InvalidPostRevision
+> {
+  const snapshot = yield* decodeRevisionSnapshot(
+    PostRevisionId.make(row.id),
+    row.snapshot,
+  );
   return {
     id: row.id,
     postId: row.postId,
@@ -86,6 +95,6 @@ export function toApiPostRevision(
       categoryIds: snapshot.categoryIds ?? null,
     },
   };
-}
+});
 
 export * as ApiContentModels from "./api-content-models";

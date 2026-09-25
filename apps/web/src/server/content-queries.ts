@@ -158,7 +158,7 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
           },
         }),
       );
-      return row ? toDashboardPostDetail(row) : undefined;
+      return row ? yield* toDashboardPostDetail(row) : undefined;
     },
   );
 

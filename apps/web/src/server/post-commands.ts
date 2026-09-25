@@ -3,7 +3,7 @@ import {
   postMutationFields,
   postStatus,
 } from "@prosewire/contract/schemas";
-import { Schema } from "effect";
+import { Effect, Schema } from "effect";
 import {
   type ApiKeyId,
   AuthorId,
@@ -14,6 +14,7 @@ import {
   PostRevisionId,
   type UserId,
 } from "./domain.ts";
+import { InvalidPostRevision } from "./post-errors.ts";
 
 export const PostStatus = postStatus;
 export type PostStatus = typeof PostStatus.Type;
@@ -100,6 +101,20 @@ export const PostRevisionSnapshot = Schema.Struct({
   categoryIds: Schema.optional(Schema.Array(CategoryId)),
 });
 export type PostRevisionSnapshot = typeof PostRevisionSnapshot.Type;
+
+export const decodeRevisionSnapshot = (
+  revisionId: PostRevisionId,
+  snapshot: unknown,
+) =>
+  Schema.decodeUnknownEffect(PostRevisionSnapshot)(snapshot).pipe(
+    Effect.mapError(
+      () =>
+        new InvalidPostRevision({
+          revisionId,
+          message: "The saved revision contains invalid content",
+        }),
+    ),
+  );
 
 export class RestorePostRevisionCommand extends Schema.Class<RestorePostRevisionCommand>(
   "Publishing.RestorePostRevisionCommand",

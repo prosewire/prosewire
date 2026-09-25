@@ -14,7 +14,7 @@ missing.
 | Content and search checks | Implemented as deterministic guidance; not a guarantee of ranking or accessibility compliance |
 | Cover images and media library | External URL metadata remains supported; managed JPEG, PNG, WebP, and AVIF uploads use signed object-storage requests, validated and sanitized variants, CDN URLs, per-publication quotas, post references, guarded deletion, and portable exports; media write transactions recheck current membership or API key scope and expiry; completion releases interrupted claims, preserves committed variants on response failures, and recovers abandoned processing after a 15-minute lease through retry or removal |
 | Featured or pinned posts | Implemented as one `featured` flag used by the public homepage |
-| Revisions | History browsing and confirmed restore are implemented in the dashboard, management API, SDK, CLI, and MCP; each restore first saves the version it replaces |
+| Revisions | History browsing and confirmed restore are implemented in the dashboard, management API, SDK, CLI, and MCP; each restore first saves the version it replaces; malformed snapshots return typed API errors and are logged and omitted from the dashboard revision picker so current content stays editable |
 | Bulk operations | Bulk archive is implemented; bulk editing of other fields is not |
 | Reusable snippets | Stored and visible in the content library; editor insertion UI is not implemented |
 | Localization | Publication language lists, default-language selection, and post locale assignment are implemented; translation management is not |
