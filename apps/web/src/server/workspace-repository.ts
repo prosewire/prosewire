@@ -16,6 +16,7 @@ import {
   WorkspaceInvitation,
 } from "./content-models.ts";
 import { Database } from "./database.ts";
+import { databaseConflictMessage } from "./database-conflicts.ts";
 import {
   ApiKeyId,
   BlogId,
@@ -225,9 +226,12 @@ export const create = Effect.fn("WorkspaceRepository.create")(function* () {
   const config = yield* WebConfig;
 
   const uuid = crypto.randomUUIDv4.pipe(Effect.orDie);
-  const persistenceError = operationError(
-    (input) => new PersistenceError(input),
-  );
+  const persistenceError = operationError((input) => {
+    const message = databaseConflictMessage(input.cause);
+    return message
+      ? new InvalidWorkspaceInput({ message })
+      : new PersistenceError(input);
+  });
   const execute = <A>(
     operation: string,
     evaluate: (client: Db) => PromiseLike<A>,
@@ -236,7 +240,7 @@ export const create = Effect.fn("WorkspaceRepository.create")(function* () {
   const executeResult = <A, E>(
     operation: string,
     evaluate: (client: Db) => PromiseLike<Result.Result<A, E>>,
-  ): Effect.Effect<A, PersistenceError | E> =>
+  ): Effect.Effect<A, PersistenceError | InvalidWorkspaceInput | E> =>
     execute(operation, evaluate).pipe(
       Effect.flatMap(
         Result.match({

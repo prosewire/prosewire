@@ -22,6 +22,7 @@ import {
 
 export const apiErrorStatusByTag = {
   ApiInputRejected: 400,
+  ApiPostConflict: 409,
   ApiAuthenticationFailed: 401,
   ApiAccessDenied: 403,
   ApiPostNotFound: 404,
@@ -40,6 +41,12 @@ export const privateApiPaths = {
   posts: "/posts",
   media: "/media",
 } as const;
+
+export class ApiPostConflict extends Schema.TaggedError<ApiPostConflict>()(
+  "ApiPostConflict",
+  { message: Schema.String },
+  { httpApiStatus: apiErrorStatusByTag.ApiPostConflict },
+) {}
 
 export class ApiInputRejected extends Schema.TaggedError<ApiInputRejected>()(
   "ApiInputRejected",
@@ -102,6 +109,7 @@ export class ApiUnavailable extends Schema.TaggedError<ApiUnavailable>()(
 ) {}
 
 export const apiErrors = [
+  ApiPostConflict,
   ApiInputRejected,
   ApiAuthenticationFailed,
   ApiAccessDenied,
