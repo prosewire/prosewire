@@ -129,7 +129,7 @@ describe.skipIf(!databaseUrl)(
               email: actor.email,
             }),
           );
-          const service = yield* WorkspaceManagement.Service;
+          const service = yield* WorkspaceRepository.Service;
           const created = yield* service.createWorkspace(
             new CreateWorkspaceInput({
               workspaceName: `${"w".repeat(119)} team`,
