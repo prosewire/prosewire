@@ -58,7 +58,7 @@ Scheduled posts keep their scheduled time as the public publication date, includ
 | Private management API | Implemented for health, publication listing, post list/get/create/update/archive, revision list/restore, and media upload/list/delete |
 | TypeScript SDK | Promise and Effect clients are published as pre-1.0 packages |
 | Framework packages | Headless Next.js and Astro readers are published; the Next.js package supports direct Node.js ES module imports |
-| CLI | Public read commands and authenticated create/update/archive commands are published |
+| CLI | Public read commands and authenticated create/update/archive commands are published; command interruption aborts HTTP requests and file reads |
 | MCP server | Read, mutating, and destructive tools are published with operation metadata and approval requirements |
 | Portable export | Versioned JSON includes publication relationships, revisions, and the media manifest; CSV includes managed cover identifiers; a separate ZIP contains sanitized original media files; all formats stream through paged database reads, history and media references stream independently, and canceled downloads release object-storage bodies |
 

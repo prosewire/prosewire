@@ -2,9 +2,9 @@ import { readFile } from "node:fs/promises";
 import { basename, extname } from "node:path";
 import { postCreateInput, postUpdateInput } from "@prosewire/contract";
 import {
-  type Client,
-  createClient,
+  createEffectClient,
   createPublicClient,
+  type EffectClient,
   type ProsewireClientOptions,
 } from "@prosewire/sdk";
 import { Effect, Option, Schema } from "effect";
@@ -13,17 +13,19 @@ import { nodeServicesLayer } from "./node-services.ts";
 import { version } from "./version.ts";
 
 export interface CliPrivateClient {
-  readonly blogs: Client["blogs"];
+  readonly blogs: EffectClient["blogs"];
   readonly posts: Pick<
-    Client["posts"],
+    EffectClient["posts"],
     "create" | "update" | "archive" | "revisions" | "restore"
   >;
-  readonly media: Client["media"];
+  readonly media: EffectClient["media"];
 }
 
 interface CliDependencies {
   readonly readFile: typeof readFile;
-  readonly createClient: (options: ProsewireClientOptions) => CliPrivateClient;
+  readonly createEffectClient: (
+    options: ProsewireClientOptions,
+  ) => CliPrivateClient;
   readonly createPublicClient: typeof createPublicClient;
   readonly output: (value: unknown) => void;
   readonly env: NodeJS.ProcessEnv;
@@ -32,7 +34,7 @@ interface CliDependencies {
 
 const defaults: CliDependencies = {
   readFile,
-  createClient,
+  createEffectClient,
   createPublicClient,
   output: (value) =>
     process.stdout.write(`${JSON.stringify(value, null, 2)}\n`),
@@ -43,11 +45,17 @@ const defaults: CliDependencies = {
 const userError = (message: string) =>
   new CliError.UserError({ cause: new Error(message) });
 
-function fromPromise<A>(evaluate: () => Promise<A>) {
+function fromPromise<A>(evaluate: (signal: AbortSignal) => Promise<A>) {
   return Effect.tryPromise({
     try: evaluate,
     catch: (cause) => new CliError.UserError({ cause }),
   });
+}
+
+function fromClient<A, E>(evaluate: () => Effect.Effect<A, E>) {
+  return Effect.suspend(evaluate).pipe(
+    Effect.mapError((cause) => new CliError.UserError({ cause })),
+  );
 }
 
 function parseJson<S extends Schema.Constraint>(schema: S, value: string) {
@@ -58,6 +66,14 @@ function parseJson<S extends Schema.Constraint>(schema: S, value: string) {
 
 export function createProgram(overrides: Partial<CliDependencies> = {}) {
   const dependencies = { ...defaults, ...overrides };
+  const privateClient = (options: ProsewireClientOptions) =>
+    dependencies.createEffectClient({ ...options, fetch: dependencies.fetch });
+  const publicClient = (baseUrl: string, blog: string, signal: AbortSignal) =>
+    dependencies.createPublicClient({
+      baseUrl,
+      blog,
+      fetch: (input, init) => dependencies.fetch(input, { ...init, signal }),
+    });
   const root = Command.make("prosewire").pipe(
     Command.withSharedFlags({
       url: Flag.String("url").pipe(
@@ -97,15 +113,13 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
       if (!selectedBlog) {
         return yield* userError("--blog or PROSEWIRE_BLOG is required");
       }
-      const client = dependencies.createPublicClient({
-        baseUrl: parent.url,
-        blog: selectedBlog,
-      });
       const query = Option.match(search, {
         onNone: () => ({}),
         onSome: (value) => ({ search: value }),
       });
-      const result = yield* fromPromise(() => client.listPosts(query));
+      const result = yield* fromPromise((signal) =>
+        publicClient(parent.url, selectedBlog, signal).listPosts(query),
+      );
       yield* Effect.sync(() => dependencies.output(result));
     }),
   ).pipe(Command.withDescription("List posts"));
@@ -123,11 +137,9 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
       if (!selectedBlog) {
         return yield* userError("--blog or PROSEWIRE_BLOG is required");
       }
-      const client = dependencies.createPublicClient({
-        baseUrl: parent.url,
-        blog: selectedBlog,
-      });
-      const result = yield* fromPromise(() => client.getPost(slug));
+      const result = yield* fromPromise((signal) =>
+        publicClient(parent.url, selectedBlog, signal).getPost(slug),
+      );
       yield* Effect.sync(() => dependencies.output(result));
     }),
   ).pipe(Command.withDescription("Get one published post"));
@@ -147,15 +159,15 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
       if (!key) {
         return yield* userError("--key or PROSEWIRE_API_KEY is required");
       }
-      const source = yield* fromPromise(() =>
-        dependencies.readFile(data, "utf8"),
+      const source = yield* fromPromise((signal) =>
+        dependencies.readFile(data, { encoding: "utf8", signal }),
       );
       const body = yield* parseJson(postCreateInput, source);
-      const client = dependencies.createClient({
+      const client = privateClient({
         baseUrl: parent.url,
         apiKey: key,
       });
-      const result = yield* fromPromise(() => client.posts.create(body));
+      const result = yield* fromClient(() => client.posts.create(body));
       yield* Effect.sync(() => dependencies.output(result));
     }),
   ).pipe(Command.withDescription("Create a post from a JSON file"));
@@ -171,15 +183,15 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
       if (!key) {
         return yield* userError("--key or PROSEWIRE_API_KEY is required");
       }
-      const source = yield* fromPromise(() =>
-        dependencies.readFile(data, "utf8"),
+      const source = yield* fromPromise((signal) =>
+        dependencies.readFile(data, { encoding: "utf8", signal }),
       );
       const body = yield* parseJson(postUpdateInput, source);
-      const client = dependencies.createClient({
+      const client = privateClient({
         baseUrl: parent.url,
         apiKey: key,
       });
-      const result = yield* fromPromise(() =>
+      const result = yield* fromClient(() =>
         client.posts.update({
           params: { id },
           body,
@@ -208,10 +220,10 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
       if (!key) {
         return yield* userError("--key or PROSEWIRE_API_KEY is required");
       }
-      const result = yield* fromPromise(() =>
-        dependencies
-          .createClient({ baseUrl: parent.url, apiKey: key })
-          .posts.archive({ params: { id } }),
+      const result = yield* fromClient(() =>
+        privateClient({ baseUrl: parent.url, apiKey: key }).posts.archive({
+          params: { id },
+        }),
       );
       yield* Effect.sync(() => dependencies.output(result));
     }),
@@ -228,10 +240,10 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
       if (!key) {
         return yield* userError("--key or PROSEWIRE_API_KEY is required");
       }
-      const result = yield* fromPromise(() =>
-        dependencies
-          .createClient({ baseUrl: parent.url, apiKey: key })
-          .posts.revisions({ params: { id } }),
+      const result = yield* fromClient(() =>
+        privateClient({ baseUrl: parent.url, apiKey: key }).posts.revisions({
+          params: { id },
+        }),
       );
       yield* Effect.sync(() => dependencies.output(result));
     }),
@@ -257,10 +269,10 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
       if (!key) {
         return yield* userError("--key or PROSEWIRE_API_KEY is required");
       }
-      const result = yield* fromPromise(() =>
-        dependencies
-          .createClient({ baseUrl: parent.url, apiKey: key })
-          .posts.restore({ params: { id, revisionId } }),
+      const result = yield* fromClient(() =>
+        privateClient({ baseUrl: parent.url, apiKey: key }).posts.restore({
+          params: { id, revisionId },
+        }),
       );
       yield* Effect.sync(() => dependencies.output(result));
     }),
@@ -277,10 +289,8 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
       if (!key) {
         return yield* userError("--key or PROSEWIRE_API_KEY is required");
       }
-      const result = yield* fromPromise(() =>
-        dependencies
-          .createClient({ baseUrl: parent.url, apiKey: key })
-          .media.list(),
+      const result = yield* fromClient(() =>
+        privateClient({ baseUrl: parent.url, apiKey: key }).media.list(),
       );
       yield* Effect.sync(() => dependencies.output(result));
     }),
@@ -314,12 +324,14 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
       if (!mimeType) {
         return yield* userError("Upload a JPEG, PNG, WebP, or AVIF image");
       }
-      const body = yield* fromPromise(() => dependencies.readFile(file));
-      const client = dependencies.createClient({
+      const body = yield* fromPromise((signal) =>
+        dependencies.readFile(file, { signal }),
+      );
+      const client = privateClient({
         baseUrl: parent.url,
         apiKey: key,
       });
-      const reservation = yield* fromPromise(() =>
+      const reservation = yield* fromClient(() =>
         client.media.startUpload({
           blogId,
           filename: basename(file),
@@ -327,11 +339,12 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
           byteSize: body.byteLength,
         }),
       );
-      yield* fromPromise(async () => {
+      yield* fromPromise(async (signal) => {
         const response = await dependencies.fetch(reservation.upload.url, {
           method: reservation.upload.method,
           headers: reservation.upload.headers,
           body,
+          signal,
         });
         if (!response.ok) {
           throw new Error(
@@ -339,7 +352,7 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
           );
         }
       });
-      const asset = yield* fromPromise(() =>
+      const asset = yield* fromClient(() =>
         client.media.completeUpload({
           params: { id: reservation.asset.id },
         }),
@@ -367,10 +380,10 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
       if (!key) {
         return yield* userError("--key or PROSEWIRE_API_KEY is required");
       }
-      const result = yield* fromPromise(() =>
-        dependencies
-          .createClient({ baseUrl: parent.url, apiKey: key })
-          .media.delete({ params: { id } }),
+      const result = yield* fromClient(() =>
+        privateClient({ baseUrl: parent.url, apiKey: key }).media.delete({
+          params: { id },
+        }),
       );
       yield* Effect.sync(() => dependencies.output(result));
     }),
