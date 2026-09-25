@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { openDb } from "@prosewire/db/client";
 import * as schema from "@prosewire/db/schema";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
 import { ApiContent } from "./api-content.ts";
@@ -358,6 +358,88 @@ async function cleanup(
 }
 
 describe.skipIf(!databaseUrl)("PostgreSQL content queries", () => {
+  it("bounds unique events across replicas without waiting behind a locked post", async () => {
+    if (!databaseUrl) throw new Error("DATABASE_URL is required");
+    const resource = openDb(databaseUrl);
+    const replica = openDb(databaseUrl);
+    const fixture = await seed(resource.client);
+    try {
+      const first = await contentQueries(resource.client);
+      const second = await contentQueries(replica.client);
+      await resource.client
+        .delete(schema.postView)
+        .where(eq(schema.postView.postId, fixture.firstPostId));
+      await resource.client.insert(schema.postView).values(
+        Array.from({ length: 599 }, () => ({
+          postId: fixture.firstPostId,
+          eventId: randomUUID(),
+        })),
+      );
+      const results = await Promise.all(
+        [first, second].map((content) =>
+          Effect.runPromise(
+            Effect.result(
+              content.recordPostView(fixture.firstPostId, randomUUID(), null),
+            ),
+          ),
+        ),
+      );
+      expect(
+        results.filter((result) => result._tag === "Success"),
+      ).toHaveLength(1);
+      expect(
+        results.filter((result) => result._tag === "Failure"),
+      ).toHaveLength(1);
+      const views = await resource.client.query.postView.findMany({
+        where: eq(schema.postView.postId, fixture.firstPostId),
+      });
+      expect(views).toHaveLength(600);
+      const limited = await Effect.runPromise(
+        Effect.flip(
+          second.recordPostView(fixture.firstPostId, randomUUID(), null),
+        ),
+      );
+      expect(limited._tag).toBe("ViewRateLimited");
+      await resource.client
+        .update(schema.postView)
+        .set({ occurredAt: new Date(0) })
+        .where(eq(schema.postView.postId, fixture.firstPostId));
+      expect(
+        await Effect.runPromise(
+          second.recordPostView(fixture.firstPostId, randomUUID(), null),
+        ),
+      ).toBe(true);
+      await resource.client.transaction(async (transaction) => {
+        await transaction
+          .select()
+          .from(schema.post)
+          .where(eq(schema.post.id, fixture.firstPostId))
+          .for("update");
+        const error = await Effect.runPromise(
+          Effect.flip(
+            second.recordPostView(fixture.firstPostId, randomUUID(), null),
+          ).pipe(Effect.timeout("2 seconds")),
+        );
+        expect(error._tag).toBe("ViewRateLimited");
+      });
+      await resource.client.transaction(async (transaction) => {
+        await transaction.execute(
+          sql`select pg_advisory_xact_lock(hashtextextended(${fixture.firstPostId}, 7331))`,
+        );
+        const error = await Effect.runPromise(
+          Effect.flip(
+            second.recordPostView(fixture.firstPostId, randomUUID(), null),
+          ),
+        );
+        expect(error._tag).toBe("ViewRateLimited");
+      });
+    } finally {
+      await cleanup(resource.client, fixture);
+      await resource.close();
+      await replica.close();
+    }
+  });
+
   it("scopes dashboard reads and computes related counts through real joins", async () => {
     if (!databaseUrl) throw new Error("DATABASE_URL is required");
     const resource = openDb(databaseUrl);

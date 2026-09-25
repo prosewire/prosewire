@@ -183,6 +183,17 @@ export async function recordView(request: Request): Promise<Response> {
               ? new Response(null, { status: 204 })
               : json({ error: "Post not found" }, { status: 404 }),
           ),
+          Effect.catchTag("ViewRateLimited", () =>
+            Effect.succeed(
+              json(
+                { error: "Too many view events" },
+                {
+                  status: 429,
+                  headers: { "Retry-After": "60" },
+                },
+              ),
+            ),
+          ),
         ),
     ),
     request.signal,
