@@ -46,7 +46,7 @@ export function make(send: Deliver): Interface {
         catch: (cause) =>
           new EmailDeliveryError({ recipient: message.recipient, cause }),
       }).pipe(
-        // Nodemailer has no per-message AbortSignal. Settle the bounded SMTP
+        // Nodemailer has no per-message AbortSignal. Settle the SMTP
         // operation before interruption releases the durable queue lease.
         Effect.uninterruptible,
         Effect.tap(() =>
@@ -73,6 +73,7 @@ export const layer = Layer.effect(
             try: () =>
               nodemailer.createTransport({
                 url: Redacted.value(smtpUrl),
+                dnsTimeout: 10_000,
                 connectionTimeout: 10_000,
                 greetingTimeout: 10_000,
                 socketTimeout: 30_000,
