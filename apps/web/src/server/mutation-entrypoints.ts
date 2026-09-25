@@ -3,15 +3,9 @@ import { Effect, Schema } from "effect";
 import { requireDashboardSessionEffect } from "@/lib/session";
 import { runAppEffect } from "./app-runtime.ts";
 import { BlogErrors } from "./blog-errors.ts";
-import {
-  AuthorId,
-  BlogId,
-  CategoryId,
-  MediaAssetId,
-  PostId,
-  UserId,
-} from "./domain.ts";
+import { UserId } from "./domain.ts";
 import { PostErrors } from "./post-errors.ts";
+import { SavePostInput } from "./post-form-input.ts";
 import {
   ArchivePostsCommand,
   CreatePostCommand,
@@ -20,30 +14,6 @@ import {
   UpdateBlogSettingsInput,
   UpdatePostCommand,
 } from "./publishing.ts";
-
-class SavePostInput extends Schema.Class<SavePostInput>(
-  "MutationEntrypoints.SavePostInput",
-)({
-  id: Schema.optional(PostId),
-  blogId: BlogId,
-  authorId: AuthorId,
-  categoryIds: Schema.Array(CategoryId),
-  title: Schema.String,
-  requestedSlug: Schema.String,
-  excerpt: Schema.String,
-  contentMarkdown: Schema.String,
-  requestedStatus: Schema.Literals(["draft", "scheduled", "published"]),
-  featured: Schema.Boolean,
-  locale: Schema.String,
-  coverImageAssetId: Schema.NullOr(MediaAssetId),
-  coverImageUrl: Schema.NullOr(Schema.String),
-  coverImageAlt: Schema.NullOr(Schema.String),
-  seoTitle: Schema.NullOr(Schema.String),
-  seoDescription: Schema.NullOr(Schema.String),
-  focusKeyword: Schema.NullOr(Schema.String),
-  canonicalUrl: Schema.NullOr(Schema.String),
-  scheduledAt: Schema.NullOr(Schema.DateFromString),
-}) {}
 
 export type SavePostBoundaryInput = Omit<
   typeof SavePostInput.Encoded,
@@ -124,16 +94,25 @@ export function savePost(input: SavePostBoundaryInput) {
       } as const;
       const result = command.id
         ? yield* publishing.updatePost(
-            new UpdatePostCommand({
+            yield* Schema.decodeEffect(Schema.toType(UpdatePostCommand))({
               postId: command.id,
               ...fields,
-            }),
+            }).pipe(
+              Effect.mapError(() => invalidInput("Invalid post form data")),
+            ),
             { _tag: "Dashboard", userId: actorId },
           )
-        : yield* publishing.createPost(new CreatePostCommand(fields), {
-            _tag: "Dashboard",
-            userId: actorId,
-          });
+        : yield* publishing.createPost(
+            yield* Schema.decodeEffect(Schema.toType(CreatePostCommand))(
+              fields,
+            ).pipe(
+              Effect.mapError(() => invalidInput("Invalid post form data")),
+            ),
+            {
+              _tag: "Dashboard",
+              userId: actorId,
+            },
+          );
       return { savedId: result.postId, blogSlug: result.blogSlug };
     }),
   );

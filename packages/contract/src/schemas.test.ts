@@ -138,3 +138,23 @@ describe("media schemas", () => {
     ).toThrow();
   });
 });
+
+describe("calendar date validation", () => {
+  it.each([
+    "2026-02-29T10:00:00Z",
+    "2026-04-31T10:00:00Z",
+    "2026-01-01T24:00:00Z",
+    "2026-01-01T10:60:00Z",
+    "2026-01-01T10:00:00+25:00",
+  ])("rejects %s", (scheduledAt) => {
+    expect(() => Schema.decodeSync(postUpdateInput)({ scheduledAt })).toThrow();
+  });
+  it.each(["2024-02-29T10:00:00Z", "2026-01-01T10:00:00.123+04:00"])(
+    "accepts %s",
+    (scheduledAt) => {
+      expect(Schema.decodeSync(postUpdateInput)({ scheduledAt })).toEqual({
+        scheduledAt,
+      });
+    },
+  );
+});

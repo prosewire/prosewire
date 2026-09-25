@@ -6,9 +6,38 @@ const withDefault = <S extends Schema.Constraint>(
 ) => Schema.withDecodingDefaultKey(Effect.succeed(value))(schema);
 
 const uuid = Schema.String.check(Schema.isUUID());
-const isoDateTime = Schema.String.check(
+export const isoDateTime = Schema.String.check(
   Schema.isPattern(
-    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/,
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/,
+  ),
+  Schema.makeFilter(
+    (value) => {
+      const [year, month, day, hour, minute, second] = value
+        .slice(0, 19)
+        .split(/[-T:]/)
+        .map(Number);
+      if (
+        year === undefined ||
+        month === undefined ||
+        day === undefined ||
+        hour === undefined ||
+        minute === undefined ||
+        second === undefined
+      )
+        return false;
+      const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+      const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+      return (
+        month >= 1 &&
+        month <= 12 &&
+        day >= 1 &&
+        day <= (days[month - 1] ?? 0) &&
+        hour < 24 &&
+        minute < 60 &&
+        second < 60
+      );
+    },
+    { expected: "a valid ISO calendar date and time" },
   ),
 );
 const url = Schema.String.check(
@@ -124,6 +153,22 @@ const focusKeyword = nullable(Schema.String.check(Schema.isMaxLength(120)));
 const canonicalUrl = nullable(url);
 const scheduledAt = nullable(isoDateTime);
 const categoryIds = Schema.Array(uuid);
+
+// Shared by transports and application commands. Dates remain transport-specific.
+export const postMutationFields = {
+  title,
+  slug,
+  excerpt,
+  contentMarkdown,
+  coverImageUrl,
+  coverImageAlt,
+  locale,
+  featured,
+  seoTitle,
+  seoDescription,
+  focusKeyword,
+  canonicalUrl,
+};
 
 export const postCreateInput = Schema.Struct({
   blogId: uuid,

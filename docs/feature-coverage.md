@@ -9,7 +9,7 @@ missing.
 
 | Capability | Coverage |
 | --- | --- |
-| Draft, schedule, publish, archive, and republish | Implemented in the dashboard and management API |
+| Draft, schedule, publish, archive, and republish | Implemented in the dashboard and management API; all mutation entrypoints share field constraints and reject invalid calendar dates |
 | Tiptap rich-text editor, Markdown source, live preview, excerpt, and reading time | Implemented; Markdown remains the portable source of record |
 | Content and search checks | Implemented as deterministic guidance; not a guarantee of ranking or accessibility compliance |
 | Cover images and media library | External URL metadata remains supported; managed JPEG, PNG, WebP, and AVIF uploads use signed object-storage requests, validated and sanitized variants, CDN URLs, per-publication quotas, post references, guarded deletion, and portable exports; media write transactions recheck current membership or API key scope and expiry; completion releases interrupted claims, preserves committed variants on response failures, and recovers abandoned processing after a 15-minute lease through retry or removal |
