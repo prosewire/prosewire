@@ -13,13 +13,20 @@ import {
   Result,
   Schema,
 } from "effect";
+import type { ApiAccess } from "./api-access.ts";
 import { BlogAccess } from "./authorization.ts";
+import type { BlogAuthorization } from "./authorization-models.ts";
 import { Database } from "./database.ts";
 import { BlogId, MediaAssetId, PostId, UserId } from "./domain.ts";
 import { MediaImage } from "./media-image.ts";
 import { ObjectStorage } from "./object-storage.ts";
 import { operationError } from "./operation-error.ts";
 import type { Actor } from "./post-commands.ts";
+import {
+  lockApiWrite,
+  lockBlogAuthorization,
+  type TransactionClient,
+} from "./transactional-access.ts";
 
 export const AssetStatus = Schema.Literals([
   "pending",
@@ -237,6 +244,40 @@ function variantPrefix(blogId: BlogId, assetId: MediaAssetId) {
   return `publications/${blogId}/media/${assetId}/`;
 }
 
+type WriteDenied =
+  | BlogAccess.BlogAccessDenied
+  | ApiAccess.AuthenticationFailed
+  | ApiAccess.ScopeDenied;
+
+async function lockWrite(
+  tx: TransactionClient,
+  blogId: BlogId,
+  actor: Actor,
+  now: Date,
+): Promise<Result.Result<BlogAuthorization | undefined, WriteDenied>> {
+  if (actor._tag === "Api") {
+    const authorization = await lockApiWrite(tx, blogId, actor.keyId, now);
+    return "error" in authorization
+      ? Result.fail(authorization.error)
+      : Result.succeed(undefined);
+  }
+  const authorization = await lockBlogAuthorization(
+    tx,
+    blogId,
+    actor.userId,
+    "content:create",
+  );
+  return authorization
+    ? Result.succeed(authorization)
+    : Result.fail(
+        new BlogAccess.BlogAccessDenied({
+          blogId,
+          userId: actor.userId,
+          capability: "content:create",
+        }),
+      );
+}
+
 export const create = Effect.fn("Media.create")(function* () {
   const database = yield* Database;
   const access = yield* BlogAccess.Service;
@@ -416,7 +457,7 @@ export const create = Effect.fn("Media.create")(function* () {
         readonly usage: MediaUsage;
         readonly expiredUploadKeys: ReadonlyArray<string>;
       },
-      QuotaExceeded
+      QuotaExceeded | WriteDenied
     >("mediaAsset.reserve", (client) =>
       client.transaction(async (tx) => {
         const [publication] = await tx
@@ -424,6 +465,8 @@ export const create = Effect.fn("Media.create")(function* () {
           .from(schema.blog)
           .where(eq(schema.blog.id, input.blogId))
           .for("update");
+        const locked = await lockWrite(tx, input.blogId, actor, now);
+        if (Result.isFailure(locked)) return Result.fail(locked.failure);
         if (!publication) {
           return Result.fail(
             new QuotaExceeded({
@@ -558,9 +601,11 @@ export const create = Effect.fn("Media.create")(function* () {
         readonly asset: AssetRow;
         readonly state: "claimed" | "expired" | "ready";
       },
-      AssetNotFound | InvalidState
+      AssetNotFound | InvalidState | WriteDenied
     >("mediaAsset.claim", (client) =>
       client.transaction(async (tx) => {
+        const locked = await lockWrite(tx, input.blogId, actor, now);
+        if (Result.isFailure(locked)) return Result.fail(locked.failure);
         const [asset] = await tx
           .select()
           .from(schema.mediaAsset)
@@ -680,122 +725,124 @@ export const create = Effect.fn("Media.create")(function* () {
           );
 
           yield* Effect.uninterruptible(
-            executeResult<void, QuotaExceeded | AssetNotFound | InvalidState>(
-              "mediaAsset.complete",
-              (client) =>
-                client.transaction(async (tx) => {
-                  const [publication] = await tx
-                    .select()
-                    .from(schema.blog)
-                    .where(eq(schema.blog.id, input.blogId))
-                    .for("update");
-                  if (!publication) {
-                    return Result.fail(
-                      new QuotaExceeded({
-                        quotaBytes: 0,
-                        usedBytes: 0,
-                        requestedBytes: storageBytes,
-                      }),
-                    );
-                  }
-                  const [currentAsset] = await tx
-                    .select({ status: schema.mediaAsset.status })
-                    .from(schema.mediaAsset)
-                    .where(
-                      and(
-                        eq(schema.mediaAsset.id, input.assetId),
-                        eq(schema.mediaAsset.blogId, input.blogId),
-                      ),
-                    )
-                    .for("update");
-                  if (!currentAsset) {
-                    return Result.fail(
-                      new AssetNotFound({ assetId: input.assetId }),
-                    );
-                  }
-                  if (currentAsset.status !== "processing") {
-                    return Result.fail(
-                      new InvalidState({
-                        assetId: input.assetId,
-                        status: currentAsset.status,
-                      }),
-                    );
-                  }
-                  const totals = await tx
-                    .select({
-                      value: sql<string>`coalesce(sum(${schema.mediaAsset.storageBytes}), 0)`,
-                    })
-                    .from(schema.mediaAsset)
-                    .where(
-                      and(
-                        activeAssetFilter(input.blogId),
-                        ne(schema.mediaAsset.id, input.assetId),
-                      ),
-                    );
-                  const usedBytes = Number(totals[0]?.value ?? 0);
-                  if (
-                    usedBytes + storageBytes >
-                    publication.mediaStorageQuotaBytes
-                  ) {
-                    return Result.fail(
-                      new QuotaExceeded({
-                        quotaBytes: publication.mediaStorageQuotaBytes,
-                        usedBytes,
-                        requestedBytes: storageBytes,
-                      }),
-                    );
-                  }
-                  await tx
-                    .delete(schema.mediaVariant)
-                    .where(eq(schema.mediaVariant.assetId, input.assetId));
-                  await tx.insert(schema.mediaVariant).values(
-                    variants.map((variant) => ({
-                      assetId: input.assetId,
-                      kind: variant.kind,
-                      storageKey: variant.storageKey,
-                      publicUrl: variant.publicUrl,
-                      mimeType: variant.mimeType,
-                      byteSize: variant.byteSize,
-                      width: variant.width,
-                      height: variant.height,
-                      checksumSha256: variant.checksumSha256,
-                    })),
+            executeResult<
+              void,
+              QuotaExceeded | AssetNotFound | InvalidState | WriteDenied
+            >("mediaAsset.complete", (client) =>
+              client.transaction(async (tx) => {
+                const [publication] = await tx
+                  .select()
+                  .from(schema.blog)
+                  .where(eq(schema.blog.id, input.blogId))
+                  .for("update");
+                const locked = await lockWrite(tx, input.blogId, actor, now);
+                if (Result.isFailure(locked))
+                  return Result.fail(locked.failure);
+                if (!publication) {
+                  return Result.fail(
+                    new QuotaExceeded({
+                      quotaBytes: 0,
+                      usedBytes: 0,
+                      requestedBytes: storageBytes,
+                    }),
                   );
-                  await tx
-                    .update(schema.mediaAsset)
-                    .set({
-                      detectedMimeType: processed.detectedMimeType,
-                      byteSize: body.byteLength,
-                      storageBytes,
-                      width: processed.width,
-                      height: processed.height,
-                      checksumSha256: processed.checksumSha256,
-                      status: "ready",
-                      uploadedAt: now,
-                      failureReason: null,
-                      updatedAt: now,
-                    })
-                    .where(eq(schema.mediaAsset.id, input.assetId));
-                  await tx.insert(schema.auditLog).values({
-                    organizationId: publication.organizationId,
-                    blogId: input.blogId,
-                    actorId: actor._tag === "Dashboard" ? actor.userId : null,
-                    action: "media.upload_completed",
-                    entityType: "media_asset",
-                    entityId: input.assetId,
-                    after: {
-                      source: actor._tag === "Dashboard" ? "dashboard" : "api",
-                      ...(actor._tag === "Api"
-                        ? { apiKeyId: actor.keyId }
-                        : {}),
-                      mimeType: processed.detectedMimeType,
-                      width: processed.width,
-                      height: processed.height,
-                      storageBytes,
-                    },
-                  });
-                  return Result.succeed(undefined);
-                }),
+                }
+                const [currentAsset] = await tx
+                  .select({ status: schema.mediaAsset.status })
+                  .from(schema.mediaAsset)
+                  .where(
+                    and(
+                      eq(schema.mediaAsset.id, input.assetId),
+                      eq(schema.mediaAsset.blogId, input.blogId),
+                    ),
+                  )
+                  .for("update");
+                if (!currentAsset) {
+                  return Result.fail(
+                    new AssetNotFound({ assetId: input.assetId }),
+                  );
+                }
+                if (currentAsset.status !== "processing") {
+                  return Result.fail(
+                    new InvalidState({
+                      assetId: input.assetId,
+                      status: currentAsset.status,
+                    }),
+                  );
+                }
+                const totals = await tx
+                  .select({
+                    value: sql<string>`coalesce(sum(${schema.mediaAsset.storageBytes}), 0)`,
+                  })
+                  .from(schema.mediaAsset)
+                  .where(
+                    and(
+                      activeAssetFilter(input.blogId),
+                      ne(schema.mediaAsset.id, input.assetId),
+                    ),
+                  );
+                const usedBytes = Number(totals[0]?.value ?? 0);
+                if (
+                  usedBytes + storageBytes >
+                  publication.mediaStorageQuotaBytes
+                ) {
+                  return Result.fail(
+                    new QuotaExceeded({
+                      quotaBytes: publication.mediaStorageQuotaBytes,
+                      usedBytes,
+                      requestedBytes: storageBytes,
+                    }),
+                  );
+                }
+                await tx
+                  .delete(schema.mediaVariant)
+                  .where(eq(schema.mediaVariant.assetId, input.assetId));
+                await tx.insert(schema.mediaVariant).values(
+                  variants.map((variant) => ({
+                    assetId: input.assetId,
+                    kind: variant.kind,
+                    storageKey: variant.storageKey,
+                    publicUrl: variant.publicUrl,
+                    mimeType: variant.mimeType,
+                    byteSize: variant.byteSize,
+                    width: variant.width,
+                    height: variant.height,
+                    checksumSha256: variant.checksumSha256,
+                  })),
+                );
+                await tx
+                  .update(schema.mediaAsset)
+                  .set({
+                    detectedMimeType: processed.detectedMimeType,
+                    byteSize: body.byteLength,
+                    storageBytes,
+                    width: processed.width,
+                    height: processed.height,
+                    checksumSha256: processed.checksumSha256,
+                    status: "ready",
+                    uploadedAt: now,
+                    failureReason: null,
+                    updatedAt: now,
+                  })
+                  .where(eq(schema.mediaAsset.id, input.assetId));
+                await tx.insert(schema.auditLog).values({
+                  organizationId: publication.organizationId,
+                  blogId: input.blogId,
+                  actorId: actor._tag === "Dashboard" ? actor.userId : null,
+                  action: "media.upload_completed",
+                  entityType: "media_asset",
+                  entityId: input.assetId,
+                  after: {
+                    source: actor._tag === "Dashboard" ? "dashboard" : "api",
+                    ...(actor._tag === "Api" ? { apiKeyId: actor.keyId } : {}),
+                    mimeType: processed.detectedMimeType,
+                    width: processed.width,
+                    height: processed.height,
+                    storageBytes,
+                  },
+                });
+                return Result.succeed(undefined);
+              }),
             ).pipe(
               Effect.tap(() =>
                 Effect.sync(() => {
@@ -858,13 +905,16 @@ export const create = Effect.fn("Media.create")(function* () {
     assetId: MediaAssetId,
     actor: Actor,
   ) {
-    const authorization = yield* authorize(blogId, actor, "write");
+    yield* authorize(blogId, actor, "write");
     const now = new Date(yield* Clock.currentTimeMillis);
     const keys = yield* executeResult<
       ReadonlyArray<string>,
-      AssetNotFound | AssetInUse | InvalidState | BlogAccess.BlogAccessDenied
+      AssetNotFound | AssetInUse | InvalidState | WriteDenied
     >("mediaAsset.delete", (client) =>
       client.transaction(async (tx) => {
+        const locked = await lockWrite(tx, blogId, actor, now);
+        if (Result.isFailure(locked)) return Result.fail(locked.failure);
+        const authorization = locked.success;
         const [asset] = await tx
           .select()
           .from(schema.mediaAsset)

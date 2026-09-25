@@ -2,6 +2,7 @@ import { hasPermission, isTeamRole, type Permission } from "@prosewire/core";
 import type { Db } from "@prosewire/db/client";
 import * as schema from "@prosewire/db/schema";
 import { and, eq } from "drizzle-orm";
+import { ApiAccess, hasScope } from "./api-access.ts";
 import {
   BlogAuthorization,
   WorkspaceAuthorization,
@@ -11,7 +12,7 @@ import {
   type ApiKeyId,
   type BlogId,
   MemberId,
-  type OrganizationId,
+  OrganizationId,
   type UserId,
 } from "./domain.ts";
 
@@ -116,6 +117,36 @@ export async function lockApiKey(
     .where(and(eq(schema.apiKey.id, keyId), eq(schema.apiKey.blogId, blogId)))
     .for("share");
   return rows[0];
+}
+
+export async function lockApiWrite(
+  transaction: TransactionClient,
+  blogId: BlogId,
+  keyId: ApiKeyId,
+  now: Date,
+) {
+  const authorization = await lockApiKey(transaction, blogId, keyId);
+  if (
+    !authorization ||
+    (authorization.key.expiresAt && authorization.key.expiresAt <= now)
+  ) {
+    return {
+      error: new ApiAccess.AuthenticationFailed({
+        message: "Invalid or expired API key",
+      }),
+    } as const;
+  }
+  if (!hasScope(authorization.key.scopes, "content:write")) {
+    return {
+      error: new ApiAccess.ScopeDenied({ requiredScope: "content:write" }),
+    } as const;
+  }
+  return {
+    organizationId: OrganizationId.make(authorization.organizationId),
+    blogSlug: authorization.blogSlug,
+    locale: authorization.locale,
+    locales: authorization.locales,
+  } as const;
 }
 
 export * as TransactionalAccess from "./transactional-access";
