@@ -1,4 +1,6 @@
 import * as schema from "@prosewire/db/schema";
+import * as EmailQueue from "@prosewire/jobs/email-queue";
+import * as JobRedis from "@prosewire/jobs/redis";
 import { and, asc, eq, gt, isNull, lt } from "drizzle-orm";
 import { Context, Effect, Layer, Option, Schema } from "effect";
 import {
@@ -44,6 +46,7 @@ export const layer = Layer.effect(
     const storage = yield* MessageStorage.MessageStorage;
     const sharding = yield* Sharding.Sharding;
     const table = schema.emailDeliveryOutbox;
+    const redis = yield* JobRedis.Service;
 
     const pruneCompleted = Effect.fn("WorkflowRetention.pruneCompleted")(
       function* (now: Date) {
@@ -94,6 +97,20 @@ export const layer = Layer.effect(
                   .where(eq(table.id, row.id)),
               );
             }
+            const queueReleased = yield* EmailQueue.forgetCompleted(
+              executionId,
+              row.id,
+            ).pipe(
+              Effect.provideService(JobRedis.Service, redis),
+              Effect.mapError(
+                (cause) =>
+                  new WorkflowRetentionError({
+                    operation: "clear terminal email queue identity",
+                    cause,
+                  }),
+              ),
+            );
+            if (!queueReleased) continue;
             const entityId = EntityId.make(executionId);
             const shardGroup = Context.get(
               EmailDeliveryWorkflow.annotations,

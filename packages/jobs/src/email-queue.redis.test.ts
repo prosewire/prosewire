@@ -7,7 +7,12 @@ import {
   WorkflowEngine,
 } from "effect/unstable/workflow";
 import * as JobQueueConfig from "./config.ts";
-import { EmailDeliveryError, EmailDeliveryJob, queue } from "./email-queue.ts";
+import {
+  EmailDeliveryError,
+  EmailDeliveryJob,
+  forgetCompleted,
+  queue,
+} from "./email-queue.ts";
 import * as JobRedis from "./redis.ts";
 
 const redisUrl = process.env["REDIS_URL"];
@@ -62,6 +67,11 @@ describe.skipIf(!redisUrl)("Email durable queue Redis integration", () => {
           const queueKey = `${prefix}DurableQueue/prosewire-email-v2`;
           expect(yield* redis.send<number>("LLEN", queueKey)).toBe(1);
 
+          const executionId = yield* EmailRedisTestWorkflow.executionId(job);
+          expect(
+            yield* forgetCompleted(executionId, job.outboxId, prefix),
+          ).toBe(false);
+          expect(yield* redis.send<number>("SCARD", `${queueKey}:ids`)).toBe(1);
           let delivered: EmailDeliveryJob | undefined;
           yield* DurableQueue.makeWorker(queue, (message) =>
             Effect.sync(() => {
@@ -75,6 +85,13 @@ describe.skipIf(!redisUrl)("Email durable queue Redis integration", () => {
           expect(yield* redis.send<number>("HLEN", `${queueKey}:pending`)).toBe(
             0,
           );
+          expect(
+            yield* forgetCompleted(executionId, job.outboxId, prefix),
+          ).toBe(true);
+          expect(yield* redis.send<number>("SCARD", `${queueKey}:ids`)).toBe(0);
+          expect(
+            yield* forgetCompleted(executionId, job.outboxId, prefix),
+          ).toBe(true);
         }),
       );
     } finally {

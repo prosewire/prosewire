@@ -136,7 +136,7 @@ thirty days and its workflow has a terminal result, it clears that workflow's
 persisted messages/replies and scrubs the recipient, subject, body, and error
 from the outbox row. The outbox ID and dispatch marker remain as a deduplication
 record. Running, suspended, unknown, and recent executions are preserved.
-Cleanup records its intent before clearing workflow storage, so a restart can
+Cleanup also removes the matching Redis queue identity. It defers cleanup while the queue has waiting items or the delivery has pending, locked, or failed queue state. Cleanup records its intent before clearing workflow storage, so a restart can
 finish cleanup even when the workflow result has already been removed.
 
 Migration `0016_cold_darkhawk` adds two nullable cleanup timestamps without

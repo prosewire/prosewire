@@ -1,6 +1,6 @@
 import { Layer } from "effect";
 import * as PersistedQueue from "effect/unstable/persistence/PersistedQueue";
-import type * as JobQueueConfig from "./config.ts";
+import * as JobQueueConfig from "./config.ts";
 import * as JobRedis from "./redis.ts";
 
 export const layer = <E, R>(
@@ -11,7 +11,7 @@ export const layer = <E, R>(
     Layer.provideMerge(redisLayer),
   );
   const storeLayer = PersistedQueue.layerStoreRedis({
-    prefix: "{prosewire-jobs}:effectq:",
+    prefix: JobQueueConfig.redisQueuePrefix,
   }).pipe(Layer.provideMerge(persistenceLayer));
   const factoryLayer = PersistedQueue.layer.pipe(
     Layer.provideMerge(storeLayer),

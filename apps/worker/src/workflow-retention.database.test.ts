@@ -1,6 +1,7 @@
 import * as schema from "@prosewire/db/schema";
 import { openTestDatabase } from "@prosewire/db/testing";
 import { EmailDeliveryError } from "@prosewire/jobs/email-queue";
+import * as JobRedis from "@prosewire/jobs/redis";
 import { eq } from "drizzle-orm";
 import { Effect, Layer, ManagedRuntime, Option, Redacted } from "effect";
 import { ClusterWorkflowEngine } from "effect/unstable/cluster";
@@ -37,7 +38,12 @@ describe.skipIf(!databaseUrl)("terminal workflow retention", () => {
     const engine = ClusterWorkflowEngine.layer.pipe(
       Layer.provideMerge(clusterLayer(Redacted.make(database.url))),
     );
-    const infrastructure = Layer.merge(
+    let queueIdle = false;
+    const infrastructure = Layer.mergeAll(
+      Layer.mock(JobRedis.Service, {
+        // This Redis adapter boundary returns the integer result of EVAL.
+        send: <A>() => Effect.succeed((queueIdle ? 1 : 0) as A),
+      }),
       engine,
       Layer.succeed(WorkerDatabase.Service, { client: database.client }),
     );
@@ -90,6 +96,19 @@ describe.skipIf(!databaseUrl)("terminal workflow retention", () => {
           await runtime.runPromise(EmailDeliveryWorkflow.poll(completedId)),
         ),
       ).toBe(true);
+      expect(
+        await runtime.runPromise(
+          Effect.flatMap(WorkflowRetention.Service, (retention) =>
+            retention.pruneCompleted(now),
+          ),
+        ),
+      ).toBe(0);
+      expect(
+        Option.isSome(
+          await runtime.runPromise(EmailDeliveryWorkflow.poll(completedId)),
+        ),
+      ).toBe(true);
+      queueIdle = true;
       expect(
         await runtime.runPromise(
           Effect.flatMap(WorkflowRetention.Service, (retention) =>
