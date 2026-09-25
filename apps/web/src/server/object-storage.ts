@@ -2,6 +2,7 @@ import {
   DeleteObjectsCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -57,6 +58,9 @@ export interface Shape {
     contentType: string,
     body: Uint8Array,
   ) => Effect.Effect<void, NotConfigured | StorageError>;
+  readonly deletePrefix: (
+    prefix: string,
+  ) => Effect.Effect<void, NotConfigured | StorageError>;
   readonly delete: (
     keys: ReadonlyArray<string>,
   ) => Effect.Effect<void, NotConfigured | StorageError>;
@@ -81,6 +85,7 @@ export const disabled: Shape = {
   get: () => Effect.fail(unavailable()),
   put: () => Effect.fail(unavailable()),
   delete: () => Effect.fail(unavailable()),
+  deletePrefix: () => Effect.fail(unavailable()),
 };
 
 function storageError(operation: string, cause: unknown): StorageError {
@@ -101,6 +106,7 @@ export function make(
     endpoint: config.endpoint,
     region: config.region,
     forcePathStyle: config.forcePathStyle,
+    requestHandler: { connectionTimeout: 5_000, requestTimeout: 30_000 },
     credentials: {
       accessKeyId: Redacted.value(config.accessKeyId),
       secretAccessKey: Redacted.value(config.secretAccessKey),
@@ -109,11 +115,17 @@ export function make(
 ): Shape {
   const request = <A>(
     operation: string,
-    run: () => Promise<A>,
+    run: (signal: AbortSignal) => Promise<A>,
   ): Effect.Effect<A, StorageError> =>
-    Effect.tryPromise({
-      try: run,
-      catch: (cause) => storageError(operation, cause),
+    Effect.callback<A, StorageError>((resume, signal) => {
+      const settled = Promise.resolve()
+        .then(() => run(signal))
+        .then(
+          (value) => resume(Effect.succeed(value)),
+          (cause) => resume(Effect.fail(storageError(operation, cause))),
+        );
+      // Abort reaches S3 immediately; compensation waits until the request settles.
+      return Effect.promise(() => settled);
     });
 
   const deleteFromBucket = (
@@ -124,7 +136,7 @@ export function make(
     Effect.forEach(
       batches([...new Set(keys)], 1_000),
       (batch) =>
-        request(operation, () =>
+        request(operation, (signal) =>
           client
             .send(
               new DeleteObjectsCommand({
@@ -134,6 +146,7 @@ export function make(
                   Quiet: true,
                 },
               }),
+              { abortSignal: signal },
             )
             .then((output) => {
               if (output.Errors?.length) {
@@ -172,9 +185,10 @@ export function make(
         headers: { "content-type": contentType },
       })),
     head: (key) =>
-      request("inspect upload", async () => {
+      request("inspect upload", async (signal) => {
         const output = await client.send(
           new HeadObjectCommand({ Bucket: config.bucket, Key: key }),
+          { abortSignal: signal },
         );
         if (output.ContentLength === undefined) {
           throw new Error("Object storage omitted Content-Length");
@@ -185,15 +199,16 @@ export function make(
         };
       }),
     get: (key) =>
-      request("read object", async () => {
+      request("read object", async (signal) => {
         const output = await client.send(
           new GetObjectCommand({ Bucket: config.bucket, Key: key }),
+          { abortSignal: signal },
         );
         if (!output.Body) throw new Error("Object storage returned no body");
         return output.Body.transformToByteArray();
       }),
     put: (key, contentType, body) =>
-      request("write processed object", () =>
+      request("write processed object", (signal) =>
         client
           .send(
             new PutObjectCommand({
@@ -204,10 +219,34 @@ export function make(
               Body: body,
               CacheControl: "public, max-age=3600, must-revalidate",
             }),
+            { abortSignal: signal },
           )
           .then(() => undefined),
       ),
     delete: (keys) => deleteFromBucket(config.bucket, keys, "delete objects"),
+    deletePrefix: Effect.fn("ObjectStorage.deletePrefix")(function* (prefix) {
+      let continuationToken: string | undefined;
+      do {
+        const page = yield* request("list abandoned variants", (signal) =>
+          client.send(
+            new ListObjectsV2Command({
+              Bucket: config.bucket,
+              Prefix: prefix,
+              ContinuationToken: continuationToken,
+            }),
+            { abortSignal: signal },
+          ),
+        );
+        yield* deleteFromBucket(
+          config.bucket,
+          (page.Contents ?? []).flatMap((object) =>
+            object.Key ? [object.Key] : [],
+          ),
+          "delete abandoned variants",
+        );
+        continuationToken = page.NextContinuationToken;
+      } while (continuationToken);
+    }),
   };
 }
 
@@ -220,6 +259,7 @@ export const layer = Layer.effect(
       endpoint: config.mediaStorage.endpoint,
       region: config.mediaStorage.region,
       forcePathStyle: config.mediaStorage.forcePathStyle,
+      requestHandler: { connectionTimeout: 5_000, requestTimeout: 30_000 },
       credentials: {
         accessKeyId: Redacted.value(config.mediaStorage.accessKeyId),
         secretAccessKey: Redacted.value(config.mediaStorage.secretAccessKey),

@@ -12,7 +12,7 @@ missing.
 | Draft, schedule, publish, archive, and republish | Implemented in the dashboard and management API |
 | Tiptap rich-text editor, Markdown source, live preview, excerpt, and reading time | Implemented; Markdown remains the portable source of record |
 | Content and search checks | Implemented as deterministic guidance; not a guarantee of ranking or accessibility compliance |
-| Cover images and media library | External URL metadata remains supported; managed JPEG, PNG, WebP, and AVIF uploads use signed object-storage requests, validated and sanitized variants, CDN URLs, per-publication quotas, post references, guarded deletion, and portable exports |
+| Cover images and media library | External URL metadata remains supported; managed JPEG, PNG, WebP, and AVIF uploads use signed object-storage requests, validated and sanitized variants, CDN URLs, per-publication quotas, post references, guarded deletion, and portable exports; completion releases interrupted claims, preserves committed variants on response failures, and recovers abandoned processing after a 15-minute lease through retry or removal |
 | Featured or pinned posts | Implemented as one `featured` flag used by the public homepage |
 | Revisions | History browsing and confirmed restore are implemented in the dashboard, management API, SDK, CLI, and MCP; each restore first saves the version it replaces |
 | Bulk operations | Bulk archive is implemented; bulk editing of other fields is not |

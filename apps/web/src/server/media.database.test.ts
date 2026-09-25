@@ -70,6 +70,11 @@ function memoryStorage(): MemoryStorage {
         Effect.sync(() => {
           objects.set(key, { body, mimeType });
         }),
+      deletePrefix: (prefix) =>
+        Effect.sync(() => {
+          for (const key of objects.keys())
+            if (key.startsWith(prefix)) objects.delete(key);
+        }),
       delete: (keys) =>
         Effect.sync(() => {
           for (const key of keys) objects.delete(key);
@@ -236,6 +241,92 @@ describe.skipIf(!databaseUrl)("PostgreSQL media lifecycle", () => {
         "media.upload_completed",
         "media.upload_reserved",
       ]);
+
+      for (const recoverBy of ["complete", "remove"] as const) {
+        const abandonedId = MediaAssetId.make(randomUUID());
+        const abandonedKey = `publications/${blogId}/media/${abandonedId}/original-orphan.png`;
+        await resource.client.insert(schema.mediaAsset).values({
+          id: abandonedId,
+          blogId,
+          originalFilename: "abandoned.png",
+          declaredMimeType: "image/png",
+          byteSize: 1,
+          storageBytes: 1,
+          uploadStorageKey: `_uploads/${blogId}/${abandonedId}`,
+          uploadExpiresAt: new Date(0),
+          status: "processing",
+          updatedAt: new Date(0),
+          createdById: ownerId,
+        });
+        storage.objects.set(abandonedKey, {
+          body: new Uint8Array([1]),
+          mimeType: "image/png",
+        });
+        if (recoverBy === "complete") {
+          const failure = await Effect.runPromise(
+            Effect.flip(
+              service.completeUpload(
+                new CompleteUploadInput({ blogId, assetId: abandonedId }),
+                actor,
+              ),
+            ),
+          );
+          expect(failure._tag).toBe("MediaUploadExpired");
+        } else {
+          await Effect.runPromise(service.remove(blogId, abandonedId, actor));
+        }
+        expect(storage.objects.has(abandonedKey)).toBe(false);
+        const recovered = await resource.client.query.mediaAsset.findFirst({
+          where: eq(schema.mediaAsset.id, abandonedId),
+        });
+        expect(recovered?.status).toBe(
+          recoverBy === "complete" ? "failed" : "deleted",
+        );
+      }
+
+      const tinyBody = await sharp({
+        create: {
+          width: 1,
+          height: 1,
+          channels: 4,
+          background: { r: 255, g: 0, b: 0, alpha: 1 },
+        },
+      })
+        .png()
+        .toBuffer();
+      await resource.client
+        .update(schema.blog)
+        .set({ mediaStorageQuotaBytes: tinyBody.byteLength })
+        .where(eq(schema.blog.id, blogId));
+      const overQuota = await Effect.runPromise(
+        service.startUpload(
+          new StartUploadInput({
+            blogId,
+            filename: "quota.png",
+            mimeType: "image/png",
+            byteSize: tinyBody.byteLength,
+          }),
+          actor,
+        ),
+      );
+      storage.objects.set(storage.uploadKey(overQuota.upload.url), {
+        body: tinyBody,
+        mimeType: "image/png",
+      });
+      const completionQuota = await Effect.runPromise(
+        Effect.flip(
+          service.completeUpload(
+            new CompleteUploadInput({ blogId, assetId: overQuota.asset.id }),
+            actor,
+          ),
+        ),
+      );
+      expect(completionQuota._tag).toBe("MediaQuotaExceeded");
+      expect(storage.objects.size).toBe(0);
+      const failedQuota = await resource.client.query.mediaAsset.findFirst({
+        where: eq(schema.mediaAsset.id, overQuota.asset.id),
+      });
+      expect(failedQuota?.status).toBe("failed");
 
       await resource.client
         .update(schema.blog)
