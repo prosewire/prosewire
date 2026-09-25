@@ -10,6 +10,7 @@ import {
   publishingSchedule,
   repeatScheduled,
 } from "./worker-runtime.ts";
+import { WorkflowRetention } from "./workflow-retention.ts";
 import {
   startAnalyticsRetention,
   startEmailOutbox,
@@ -20,6 +21,7 @@ const runWorker = Effect.gen(function* () {
   const emailOutboxNotifications = yield* EmailOutboxNotifications.Service;
   const redis = yield* JobRedis.Service;
   const config = yield* WorkerConfig;
+  const workflowRetention = yield* WorkflowRetention.Service;
 
   yield* redis.ping;
 
@@ -37,6 +39,11 @@ const runWorker = Effect.gen(function* () {
       Effect.flatMap(startAnalyticsRetention),
       Effect.retry({ times: 3, schedule: Schedule.spaced("1 minute") }),
     ),
+    analyticsRetentionSchedule,
+  );
+  const pruneWorkflowHistory = repeatScheduled(
+    "Email workflow retention",
+    now.pipe(Effect.flatMap(workflowRetention.pruneCompleted)),
     analyticsRetentionSchedule,
   );
   const dispatchEmailOutbox = startEmailOutbox();
@@ -60,7 +67,13 @@ const runWorker = Effect.gen(function* () {
     emailConcurrency: config.emailWorkerConcurrency,
   });
   return yield* Effect.all(
-    [publishScheduled, pruneAnalytics, pollEmailOutbox, dispatchNotifiedEmails],
+    [
+      publishScheduled,
+      pruneAnalytics,
+      pruneWorkflowHistory,
+      pollEmailOutbox,
+      dispatchNotifiedEmails,
+    ],
     {
       concurrency: "unbounded",
       discard: true,

@@ -406,6 +406,10 @@ export const emailDeliveryOutbox = pgTable(
     lockedBy: text("locked_by"),
     lastError: text("last_error"),
     dispatchedAt: timestamp("dispatched_at", { withTimezone: true }),
+    workflowPruneStartedAt: timestamp("workflow_prune_started_at", {
+      withTimezone: true,
+    }),
+    workflowPrunedAt: timestamp("workflow_pruned_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

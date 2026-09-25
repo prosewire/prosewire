@@ -128,3 +128,22 @@ On Vercel, `VERCEL_PROJECT_PRODUCTION_URL` supplies the origin when system envir
 - Store API tokens as hashes and use the narrowest read/write scope
 - Rotate a compromised API key by creating a replacement, changing the consumer, then revoking the old key
 - Back up Postgres, Redis, and the media buckets, then test a coordinated restore before launch
+
+### Email execution retention
+
+The worker checks email executions daily. Once a dispatched intent is older than
+thirty days and its workflow has a terminal result, it clears that workflow's
+persisted messages/replies and scrubs the recipient, subject, body, and error
+from the outbox row. The outbox ID and dispatch marker remain as a deduplication
+record. Running, suspended, unknown, and recent executions are preserved.
+Cleanup records its intent before clearing workflow storage, so a restart can
+finish cleanup even when the workflow result has already been removed.
+
+Migration `0016_cold_darkhawk` adds two nullable cleanup timestamps without
+rewriting existing payloads. Run the normal one-shot migration before starting
+the new worker. Back up PostgreSQL before upgrading; rolling back the worker
+requires no schema rollback because old workers ignore the new columns. To
+recover historical delivery payloads after retention, restore the matching
+PostgreSQL backup to a separate database for inspection. Do not clear dispatch
+markers or restore only workflow tables into a live worker database, because
+that can replay previously dispatched email.
