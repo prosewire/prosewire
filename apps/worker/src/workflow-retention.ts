@@ -93,7 +93,7 @@ export const layer = Layer.effect(
         EmailDeliveryWorkflow.annotations,
         ClusterSchema.ShardGroup,
       )(entityId);
-      // Effect RC.112 stores workflow requests and deferred results at this
+      // Effect RC.115 stores workflow requests and deferred results at this
       // entity address. The database regression pins this library convention.
       yield* storage
         .clearAddress(

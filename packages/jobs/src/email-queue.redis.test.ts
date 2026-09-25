@@ -11,6 +11,7 @@ import {
   EmailDeliveryError,
   EmailDeliveryJob,
   forgetCompleted,
+  migrateLegacyIdentities,
   queue,
 } from "./email-queue.ts";
 import * as JobRedis from "./redis.ts";
@@ -65,13 +66,52 @@ describe.skipIf(!redisUrl)("Email durable queue Redis integration", () => {
 
           const redis = yield* JobRedis.Service;
           const queueKey = `${prefix}DurableQueue/prosewire-email-v2`;
+          const legacyPrefix = `${prefix}legacy:`;
+          const legacyKey = `${legacyPrefix}DurableQueue/${queue.name}:ids`;
+          const legacyIds = Array.from(
+            { length: 5000 },
+            (_, i) => `legacy-${i}`,
+          );
+          const legacyQueue = `${legacyPrefix}DurableQueue/${queue.name}`;
+          yield* redis.send("SADD", legacyKey, ...legacyIds);
+          yield* redis.send("RPUSH", legacyQueue, "pending legacy payload");
+          // Resume a migration whose first batch was committed before shutdown.
+          const [cursor, batch] = yield* redis.send<[string, string[]]>(
+            "SSCAN",
+            legacyKey,
+            "0",
+            "COUNT",
+            "100",
+          );
+          expect(cursor).not.toBe("0");
+          yield* redis.send(
+            "ZADD",
+            `${legacyKey}:migrating`,
+            ...batch.flatMap((id) => ["0", id]),
+          );
+          yield* redis.send("SET", `${legacyKey}:cursor`, cursor);
+          yield* migrateLegacyIdentities(legacyPrefix);
+          yield* migrateLegacyIdentities(legacyPrefix);
+          expect(yield* redis.send("TYPE", legacyKey)).toBe("zset");
+          expect(yield* redis.send("ZCARD", legacyKey)).toBe(legacyIds.length);
+          expect(yield* redis.send("LRANGE", legacyQueue, "0", "-1")).toEqual([
+            "pending legacy payload",
+          ]);
+          expect(
+            yield* redis.send(
+              "EXISTS",
+              `${legacyKey}:migrating`,
+              `${legacyKey}:cursor`,
+            ),
+          ).toBe(0);
+          yield* redis.send("DEL", legacyKey, legacyQueue);
           expect(yield* redis.send<number>("LLEN", queueKey)).toBe(1);
 
           const executionId = yield* EmailRedisTestWorkflow.executionId(job);
           expect(
             yield* forgetCompleted(executionId, job.outboxId, prefix),
           ).toBe(false);
-          expect(yield* redis.send<number>("SCARD", `${queueKey}:ids`)).toBe(1);
+          expect(yield* redis.send<number>("ZCARD", `${queueKey}:ids`)).toBe(1);
           let delivered: EmailDeliveryJob | undefined;
           yield* DurableQueue.makeWorker(queue, (message) =>
             Effect.sync(() => {
@@ -88,7 +128,7 @@ describe.skipIf(!redisUrl)("Email durable queue Redis integration", () => {
           expect(
             yield* forgetCompleted(executionId, job.outboxId, prefix),
           ).toBe(true);
-          expect(yield* redis.send<number>("SCARD", `${queueKey}:ids`)).toBe(0);
+          expect(yield* redis.send<number>("ZCARD", `${queueKey}:ids`)).toBe(0);
           expect(
             yield* forgetCompleted(executionId, job.outboxId, prefix),
           ).toBe(true);
