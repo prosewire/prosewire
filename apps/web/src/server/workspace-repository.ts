@@ -1,5 +1,5 @@
 import { Buffer } from "node:buffer";
-import { normalizeTeamRole, slugify } from "@prosewire/core";
+import { normalizeTeamRole, slugify, teamRoles } from "@prosewire/core";
 import type { Db } from "@prosewire/db/client";
 import * as schema from "@prosewire/db/schema";
 import {
@@ -31,7 +31,9 @@ import {
   lockWorkspaceAuthorization,
 } from "./transactional-access.ts";
 
-const EditableRole = Schema.Literals(["admin", "editor", "author", "viewer"]);
+const EditableRole = Schema.Literals(
+  teamRoles.filter((role) => role !== "owner"),
+);
 const selfHostedWorkspaceLockKey = "prosewire:self-hosted-workspace";
 
 export class InvalidWorkspaceInput extends Schema.TaggedError<InvalidWorkspaceInput>()(
