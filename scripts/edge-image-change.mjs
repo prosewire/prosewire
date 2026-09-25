@@ -75,22 +75,23 @@ export function requiresEdgeImage(paths) {
   return !companionChanges.every((path) => isKnownNonRuntimeInput(path));
 }
 
-function git(...args) {
-  return execFileSync("git", args, { encoding: "utf8" });
-}
-
-function requireCommit(sha, label) {
+function requireCommit(sha, label, options) {
   if (!fullSha.test(sha)) throw new Error(`${label} is not a full commit SHA`);
   execFileSync("git", ["cat-file", "-e", `${sha}^{commit}`], {
+    ...options,
     stdio: "ignore",
   });
 }
 
-export function changedPaths(baseSha, headSha) {
+export function changedPaths(baseSha, headSha, options = {}) {
   if (zeroSha.test(baseSha ?? "")) return null;
-  requireCommit(baseSha, "base SHA");
-  requireCommit(headSha, "head SHA");
-  return git("diff", "--name-only", "--no-renames", "-z", baseSha, headSha)
+  requireCommit(baseSha, "base SHA", options);
+  requireCommit(headSha, "head SHA", options);
+  return execFileSync(
+    "git",
+    ["diff", "--name-only", "--no-renames", "-z", baseSha, headSha],
+    { ...options, encoding: "utf8" },
+  )
     .split("\0")
     .filter(Boolean);
 }

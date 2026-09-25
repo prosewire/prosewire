@@ -55,45 +55,47 @@ test("a runtime lockfile update requires edge", () => {
 
 test("the push range includes multiple commits and deletions", async () => {
   const directory = await mkdtemp(join(tmpdir(), "prosewire-edge-range-"));
+  // Hooks export repository context. A fixture must never inherit that context
+  // or its commits and configuration changes would target the caller's repo.
+  const gitOptions = {
+    cwd: directory,
+    env: Object.fromEntries(
+      Object.entries(process.env).filter(([key]) => !key.startsWith("GIT_")),
+    ),
+  };
   try {
-    execFileSync("git", ["init", "--quiet"], { cwd: directory });
+    execFileSync("git", ["init", "--quiet"], gitOptions);
     execFileSync("git", ["config", "user.name", "Image test"], {
-      cwd: directory,
+      ...gitOptions,
     });
     execFileSync("git", ["config", "user.email", "image@example.com"], {
-      cwd: directory,
+      ...gitOptions,
     });
     await writeFile(join(directory, "Dockerfile"), "FROM scratch\n");
-    execFileSync("git", ["add", "Dockerfile"], { cwd: directory });
+    execFileSync("git", ["add", "Dockerfile"], gitOptions);
     execFileSync("git", ["commit", "--quiet", "-m", "base"], {
-      cwd: directory,
+      ...gitOptions,
     });
     const baseSha = execFileSync("git", ["rev-parse", "HEAD"], {
-      cwd: directory,
+      ...gitOptions,
       encoding: "utf8",
     }).trim();
     await writeFile(join(directory, "README.md"), "docs\n");
-    execFileSync("git", ["add", "README.md"], { cwd: directory });
+    execFileSync("git", ["add", "README.md"], gitOptions);
     execFileSync("git", ["commit", "--quiet", "-m", "docs"], {
-      cwd: directory,
+      ...gitOptions,
     });
-    execFileSync("git", ["rm", "--quiet", "Dockerfile"], { cwd: directory });
+    execFileSync("git", ["rm", "--quiet", "Dockerfile"], gitOptions);
     execFileSync("git", ["commit", "--quiet", "-m", "remove image input"], {
-      cwd: directory,
+      ...gitOptions,
     });
     const headSha = execFileSync("git", ["rev-parse", "HEAD"], {
-      cwd: directory,
+      ...gitOptions,
       encoding: "utf8",
     }).trim();
-    const previous = process.cwd();
-    try {
-      process.chdir(directory);
-      const paths = changedPaths(baseSha, headSha);
-      assert.deepEqual(paths?.sort(), ["Dockerfile", "README.md"]);
-      assert.equal(requiresEdgeImage(paths ?? []), true);
-    } finally {
-      process.chdir(previous);
-    }
+    const paths = changedPaths(baseSha, headSha, gitOptions);
+    assert.deepEqual(paths?.sort(), ["Dockerfile", "README.md"]);
+    assert.equal(requiresEdgeImage(paths ?? []), true);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
