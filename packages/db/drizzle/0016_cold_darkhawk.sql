@@ -1,0 +1,2 @@
+ALTER TABLE "email_delivery_outbox" ADD COLUMN "workflow_prune_started_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "email_delivery_outbox" ADD COLUMN "workflow_pruned_at" timestamp with time zone;

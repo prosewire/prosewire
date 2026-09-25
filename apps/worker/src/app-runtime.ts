@@ -13,6 +13,7 @@ import { Publishing } from "./publishing.ts";
 import { PublishingRepository } from "./publishing-repository.ts";
 import { ShutdownSignal } from "./shutdown.ts";
 import { WorkerConfig } from "./worker-config.ts";
+import { WorkflowRetention } from "./workflow-retention.ts";
 import { clusterLayer } from "./workflow-storage.ts";
 import * as Workflows from "./workflows.ts";
 
@@ -102,6 +103,11 @@ const emailWorkerLayer = Layer.unwrap(
   Layer.provideMerge(workflowEngineLayer),
 );
 
+const workflowRetentionLayer = WorkflowRetention.layer.pipe(
+  Layer.provideMerge(databaseLayer),
+  Layer.provideMerge(workflowEngineLayer),
+);
+
 const runtimeLayer = Layer.mergeAll(
   configLayer,
   databaseLayer,
@@ -116,6 +122,7 @@ const runtimeLayer = Layer.mergeAll(
   workflowHandlersLayer,
   emailWorkerLayer,
   ShutdownSignal.layer,
+  workflowRetentionLayer,
 );
 
 export const workerRuntime = ManagedRuntime.make(runtimeLayer);
@@ -131,7 +138,8 @@ export type WorkerServices =
   | EmailDelivery.Service
   | EmailOutbox.Service
   | EmailOutboxNotifications.Service
-  | ShutdownSignal;
+  | ShutdownSignal
+  | WorkflowRetention.Service;
 
 export function runWorkerEffect<A, E>(
   effect: Effect.Effect<A, E, WorkerServices>,
@@ -141,5 +149,3 @@ export function runWorkerEffect<A, E>(
 
 export const disposeWorkerRuntime = (): Promise<void> =>
   workerRuntime.dispose();
-
-export * as WorkerAppRuntime from "./app-runtime.js";
