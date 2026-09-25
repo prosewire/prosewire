@@ -91,7 +91,9 @@ async function dispatch(request: Request): Promise<unknown> {
     case "GetMedia":
       return getMedia(request, operation.id);
     case "StartMediaUpload":
-      return startMediaUpload(request, operation.input);
+      return Response.json(await startMediaUpload(request, operation.input), {
+        status: 201,
+      });
     case "CompleteMediaUpload":
       return completeMediaUpload(request, operation.id);
     case "DeleteMedia":
@@ -101,7 +103,8 @@ async function dispatch(request: Request): Promise<unknown> {
 
 export async function handlePrivateApi(request: Request): Promise<Response> {
   try {
-    return Response.json(await dispatch(request));
+    const result = await dispatch(request);
+    return result instanceof Response ? result : Response.json(result);
   } catch (error) {
     return apiErrorResponse(error);
   }
