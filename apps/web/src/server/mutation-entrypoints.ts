@@ -1,18 +1,11 @@
-import { isoDateTime, postMutationFields } from "@prosewire/contract/schemas";
 import { slugify } from "@prosewire/core";
 import { Effect, Schema } from "effect";
 import { requireDashboardSessionEffect } from "@/lib/session";
 import { runAppEffect } from "./app-runtime.ts";
 import { BlogErrors } from "./blog-errors.ts";
-import {
-  AuthorId,
-  BlogId,
-  CategoryId,
-  MediaAssetId,
-  PostId,
-  UserId,
-} from "./domain.ts";
+import { UserId } from "./domain.ts";
 import { PostErrors } from "./post-errors.ts";
+import { SavePostInput } from "./post-form-input.ts";
 import {
   ArchivePostsCommand,
   CreatePostCommand,
@@ -21,32 +14,6 @@ import {
   UpdateBlogSettingsInput,
   UpdatePostCommand,
 } from "./publishing.ts";
-
-class SavePostInput extends Schema.Class<SavePostInput>(
-  "MutationEntrypoints.SavePostInput",
-)({
-  id: Schema.optional(PostId),
-  blogId: BlogId,
-  authorId: AuthorId,
-  categoryIds: Schema.Array(CategoryId),
-  title: postMutationFields.title,
-  requestedSlug: Schema.String,
-  excerpt: postMutationFields.excerpt,
-  contentMarkdown: postMutationFields.contentMarkdown,
-  requestedStatus: Schema.Literals(["draft", "scheduled", "published"]),
-  featured: Schema.Boolean,
-  locale: postMutationFields.locale,
-  coverImageAssetId: Schema.NullOr(MediaAssetId),
-  coverImageUrl: postMutationFields.coverImageUrl,
-  coverImageAlt: postMutationFields.coverImageAlt,
-  seoTitle: postMutationFields.seoTitle,
-  seoDescription: postMutationFields.seoDescription,
-  focusKeyword: postMutationFields.focusKeyword,
-  canonicalUrl: postMutationFields.canonicalUrl,
-  scheduledAt: Schema.NullOr(
-    isoDateTime.pipe(Schema.decodeTo(Schema.DateFromString)),
-  ),
-}) {}
 
 export type SavePostBoundaryInput = Omit<
   typeof SavePostInput.Encoded,

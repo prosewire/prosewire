@@ -2,6 +2,7 @@ import { postCreateInput, postUpdateInput } from "@prosewire/contract/schemas";
 import { Schema } from "effect";
 import { describe, expect, it } from "vitest";
 import { CreatePostCommand, UpdatePostCommand } from "./post-commands.ts";
+import { SavePostInput } from "./post-form-input.ts";
 
 const fields = {
   blogId: "11111111-1111-4111-8111-111111111111",
@@ -48,5 +49,37 @@ describe("post command validation", () => {
     expect(
       Schema.decodeSync(Schema.toType(CreatePostCommand))(command),
     ).toEqual(command);
+  });
+});
+
+describe("dashboard scheduling", () => {
+  const form = {
+    ...fields,
+    requestedSlug: "draft",
+    requestedStatus: "scheduled",
+    locale: "en",
+    excerpt: "",
+    coverImageAssetId: null,
+    coverImageUrl: null,
+    coverImageAlt: null,
+    seoTitle: null,
+    seoDescription: null,
+    focusKeyword: null,
+    canonicalUrl: null,
+  };
+  it("accepts the datetime-local control's minute precision", () => {
+    const scheduledAt = "2026-09-25T17:30";
+    expect(
+      Schema.decodeUnknownSync(SavePostInput)({ ...form, scheduledAt })
+        .scheduledAt,
+    ).toEqual(new Date(scheduledAt));
+  });
+  it("rejects impossible local dates before Date normalizes them", () => {
+    expect(() =>
+      Schema.decodeUnknownSync(SavePostInput)({
+        ...form,
+        scheduledAt: "2026-02-29T17:30",
+      }),
+    ).toThrow();
   });
 });
