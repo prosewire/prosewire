@@ -6,6 +6,9 @@ import { Redacted } from "effect";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { bootstrapAdmin } from "./bootstrap-admin.ts";
 
+const now = new Date("2026-08-20T12:00:00.000Z");
+const refreshedAt = new Date("2026-08-21T13:00:00.000Z");
+
 const databaseUrl = process.env["DATABASE_URL"];
 
 describe.skipIf(!databaseUrl)("self-hosted bootstrap administrator", () => {
@@ -25,11 +28,15 @@ describe.skipIf(!databaseUrl)("self-hosted bootstrap administrator", () => {
   });
 
   it("creates one forced-change credential and refreshes it only before setup", async () => {
-    const first = await bootstrapAdmin(database.url, {
-      email: "owner@example.com",
-      name: "Initial owner",
-      password: Redacted.make("temporary-password-123"),
-    });
+    const first = await bootstrapAdmin(
+      database.url,
+      {
+        email: "owner@example.com",
+        name: "Initial owner",
+        password: Redacted.make("temporary-password-123"),
+      },
+      now,
+    );
     expect(first).toBe("created");
 
     const user = await database.client.query.user.findFirst();
@@ -40,8 +47,11 @@ describe.skipIf(!databaseUrl)("self-hosted bootstrap administrator", () => {
       mustChangePassword: true,
       name: "Initial owner",
       role: "admin",
+      createdAt: now,
+      updatedAt: now,
     });
     expect(account?.password).toBeTruthy();
+    expect(account).toMatchObject({ createdAt: now, updatedAt: now });
     expect(
       account?.password &&
         (await verifyPassword({
@@ -50,13 +60,26 @@ describe.skipIf(!databaseUrl)("self-hosted bootstrap administrator", () => {
         })),
     ).toBe(true);
 
-    const refreshed = await bootstrapAdmin(database.url, {
-      email: "owner@example.com",
-      name: "Recovered owner",
-      password: Redacted.make("recovered-password-456"),
-    });
+    const refreshed = await bootstrapAdmin(
+      database.url,
+      {
+        email: "owner@example.com",
+        name: "Recovered owner",
+        password: Redacted.make("recovered-password-456"),
+      },
+      refreshedAt,
+    );
     expect(refreshed).toBe("refreshed");
     const refreshedAccount = await database.client.query.account.findFirst();
+    const refreshedUser = await database.client.query.user.findFirst();
+    expect(refreshedAccount).toMatchObject({
+      createdAt: now,
+      updatedAt: refreshedAt,
+    });
+    expect(refreshedUser).toMatchObject({
+      createdAt: now,
+      updatedAt: refreshedAt,
+    });
     expect(
       refreshedAccount?.password &&
         (await verifyPassword({
@@ -70,11 +93,15 @@ describe.skipIf(!databaseUrl)("self-hosted bootstrap administrator", () => {
       .update(schema.user)
       .set({ mustChangePassword: false })
       .where(eq(schema.user.id, user.id));
-    const skipped = await bootstrapAdmin(database.url, {
-      email: "owner@example.com",
-      name: "Should not replace",
-      password: Redacted.make("replacement-password-789"),
-    });
+    const skipped = await bootstrapAdmin(
+      database.url,
+      {
+        email: "owner@example.com",
+        name: "Should not replace",
+        password: Redacted.make("replacement-password-789"),
+      },
+      refreshedAt,
+    );
     expect(skipped).toBe("skipped-existing-installation");
     const finalAccount = await database.client.query.account.findFirst();
     expect(
@@ -94,11 +121,15 @@ describe.skipIf(!databaseUrl)("self-hosted bootstrap administrator", () => {
     });
 
     await expect(
-      bootstrapAdmin(database.url, {
-        email: "owner@example.com",
-        name: "Initial owner",
-        password: Redacted.make("temporary-password-123"),
-      }),
+      bootstrapAdmin(
+        database.url,
+        {
+          email: "owner@example.com",
+          name: "Initial owner",
+          password: Redacted.make("temporary-password-123"),
+        },
+        now,
+      ),
     ).resolves.toBe("skipped-existing-installation");
     expect(await database.client.query.user.findMany()).toHaveLength(0);
   });

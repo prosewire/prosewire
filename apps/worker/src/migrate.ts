@@ -1,4 +1,4 @@
-import { Config, Effect, Option, Redacted, Schema } from "effect";
+import { Clock, Config, Effect, Option, Redacted, Schema } from "effect";
 import {
   type BootstrapAdminResult,
   bootstrapAdmin,
@@ -23,6 +23,7 @@ const program = Effect.gen(function* () {
     Config.string("PROSEWIRE_MIGRATIONS_DIR"),
   );
   const bootstrapConfig = yield* loadBootstrapAdminConfig;
+  const clock = yield* Clock.Clock;
   const migrationsDirectory = Option.getOrUndefined(migrationsDir);
   let bootstrapResult: BootstrapAdminResult | undefined;
   yield* Effect.tryPromise({
@@ -35,6 +36,7 @@ const program = Effect.gen(function* () {
                 bootstrapResult = await bootstrapAdmin(
                   Redacted.value(databaseUrl),
                   bootstrapConfig,
+                  new Date(clock.currentTimeMillisUnsafe()),
                 );
               },
             }

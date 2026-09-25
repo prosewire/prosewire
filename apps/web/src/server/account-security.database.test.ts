@@ -2,6 +2,7 @@ import * as schema from "@prosewire/db/schema";
 import { openTestDatabase } from "@prosewire/db/testing";
 import { hashPassword, verifyPassword } from "better-auth/crypto";
 import { Effect, Layer, ManagedRuntime, Result } from "effect";
+import { TestClock } from "effect/testing";
 import { describe, expect, it } from "vitest";
 import { AccountSecurity } from "./account-security.ts";
 import { databaseLayer, databaseUrl } from "./database-test-support.ts";
@@ -15,8 +16,13 @@ describe.skipIf(!databaseUrl)("required bootstrap password change", () => {
       "required_password_change",
     );
     const runtime = ManagedRuntime.make(
-      AccountSecurity.layer.pipe(Layer.provide(databaseLayer(database.client))),
+      AccountSecurity.layer.pipe(
+        Layer.provide(databaseLayer(database.client)),
+        Layer.provideMerge(TestClock.layer()),
+      ),
     );
+    const now = new Date("2026-08-20T12:00:00.000Z");
+    await runtime.runPromise(TestClock.setTime(now.getTime()));
     const userId = UserId.make("bootstrap-user");
     const temporaryPassword = "temporary-password-123";
 
@@ -83,6 +89,8 @@ describe.skipIf(!databaseUrl)("required bootstrap password change", () => {
         database.client.query.session.findMany(),
       ]);
       expect(user?.mustChangePassword).toBe(false);
+      expect(user?.updatedAt).toEqual(now);
+      expect(account?.updatedAt).toEqual(now);
       expect(sessions).toHaveLength(0);
       expect(account?.password).toBeTruthy();
       expect(
