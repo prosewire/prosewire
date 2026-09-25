@@ -1,3 +1,4 @@
+import { postStatus } from "@prosewire/contract";
 import {
   contentHeadings,
   sanitizeRenderedHtml,
@@ -136,7 +137,7 @@ const postFields = {
   coverImageAssetId: Schema.NullOr(MediaAssetId),
   coverImageUrl: nullableString,
   coverImageAlt: nullableString,
-  status: Schema.Literals(["draft", "scheduled", "published", "archived"]),
+  status: postStatus,
   locale: Schema.String,
   featured: Schema.Boolean,
   seoTitle: nullableString,
