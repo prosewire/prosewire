@@ -1,3 +1,8 @@
+import {
+  isoDateTime,
+  postMutationFields,
+  postStatus,
+} from "@prosewire/contract/schemas";
 import { Schema } from "effect";
 import {
   type ApiKeyId,
@@ -10,12 +15,7 @@ import {
   type UserId,
 } from "./domain.ts";
 
-export const PostStatus = Schema.Literals([
-  "draft",
-  "scheduled",
-  "published",
-  "archived",
-]);
+export const PostStatus = postStatus;
 export type PostStatus = typeof PostStatus.Type;
 
 export class CreatePostCommand extends Schema.Class<CreatePostCommand>(
@@ -23,21 +23,23 @@ export class CreatePostCommand extends Schema.Class<CreatePostCommand>(
 )({
   blogId: BlogId,
   authorId: AuthorId,
-  title: Schema.String,
-  slug: Schema.String,
-  excerpt: Schema.optional(Schema.String),
-  contentMarkdown: Schema.String,
+  title: postMutationFields.title,
+  slug: postMutationFields.slug,
+  excerpt: Schema.optional(postMutationFields.excerpt),
+  contentMarkdown: postMutationFields.contentMarkdown,
   coverImageAssetId: Schema.optional(Schema.NullOr(MediaAssetId)),
-  coverImageUrl: Schema.optional(Schema.NullOr(Schema.String)),
-  coverImageAlt: Schema.optional(Schema.NullOr(Schema.String)),
+  coverImageUrl: Schema.optional(postMutationFields.coverImageUrl),
+  coverImageAlt: Schema.optional(postMutationFields.coverImageAlt),
   status: PostStatus,
-  locale: Schema.optional(Schema.String),
+  locale: Schema.optional(postMutationFields.locale),
   featured: Schema.Boolean,
-  seoTitle: Schema.optional(Schema.NullOr(Schema.String)),
-  seoDescription: Schema.optional(Schema.NullOr(Schema.String)),
-  focusKeyword: Schema.optional(Schema.NullOr(Schema.String)),
-  canonicalUrl: Schema.optional(Schema.NullOr(Schema.String)),
-  scheduledAt: Schema.optional(Schema.NullOr(Schema.DateFromString)),
+  seoTitle: Schema.optional(postMutationFields.seoTitle),
+  seoDescription: Schema.optional(postMutationFields.seoDescription),
+  focusKeyword: Schema.optional(postMutationFields.focusKeyword),
+  canonicalUrl: Schema.optional(postMutationFields.canonicalUrl),
+  scheduledAt: Schema.optional(
+    Schema.NullOr(isoDateTime.pipe(Schema.decodeTo(Schema.DateFromString))),
+  ),
   categoryIds: Schema.Array(CategoryId),
 }) {}
 
@@ -47,21 +49,23 @@ export class UpdatePostCommand extends Schema.Class<UpdatePostCommand>(
   postId: PostId,
   blogId: BlogId,
   authorId: Schema.optional(AuthorId),
-  title: Schema.optional(Schema.String),
-  slug: Schema.optional(Schema.String),
-  excerpt: Schema.optional(Schema.String),
-  contentMarkdown: Schema.optional(Schema.String),
+  title: Schema.optional(postMutationFields.title),
+  slug: Schema.optional(postMutationFields.slug),
+  excerpt: Schema.optional(postMutationFields.excerpt),
+  contentMarkdown: Schema.optional(postMutationFields.contentMarkdown),
   coverImageAssetId: Schema.optional(Schema.NullOr(MediaAssetId)),
-  coverImageUrl: Schema.optional(Schema.NullOr(Schema.String)),
-  coverImageAlt: Schema.optional(Schema.NullOr(Schema.String)),
+  coverImageUrl: Schema.optional(postMutationFields.coverImageUrl),
+  coverImageAlt: Schema.optional(postMutationFields.coverImageAlt),
   status: Schema.optional(PostStatus),
-  locale: Schema.optional(Schema.String),
+  locale: Schema.optional(postMutationFields.locale),
   featured: Schema.optional(Schema.Boolean),
-  seoTitle: Schema.optional(Schema.NullOr(Schema.String)),
-  seoDescription: Schema.optional(Schema.NullOr(Schema.String)),
-  focusKeyword: Schema.optional(Schema.NullOr(Schema.String)),
-  canonicalUrl: Schema.optional(Schema.NullOr(Schema.String)),
-  scheduledAt: Schema.optional(Schema.NullOr(Schema.DateFromString)),
+  seoTitle: Schema.optional(postMutationFields.seoTitle),
+  seoDescription: Schema.optional(postMutationFields.seoDescription),
+  focusKeyword: Schema.optional(postMutationFields.focusKeyword),
+  canonicalUrl: Schema.optional(postMutationFields.canonicalUrl),
+  scheduledAt: Schema.optional(
+    Schema.NullOr(isoDateTime.pipe(Schema.decodeTo(Schema.DateFromString))),
+  ),
   categoryIds: Schema.optional(Schema.Array(CategoryId)),
 }) {}
 
