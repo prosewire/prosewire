@@ -40,7 +40,8 @@
     "lint:workflows": "scripts/workflow-lint.sh",
     "scan:secrets": "scripts/secret-scan.sh",
     "release": "pnpm release:preflight && changeset publish",
-    "verify:registry": "node scripts/verify-published-packages.mjs"
+    "verify:registry": "node scripts/verify-published-packages.mjs",
+    "sync:repos": "scripts/sync-repos.sh"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.9",

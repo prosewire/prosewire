@@ -212,6 +212,8 @@ This repository uses Effect 4 RC. Authorization services expose business intent
 such as publication read, post write, or administration; callers do not pass
 role arrays or reimplement role policy.
 
+Effect-heavy: read `.repos/effect-smol/LLMS.md` before writing Effect code.
+
 The shared Effect Schema and HttpApi contract drives the private API and typed
 SDK. The CLI and MCP server build on that SDK. The Next.js and Astro packages
 build public readers on the public client. The worker owns scheduled publishing,
@@ -249,6 +251,11 @@ web process. The standalone worker owns and tests its own shutdown lifecycle.
 - `packages/config` — shared TypeScript configuration.
 - `docs/feature-coverage.md` — source of truth for implemented, partial, and
   missing product behavior.
+- `.repos/` — gitignored, read-only upstream references. Prefer their patterns
+  over invented ones. Never edit or import from them. If
+  `.repos/effect-smol` is missing, or its `packages/effect/package.json`
+  version differs from the pinned `effect` dependency, run
+  `pnpm sync:repos` before reading it.
 
 ## Taste
 
