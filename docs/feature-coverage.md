@@ -58,7 +58,7 @@ missing.
 | Framework packages | Headless Next.js and Astro readers are published; the Next.js package supports direct Node.js ES module imports |
 | CLI | Public read commands and authenticated create/update/archive commands are published |
 | MCP server | Read, mutating, and destructive tools are published with operation metadata and approval requirements |
-| Portable export | Versioned JSON includes publication relationships, revisions, and the media manifest; CSV includes managed cover identifiers; a separate ZIP contains sanitized original media files |
+| Portable export | Versioned JSON includes publication relationships, revisions, and the media manifest; CSV includes managed cover identifiers; a separate ZIP contains sanitized original media files; all formats stream through paged database reads, history and media references stream independently, and canceled downloads release object-storage bodies |
 
 Upload reservations return HTTP 201 and are checked through the generated SDK against the private API router.
 

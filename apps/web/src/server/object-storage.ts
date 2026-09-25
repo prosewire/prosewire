@@ -7,7 +7,7 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { Context, Effect, Layer, Redacted, Schema } from "effect";
+import { Context, Effect, Layer, Redacted, Schema, Stream } from "effect";
 import { type MediaStorageConfig, WebConfig } from "./config.ts";
 
 export class NotConfigured extends Schema.TaggedError<NotConfigured>()(
@@ -53,6 +53,9 @@ export interface Shape {
   readonly get: (
     key: string,
   ) => Effect.Effect<Uint8Array, NotConfigured | StorageError>;
+  readonly getStream: (
+    key: string,
+  ) => Stream.Stream<Uint8Array, NotConfigured | StorageError>;
   readonly put: (
     key: string,
     contentType: string,
@@ -83,6 +86,7 @@ export const disabled: Shape = {
   createUploadTarget: () => Effect.fail(unavailable()),
   head: () => Effect.fail(unavailable()),
   get: () => Effect.fail(unavailable()),
+  getStream: () => Stream.fail(unavailable()),
   put: () => Effect.fail(unavailable()),
   delete: () => Effect.fail(unavailable()),
   deletePrefix: () => Effect.fail(unavailable()),
@@ -207,6 +211,31 @@ export function make(
         if (!output.Body) throw new Error("Object storage returned no body");
         return output.Body.transformToByteArray();
       }),
+    getStream: (key) =>
+      Stream.unwrap(
+        Effect.acquireRelease(
+          request("stream object", async (signal) => {
+            const output = await client.send(
+              new GetObjectCommand({ Bucket: config.bucket, Key: key }),
+              { abortSignal: signal },
+            );
+            if (!output.Body)
+              throw new Error("Object storage returned no body");
+            return output.Body.transformToWebStream();
+          }),
+          (body) =>
+            Effect.promise(async () => {
+              if (!body.locked) await body.cancel();
+            }).pipe(Effect.ignore),
+        ).pipe(
+          Effect.map((body) =>
+            Stream.fromReadableStream({
+              evaluate: () => body,
+              onError: (cause) => storageError("stream object", cause),
+            }),
+          ),
+        ),
+      ),
     put: (key, contentType, body) =>
       request("write processed object", (signal) =>
         client

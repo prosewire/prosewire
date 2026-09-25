@@ -44,6 +44,7 @@ function memoryStorage(): MemoryStorage {
     objects,
     uploadKey: (url) => decodeURIComponent(new URL(url).pathname.slice(1)),
     service: {
+      ...ObjectStorage.disabled,
       configured: true,
       maxUploadBytes: 20 * 1_024 * 1_024,
       uploadUrlExpiresSeconds: 600,

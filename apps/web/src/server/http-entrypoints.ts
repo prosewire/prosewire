@@ -5,6 +5,7 @@ import { runAppEffect } from "./app-runtime.ts";
 import { getAuth } from "./auth-service.ts";
 import { decodeErrorTag } from "./boundary-errors.ts";
 import { BlogSlug, PostId, UserId } from "./domain.ts";
+import { responseBody } from "./export-streams.ts";
 import { promiseEffect } from "./external-effect.ts";
 import { ObjectStorage } from "./object-storage.ts";
 import { PostExport } from "./post-export.ts";
@@ -216,10 +217,7 @@ export async function exportPosts(
   );
 
   if (Result.isSuccess(result)) {
-    const body =
-      typeof result.success.body === "string"
-        ? result.success.body
-        : Uint8Array.from(result.success.body).buffer;
+    const body = responseBody<unknown>(result.success.body, request.signal);
     return new Response(body, {
       headers: {
         "Content-Type": result.success.contentType,
