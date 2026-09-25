@@ -394,6 +394,12 @@ describe.skipIf(!databaseUrl)("PostgreSQL content queries", () => {
         where: eq(schema.postView.postId, fixture.firstPostId),
       });
       expect(views).toHaveLength(600);
+      const limited = await Effect.runPromise(
+        Effect.flip(
+          second.recordPostView(fixture.firstPostId, randomUUID(), null),
+        ),
+      );
+      expect(limited._tag).toBe("ViewRateLimited");
       await resource.client
         .update(schema.postView)
         .set({ occurredAt: new Date(0) })
