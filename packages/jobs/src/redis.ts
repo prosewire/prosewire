@@ -31,28 +31,42 @@ export class Service extends Context.Service<Service, Interface>()(
   "@prosewire/jobs/Redis",
 ) {}
 
+// Scope users have already finalized. Destroy rejects any remaining commands and
+// also removes subscriptions; Redis 6 close() can otherwise await replies forever.
+const closeClient = (client: { readonly isOpen: boolean; destroy(): void }) =>
+  Effect.sync(() => {
+    if (client.isOpen) client.destroy();
+  });
+
 export const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
     const config = yield* JobQueueConfig.Service;
-    const client = createClient({
-      url: Redacted.value(config.redisUrl),
-      disableOfflineQueue: true,
-    });
-    client.on("error", (cause) => {
-      console.error("Redis client error", cause);
-    });
-
-    yield* Effect.acquireRelease(
-      Effect.tryPromise({
-        try: () => client.connect(),
-        catch: (cause) =>
-          new ConnectionError({ operation: "connect to Redis", cause }),
+    const client = yield* Effect.acquireRelease(
+      Effect.sync(() => {
+        const client = createClient({
+          url: Redacted.value(config.redisUrl),
+          disableOfflineQueue: true,
+          socket: { connectTimeout: 10_000 },
+        });
+        client.on("error", (cause) => {
+          console.error("Redis client error", cause);
+        });
+        return client;
       }),
-      () =>
-        Effect.promise(async () => {
-          if (client.isOpen) await client.close();
-        }),
+      closeClient,
+    );
+
+    yield* Effect.tryPromise({
+      try: () => client.connect(),
+      catch: (cause) =>
+        new ConnectionError({ operation: "connect to Redis", cause }),
+    }).pipe(
+      Effect.timeout("10 seconds"),
+      Effect.mapError(
+        (cause) =>
+          new ConnectionError({ operation: "connect to Redis", cause }),
+      ),
     );
 
     const send = <A = unknown>(
@@ -74,22 +88,15 @@ export const layer = Layer.effect(
 
     const subscribe: Interface["subscribe"] = (channel, onMessage) =>
       Effect.gen(function* () {
-        const subscriber = client.duplicate();
-        const onError = (cause: unknown) => {
-          console.error("Redis subscriber error", cause);
-        };
-        subscriber.on("error", onError);
-
-        yield* Effect.addFinalizer(() =>
-          Effect.tryPromise({
-            try: async () => {
-              subscriber.off("error", onError);
-              if (!subscriber.isOpen) return;
-              await subscriber.unsubscribe(channel);
-              await subscriber.close();
-            },
-            catch: (cause) => new PersistenceRedis.RedisError({ cause }),
-          }).pipe(Effect.ignore),
+        const subscriber = yield* Effect.acquireRelease(
+          Effect.sync(() => {
+            const subscriber = client.duplicate();
+            subscriber.on("error", (cause) => {
+              console.error("Redis subscriber error", cause);
+            });
+            return subscriber;
+          }),
+          closeClient,
         );
 
         yield* Effect.tryPromise({
@@ -103,7 +110,12 @@ export const layer = Layer.effect(
             );
           },
           catch: (cause) => new PersistenceRedis.RedisError({ cause }),
-        });
+        }).pipe(
+          Effect.timeout("10 seconds"),
+          Effect.mapError(
+            (cause) => new PersistenceRedis.RedisError({ cause }),
+          ),
+        );
       }).pipe(Effect.as(Effect.never));
 
     return Service.of({ ping, send, subscribe });
