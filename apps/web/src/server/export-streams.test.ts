@@ -86,7 +86,7 @@ it("logs export failures without stored content or database parameters", async (
       }),
       new AbortController().signal,
     ).getReader();
-    await expect(reader.read()).rejects.toBeDefined();
+    await expect(reader.read()).rejects.toThrow("Publication export failed");
     const output = JSON.stringify(logs);
     expect(output).toContain("Publication export stream failed");
     expect(output).not.toContain("synthetic-private-post-secret");

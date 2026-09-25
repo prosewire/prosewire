@@ -94,6 +94,7 @@ export function responseBody<E>(
       Stream.tapError(() =>
         Effect.logError("Publication export stream failed"),
       ),
+      Stream.mapError(() => new Error("Publication export failed")),
       Stream.interruptWhen(aborted),
     ),
     {
