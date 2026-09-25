@@ -10,7 +10,7 @@ import * as schema from "@prosewire/db/schema";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { Clock, Context, Effect, Layer, Option, Result, Schema } from "effect";
 import { canonicalLocale, normalizeLanguageSettings } from "@/lib/locales";
-import { ApiAccess, hasScope } from "./api-access.ts";
+import type { ApiAccess } from "./api-access.ts";
 import { BlogAccess } from "./authorization.ts";
 import { BlogErrors } from "./blog-errors.ts";
 import { Database } from "./database.ts";
@@ -20,7 +20,7 @@ import {
   BlogId,
   CategoryId,
   MediaAssetId,
-  OrganizationId,
+  type OrganizationId,
   PostId,
   UserId,
 } from "./domain.ts";
@@ -38,7 +38,7 @@ import type {
 import { PostRevisionSnapshot } from "./post-commands.ts";
 import { PostErrors } from "./post-errors.ts";
 import {
-  lockApiKey,
+  lockApiWrite,
   lockBlogAuthorization,
   type TransactionClient,
 } from "./transactional-access.ts";
@@ -104,36 +104,6 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
         }),
       ),
     );
-
-  const lockApiWrite = async (
-    transaction: TransactionClient,
-    blogId: BlogId,
-    keyId: ApiKeyId,
-    now: Date,
-  ) => {
-    const authorization = await lockApiKey(transaction, blogId, keyId);
-    if (
-      !authorization ||
-      (authorization.key.expiresAt && authorization.key.expiresAt <= now)
-    ) {
-      return {
-        error: new ApiAccess.AuthenticationFailed({
-          message: "Invalid or expired API key",
-        }),
-      } as const;
-    }
-    if (!hasScope(authorization.key.scopes, "content:write")) {
-      return {
-        error: new ApiAccess.ScopeDenied({ requiredScope: "content:write" }),
-      } as const;
-    }
-    return {
-      organizationId: OrganizationId.make(authorization.organizationId),
-      blogSlug: authorization.blogSlug,
-      locale: authorization.locale,
-      locales: authorization.locales,
-    } as const;
-  };
 
   const lockActor = async (
     tx: TransactionClient,

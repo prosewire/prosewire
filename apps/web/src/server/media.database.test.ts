@@ -6,8 +6,10 @@ import { Effect, Layer } from "effect";
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 import { BlogAccess } from "./authorization.ts";
+import type { BlogAuthorization } from "./authorization-models.ts";
 import { databaseLayer, databaseUrl } from "./database-test-support.ts";
 import {
+  ApiKeyId,
   AuthorId,
   BlogId,
   MediaAssetId,
@@ -86,11 +88,16 @@ function memoryStorage(): MemoryStorage {
 async function mediaService(
   client: ReturnType<typeof openDb>["client"],
   storage: ObjectStorage.Shape,
+  cachedAuthorization?: BlogAuthorization,
 ) {
   const database = databaseLayer(client);
   const dependencies = Layer.mergeAll(
     database,
-    BlogAccess.layer.pipe(Layer.provide(database)),
+    cachedAuthorization
+      ? Layer.mock(BlogAccess.Service, {
+          requirePostCreate: () => Effect.succeed(cachedAuthorization),
+        })
+      : BlogAccess.layer.pipe(Layer.provide(database)),
     Layer.succeed(ObjectStorage.Service, storage),
     MediaImage.layer,
   );
@@ -202,6 +209,127 @@ describe.skipIf(!databaseUrl)("PostgreSQL media lifecycle", () => {
       ]);
       expect(storage.objects.size).toBe(3);
 
+      const keyId = ApiKeyId.make(randomUUID());
+      const apiActor = { _tag: "Api" as const, keyId };
+      const uploadInput = new StartUploadInput({
+        blogId,
+        filename: "revocation.png",
+        mimeType: "image/png",
+        byteSize: body.byteLength,
+      });
+      await resource.client.insert(schema.apiKey).values({
+        id: keyId,
+        blogId,
+        name: "Media writer",
+        prefix: "pw_test",
+        keyHash: randomUUID(),
+        scopes: ["content:write"],
+        expiresAt: new Date(0),
+      });
+      const expired = await Effect.runPromise(
+        Effect.flip(service.startUpload(uploadInput, apiActor)),
+      );
+      expect(expired._tag).toBe("ApiAuthenticationFailed");
+      await resource.client
+        .update(schema.apiKey)
+        .set({ expiresAt: null, scopes: ["content:read"] })
+        .where(eq(schema.apiKey.id, keyId));
+      const deniedClaim = await Effect.runPromise(
+        Effect.flip(
+          service.completeUpload(
+            new CompleteUploadInput({ blogId, assetId: asset.id }),
+            apiActor,
+          ),
+        ),
+      );
+      const deniedRemoval = await Effect.runPromise(
+        Effect.flip(service.remove(blogId, asset.id, apiActor)),
+      );
+      expect(deniedClaim._tag).toBe("ApiScopeDenied");
+      expect(deniedRemoval._tag).toBe("ApiScopeDenied");
+      await resource.client
+        .update(schema.apiKey)
+        .set({ scopes: ["content:write"] })
+        .where(eq(schema.apiKey.id, keyId));
+      const revocation = await Effect.runPromise(
+        service.startUpload(uploadInput, apiActor),
+      );
+      storage.objects.set(storage.uploadKey(revocation.upload.url), {
+        body,
+        mimeType: "image/png",
+      });
+      const revokingService = await mediaService(resource.client, {
+        ...storage.service,
+        put: (key, mimeType, bytes) =>
+          storage.service
+            .put(key, mimeType, bytes)
+            .pipe(
+              Effect.andThen(
+                Effect.promise(() =>
+                  resource.client
+                    .delete(schema.apiKey)
+                    .where(eq(schema.apiKey.id, keyId)),
+                ),
+              ),
+            ),
+      });
+      const revokedCompletion = await Effect.runPromise(
+        Effect.flip(
+          revokingService.completeUpload(
+            new CompleteUploadInput({ blogId, assetId: revocation.asset.id }),
+            apiActor,
+          ),
+        ),
+      );
+      expect(revokedCompletion._tag).toBe("ApiAuthenticationFailed");
+      const rejectedAsset = await resource.client.query.mediaAsset.findFirst({
+        where: eq(schema.mediaAsset.id, revocation.asset.id),
+        with: { variants: true },
+      });
+      expect(rejectedAsset?.status).toBe("failed");
+      expect(rejectedAsset?.variants).toHaveLength(0);
+      expect(storage.objects.size).toBe(3);
+      expect(
+        (
+          await Effect.runPromise(
+            Effect.flip(service.startUpload(uploadInput, apiActor)),
+          )
+        )._tag,
+      ).toBe("ApiAuthenticationFailed");
+
+      const cachedAuthorization = await Effect.runPromise(
+        Effect.flatMap(BlogAccess.Service, (access) =>
+          access.requirePostCreate(blogId, ownerId),
+        ).pipe(
+          Effect.provide(
+            BlogAccess.layer.pipe(
+              Layer.provide(databaseLayer(resource.client)),
+            ),
+          ),
+        ),
+      );
+      await resource.client
+        .update(schema.member)
+        .set({ role: "viewer" })
+        .where(eq(schema.member.userId, ownerId));
+      const staleService = await mediaService(
+        resource.client,
+        storage.service,
+        cachedAuthorization,
+      );
+      expect(
+        (
+          await Effect.runPromise(
+            Effect.flip(staleService.remove(blogId, asset.id, actor)),
+          )
+        )._tag,
+      ).toBe("BlogAccessDenied");
+      expect(storage.objects.size).toBe(3);
+      await resource.client
+        .update(schema.member)
+        .set({ role: "owner" })
+        .where(eq(schema.member.userId, ownerId));
+
       await resource.client.insert(schema.post).values({
         id: postId,
         blogId,
@@ -229,7 +357,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL media lifecycle", () => {
       await expect(
         Effect.runPromise(service.list(blogId, actor)),
       ).resolves.toMatchObject({
-        items: [],
+        items: [{ id: revocation.asset.id, status: "failed" }],
         usage: { usedBytes: 0 },
       });
       const audits = await resource.client.query.auditLog.findMany({
@@ -239,6 +367,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL media lifecycle", () => {
       expect(audits.map(({ action }) => action).sort()).toEqual([
         "media.deleted",
         "media.upload_completed",
+        "media.upload_reserved",
         "media.upload_reserved",
       ]);
 
