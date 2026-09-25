@@ -3,7 +3,16 @@ import { canUpdatePost } from "@prosewire/core";
 import type { Db } from "@prosewire/db/client";
 import * as schema from "@prosewire/db/schema";
 import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
-import { Clock, Context, Effect, Layer, Result, Schema } from "effect";
+import {
+  Cause,
+  Clock,
+  Context,
+  Effect,
+  Exit,
+  Layer,
+  Result,
+  Schema,
+} from "effect";
 import { BlogAccess } from "./authorization.ts";
 import { Database } from "./database.ts";
 import { BlogId, MediaAssetId, PostId, UserId } from "./domain.ts";
@@ -222,6 +231,12 @@ function activeAssetFilter(blogId: BlogId) {
   );
 }
 
+const processingLeaseMillis = 15 * 60 * 1_000;
+
+function variantPrefix(blogId: BlogId, assetId: MediaAssetId) {
+  return `publications/${blogId}/media/${assetId}/`;
+}
+
 export const create = Effect.fn("Media.create")(function* () {
   const database = yield* Database;
   const access = yield* BlogAccess.Service;
@@ -340,7 +355,7 @@ export const create = Effect.fn("Media.create")(function* () {
     message: string,
   ) {
     const now = new Date(yield* Clock.currentTimeMillis);
-    yield* execute("mediaAsset.fail", (client) =>
+    const rows = yield* execute("mediaAsset.fail", (client) =>
       client
         .update(schema.mediaAsset)
         .set({
@@ -348,8 +363,15 @@ export const create = Effect.fn("Media.create")(function* () {
           failureReason: message.slice(0, 500),
           updatedAt: now,
         })
-        .where(eq(schema.mediaAsset.id, assetId)),
+        .where(
+          and(
+            eq(schema.mediaAsset.id, assetId),
+            inArray(schema.mediaAsset.status, ["pending", "processing"]),
+          ),
+        )
+        .returning({ id: schema.mediaAsset.id }),
     );
+    return rows.length > 0;
   });
 
   const startUpload = Effect.fn("Media.startUpload")(function* (
@@ -553,6 +575,20 @@ export const create = Effect.fn("Media.create")(function* () {
         if (asset.status === "ready") {
           return Result.succeed({ asset, state: "ready" as const });
         }
+        if (
+          asset.status === "processing" &&
+          asset.updatedAt.getTime() + processingLeaseMillis <= now.getTime()
+        ) {
+          await tx
+            .update(schema.mediaAsset)
+            .set({
+              status: "failed",
+              failureReason: "Media processing lease expired",
+              updatedAt: now,
+            })
+            .where(eq(schema.mediaAsset.id, input.assetId));
+          return Result.succeed({ asset, state: "expired" as const });
+        }
         if (asset.status !== "pending") {
           return Result.fail(
             new InvalidState({ assetId: input.assetId, status: asset.status }),
@@ -582,193 +618,239 @@ export const create = Effect.fn("Media.create")(function* () {
     input: CompleteUploadInput,
     actor: Actor,
   ) {
-    const claimed = yield* claimUpload(input, actor);
-    if (claimed.state === "ready") {
-      return yield* loadAsset(input.blogId, input.assetId);
-    }
-    if (claimed.state === "expired") {
-      yield* storage.delete([claimed.asset.uploadStorageKey]);
-      return yield* new UploadExpired({ assetId: input.assetId });
-    }
-    const asset = claimed.asset;
-    const variantKeys: Array<string> = [];
-    const completion = Effect.gen(function* () {
-      const head = yield* storage.head(asset.uploadStorageKey);
-      if (head.byteSize !== asset.byteSize) {
-        return yield* new InvalidUpload({
-          message: `Uploaded object size ${head.byteSize} does not match reserved size ${asset.byteSize}`,
-        });
-      }
-      if (
-        head.contentType &&
-        normalizedMimeType(head.contentType) !== asset.declaredMimeType
-      ) {
-        return yield* new InvalidUpload({
-          message: "Uploaded object MIME type does not match the reservation",
-        });
-      }
-      const body = yield* storage.get(asset.uploadStorageKey);
-      if (body.byteLength !== asset.byteSize) {
-        return yield* new InvalidUpload({
-          message: "Uploaded object changed while it was being read",
-        });
-      }
-      const processed = yield* images.process(body, asset.declaredMimeType);
-      const variants = processed.variants.map((variant) => {
-        const storageKey = `publications/${input.blogId}/media/${input.assetId}/${variant.kind}-${variant.checksumSha256.slice(0, 16)}.${variant.extension}`;
-        variantKeys.push(storageKey);
-        return {
-          ...variant,
-          storageKey,
-          publicUrl: storage.publicUrl(storageKey),
-        };
-      });
-      yield* Effect.forEach(
-        variants,
-        (variant) =>
-          storage.put(variant.storageKey, variant.mimeType, variant.body),
-        { concurrency: 3, discard: true },
-      );
-      yield* storage.delete([asset.uploadStorageKey]);
-      const now = new Date(yield* Clock.currentTimeMillis);
-      const storageBytes = variants.reduce(
-        (total, variant) => total + variant.byteSize,
-        0,
-      );
-
-      yield* executeResult<void, QuotaExceeded | AssetNotFound | InvalidState>(
-        "mediaAsset.complete",
-        (client) =>
-          client.transaction(async (tx) => {
-            const [publication] = await tx
-              .select()
-              .from(schema.blog)
-              .where(eq(schema.blog.id, input.blogId))
-              .for("update");
-            if (!publication) {
-              return Result.fail(
-                new QuotaExceeded({
-                  quotaBytes: 0,
-                  usedBytes: 0,
-                  requestedBytes: storageBytes,
-                }),
-              );
-            }
-            const [currentAsset] = await tx
-              .select({ status: schema.mediaAsset.status })
-              .from(schema.mediaAsset)
-              .where(
-                and(
-                  eq(schema.mediaAsset.id, input.assetId),
-                  eq(schema.mediaAsset.blogId, input.blogId),
-                ),
-              )
-              .for("update");
-            if (!currentAsset) {
-              return Result.fail(new AssetNotFound({ assetId: input.assetId }));
-            }
-            if (currentAsset.status !== "processing") {
-              return Result.fail(
-                new InvalidState({
-                  assetId: input.assetId,
-                  status: currentAsset.status,
-                }),
-              );
-            }
-            const totals = await tx
-              .select({
-                value: sql<string>`coalesce(sum(${schema.mediaAsset.storageBytes}), 0)`,
-              })
-              .from(schema.mediaAsset)
-              .where(
-                and(
-                  activeAssetFilter(input.blogId),
-                  ne(schema.mediaAsset.id, input.assetId),
-                ),
-              );
-            const usedBytes = Number(totals[0]?.value ?? 0);
-            if (usedBytes + storageBytes > publication.mediaStorageQuotaBytes) {
-              await tx
-                .update(schema.mediaAsset)
-                .set({
-                  status: "failed",
-                  failureReason: "Processed variants exceed the media quota",
-                  updatedAt: now,
-                })
-                .where(eq(schema.mediaAsset.id, input.assetId));
-              return Result.fail(
-                new QuotaExceeded({
-                  quotaBytes: publication.mediaStorageQuotaBytes,
-                  usedBytes,
-                  requestedBytes: storageBytes,
-                }),
-              );
-            }
-            await tx
-              .delete(schema.mediaVariant)
-              .where(eq(schema.mediaVariant.assetId, input.assetId));
-            await tx.insert(schema.mediaVariant).values(
-              variants.map((variant) => ({
-                assetId: input.assetId,
-                kind: variant.kind,
-                storageKey: variant.storageKey,
-                publicUrl: variant.publicUrl,
-                mimeType: variant.mimeType,
-                byteSize: variant.byteSize,
-                width: variant.width,
-                height: variant.height,
-                checksumSha256: variant.checksumSha256,
-              })),
-            );
-            await tx
-              .update(schema.mediaAsset)
-              .set({
-                detectedMimeType: processed.detectedMimeType,
-                byteSize: body.byteLength,
-                storageBytes,
-                width: processed.width,
-                height: processed.height,
-                checksumSha256: processed.checksumSha256,
-                status: "ready",
-                uploadedAt: now,
-                failureReason: null,
-                updatedAt: now,
-              })
-              .where(eq(schema.mediaAsset.id, input.assetId));
-            await tx.insert(schema.auditLog).values({
-              organizationId: publication.organizationId,
-              blogId: input.blogId,
-              actorId: actor._tag === "Dashboard" ? actor.userId : null,
-              action: "media.upload_completed",
-              entityType: "media_asset",
-              entityId: input.assetId,
-              after: {
-                source: actor._tag === "Dashboard" ? "dashboard" : "api",
-                ...(actor._tag === "Api" ? { apiKeyId: actor.keyId } : {}),
-                mimeType: processed.detectedMimeType,
-                width: processed.width,
-                height: processed.height,
-                storageBytes,
-              },
+    return yield* Effect.uninterruptibleMask((restore) =>
+      Effect.gen(function* () {
+        const claimed = yield* claimUpload(input, actor);
+        if (claimed.state === "ready") {
+          return yield* loadAsset(input.blogId, input.assetId);
+        }
+        if (claimed.state === "expired") {
+          yield* storage.delete([claimed.asset.uploadStorageKey]);
+          yield* storage.deletePrefix(
+            variantPrefix(input.blogId, input.assetId),
+          );
+          return yield* new UploadExpired({ assetId: input.assetId });
+        }
+        const asset = claimed.asset;
+        const variantKeys: Array<string> = [];
+        let committed = false;
+        const completion = Effect.gen(function* () {
+          const head = yield* storage.head(asset.uploadStorageKey);
+          if (head.byteSize !== asset.byteSize) {
+            return yield* new InvalidUpload({
+              message: `Uploaded object size ${head.byteSize} does not match reserved size ${asset.byteSize}`,
             });
-            return Result.succeed(undefined);
-          }),
-      );
-      return yield* loadAsset(input.blogId, input.assetId);
-    });
+          }
+          if (
+            head.contentType &&
+            normalizedMimeType(head.contentType) !== asset.declaredMimeType
+          ) {
+            return yield* new InvalidUpload({
+              message:
+                "Uploaded object MIME type does not match the reservation",
+            });
+          }
+          const body = yield* storage.get(asset.uploadStorageKey);
+          if (body.byteLength !== asset.byteSize) {
+            return yield* new InvalidUpload({
+              message: "Uploaded object changed while it was being read",
+            });
+          }
+          const processed = yield* images.process(body, asset.declaredMimeType);
+          const variants = processed.variants.map((variant) => {
+            const storageKey = `${variantPrefix(input.blogId, input.assetId)}${variant.kind}-${variant.checksumSha256.slice(0, 16)}.${variant.extension}`;
+            variantKeys.push(storageKey);
+            return {
+              ...variant,
+              storageKey,
+              publicUrl: storage.publicUrl(storageKey),
+            };
+          });
+          yield* Effect.forEach(
+            variants,
+            (variant) =>
+              storage.put(variant.storageKey, variant.mimeType, variant.body),
+            { concurrency: 3, discard: true },
+          );
+          yield* storage.delete([asset.uploadStorageKey]);
+          const now = new Date(yield* Clock.currentTimeMillis);
+          const storageBytes = variants.reduce(
+            (total, variant) => total + variant.byteSize,
+            0,
+          );
 
-    const outcome = yield* Effect.result(completion);
-    if (Result.isSuccess(outcome)) return outcome.success;
-    yield* markFailed(
-      input.assetId,
-      outcome.failure instanceof Error
-        ? outcome.failure.message
-        : "Media processing failed",
-    ).pipe(Effect.ignore);
-    yield* storage
-      .delete([asset.uploadStorageKey, ...variantKeys])
-      .pipe(Effect.ignore);
-    return yield* outcome.failure;
+          yield* Effect.uninterruptible(
+            executeResult<void, QuotaExceeded | AssetNotFound | InvalidState>(
+              "mediaAsset.complete",
+              (client) =>
+                client.transaction(async (tx) => {
+                  const [publication] = await tx
+                    .select()
+                    .from(schema.blog)
+                    .where(eq(schema.blog.id, input.blogId))
+                    .for("update");
+                  if (!publication) {
+                    return Result.fail(
+                      new QuotaExceeded({
+                        quotaBytes: 0,
+                        usedBytes: 0,
+                        requestedBytes: storageBytes,
+                      }),
+                    );
+                  }
+                  const [currentAsset] = await tx
+                    .select({ status: schema.mediaAsset.status })
+                    .from(schema.mediaAsset)
+                    .where(
+                      and(
+                        eq(schema.mediaAsset.id, input.assetId),
+                        eq(schema.mediaAsset.blogId, input.blogId),
+                      ),
+                    )
+                    .for("update");
+                  if (!currentAsset) {
+                    return Result.fail(
+                      new AssetNotFound({ assetId: input.assetId }),
+                    );
+                  }
+                  if (currentAsset.status !== "processing") {
+                    return Result.fail(
+                      new InvalidState({
+                        assetId: input.assetId,
+                        status: currentAsset.status,
+                      }),
+                    );
+                  }
+                  const totals = await tx
+                    .select({
+                      value: sql<string>`coalesce(sum(${schema.mediaAsset.storageBytes}), 0)`,
+                    })
+                    .from(schema.mediaAsset)
+                    .where(
+                      and(
+                        activeAssetFilter(input.blogId),
+                        ne(schema.mediaAsset.id, input.assetId),
+                      ),
+                    );
+                  const usedBytes = Number(totals[0]?.value ?? 0);
+                  if (
+                    usedBytes + storageBytes >
+                    publication.mediaStorageQuotaBytes
+                  ) {
+                    return Result.fail(
+                      new QuotaExceeded({
+                        quotaBytes: publication.mediaStorageQuotaBytes,
+                        usedBytes,
+                        requestedBytes: storageBytes,
+                      }),
+                    );
+                  }
+                  await tx
+                    .delete(schema.mediaVariant)
+                    .where(eq(schema.mediaVariant.assetId, input.assetId));
+                  await tx.insert(schema.mediaVariant).values(
+                    variants.map((variant) => ({
+                      assetId: input.assetId,
+                      kind: variant.kind,
+                      storageKey: variant.storageKey,
+                      publicUrl: variant.publicUrl,
+                      mimeType: variant.mimeType,
+                      byteSize: variant.byteSize,
+                      width: variant.width,
+                      height: variant.height,
+                      checksumSha256: variant.checksumSha256,
+                    })),
+                  );
+                  await tx
+                    .update(schema.mediaAsset)
+                    .set({
+                      detectedMimeType: processed.detectedMimeType,
+                      byteSize: body.byteLength,
+                      storageBytes,
+                      width: processed.width,
+                      height: processed.height,
+                      checksumSha256: processed.checksumSha256,
+                      status: "ready",
+                      uploadedAt: now,
+                      failureReason: null,
+                      updatedAt: now,
+                    })
+                    .where(eq(schema.mediaAsset.id, input.assetId));
+                  await tx.insert(schema.auditLog).values({
+                    organizationId: publication.organizationId,
+                    blogId: input.blogId,
+                    actorId: actor._tag === "Dashboard" ? actor.userId : null,
+                    action: "media.upload_completed",
+                    entityType: "media_asset",
+                    entityId: input.assetId,
+                    after: {
+                      source: actor._tag === "Dashboard" ? "dashboard" : "api",
+                      ...(actor._tag === "Api"
+                        ? { apiKeyId: actor.keyId }
+                        : {}),
+                      mimeType: processed.detectedMimeType,
+                      width: processed.width,
+                      height: processed.height,
+                      storageBytes,
+                    },
+                  });
+                  return Result.succeed(undefined);
+                }),
+            ).pipe(
+              Effect.tap(() =>
+                Effect.sync(() => {
+                  committed = true;
+                }),
+              ),
+            ),
+          );
+        });
+
+        yield* restore(
+          completion.pipe(
+            Effect.timeoutOrElse({
+              duration: "5 minutes",
+              orElse: () =>
+                Effect.fail(
+                  new InvalidUpload({ message: "Media processing timed out" }),
+                ),
+            }),
+          ),
+        ).pipe(
+          Effect.onExit((exit) => {
+            if (committed || Exit.isSuccess(exit)) return Effect.void;
+            return Effect.gen(function* () {
+              const released = yield* markFailed(
+                input.assetId,
+                Cause.pretty(exit.cause),
+              ).pipe(
+                Effect.catch((error) =>
+                  Effect.as(
+                    Effect.logError(
+                      "Unable to release failed media claim",
+                      error,
+                    ),
+                    false,
+                  ),
+                ),
+              );
+              if (!released) return;
+              yield* storage
+                .delete([asset.uploadStorageKey, ...variantKeys])
+                .pipe(
+                  Effect.catch((error) =>
+                    Effect.logError(
+                      "Unable to remove failed media objects",
+                      error,
+                    ),
+                  ),
+                );
+            });
+          }),
+        );
+        return yield* restore(loadAsset(input.blogId, input.assetId));
+      }),
+    );
   });
 
   const remove = Effect.fn("Media.remove")(function* (
@@ -795,8 +877,10 @@ export const create = Effect.fn("Media.create")(function* () {
           .for("update");
         if (!asset) return Result.fail(new AssetNotFound({ assetId }));
         if (
-          asset.status === "pending" ||
-          asset.status === "processing" ||
+          (asset.status === "pending" && asset.uploadExpiresAt > now) ||
+          (asset.status === "processing" &&
+            asset.updatedAt.getTime() + processingLeaseMillis >
+              now.getTime()) ||
           (asset.status === "failed" && asset.uploadExpiresAt > now)
         ) {
           return Result.fail(
@@ -867,6 +951,7 @@ export const create = Effect.fn("Media.create")(function* () {
       }),
     );
     yield* storage.delete(keys);
+    yield* storage.deletePrefix(variantPrefix(blogId, assetId));
     return { ok: true as const };
   });
 

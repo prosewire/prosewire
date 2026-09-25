@@ -48,6 +48,8 @@ Browser uploads use a signed `PUT` request. The bucket CORS policy must allow th
 
 Each publication starts with a 1 GiB storage quota recorded in Postgres. Pending reservations and ready variants count toward the quota. Operators can change `blog.media_storage_quota_bytes` through a controlled database operation until a quota administration surface is added.
 
+Media storage credentials must allow reading, writing, deleting, and listing objects in the configured bucket. Listing the `publications/` prefix lets recovery remove variants left by a terminated web process. Processing times out after five minutes; if a process is killed before cleanup, retry completion or remove the asset after its 15-minute processing lease expires. Both operations release its reserved quota and remove abandoned variants. Storage cleanup failures are logged and removal can be retried.
+
 ## Authentication and email
 
 | Variable | Required | Purpose |
