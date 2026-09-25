@@ -3,8 +3,18 @@ import {
   EmailDeliveryError,
   EmailDeliveryJob,
 } from "@prosewire/jobs/email-queue";
-import { Effect } from "effect";
-import { make } from "./email-delivery.ts";
+import { Effect, Fiber, Layer, Option, Redacted } from "effect";
+import { vi } from "vitest";
+import { isRetryable, layer, make, Service } from "./email-delivery.ts";
+import { WorkerConfig } from "./worker-config.ts";
+
+const transport = vi.hoisted(() => ({
+  sendMail: vi.fn(async () => ({})),
+  close: vi.fn(),
+}));
+vi.mock("nodemailer", () => ({
+  default: { createTransport: vi.fn(() => transport) },
+}));
 
 const job = new EmailDeliveryJob({
   outboxId: "outbox-1",
@@ -37,4 +47,75 @@ describe("EmailDelivery", () => {
       expect(error.recipient).toBe(job.recipient);
     });
   });
+  it.each([
+    [{ responseCode: 450 }, true],
+    [{ responseCode: 550 }, false],
+    [{ code: "EAUTH", responseCode: 535 }, false],
+    [{ code: "ECONNRESET" }, true],
+    [{ code: "ETIMEDOUT" }, true],
+    [{ code: "EENVELOPE" }, false],
+    [new Error("SMTP_URL is required"), false],
+  ])("classifies SMTP failure %j", (cause, retryable) => {
+    expect(
+      isRetryable(new EmailDeliveryError({ recipient: job.recipient, cause })),
+    ).toBe(retryable);
+  });
+
+  it.effect(
+    "settles an active send before interruption releases the caller",
+    () =>
+      Effect.gen(function* () {
+        let settle: (() => void) | undefined;
+        let completed = false;
+        const service = make(
+          () =>
+            new Promise<void>((resolve) => {
+              settle = () => {
+                completed = true;
+                resolve();
+              };
+            }),
+        );
+        const sending = yield* service.deliver(job).pipe(Effect.forkChild);
+        yield* Effect.yieldNow;
+        expect(settle).toBeDefined();
+        const interrupted = yield* Fiber.interrupt(sending).pipe(
+          Effect.forkChild,
+        );
+        yield* Effect.yieldNow;
+        expect(completed).toBe(false);
+        settle?.();
+        yield* Fiber.join(interrupted);
+        expect(completed).toBe(true);
+      }),
+  );
+  it.effect("closes the configured transport with its service scope", () =>
+    Effect.gen(function* () {
+      transport.close.mockClear();
+      transport.sendMail.mockClear();
+      yield* Effect.gen(function* () {
+        const delivery = yield* Service;
+        yield* delivery.deliver(job);
+        expect(transport.close).not.toHaveBeenCalled();
+      }).pipe(
+        Effect.provide(
+          layer.pipe(
+            Layer.provide(
+              Layer.succeed(WorkerConfig, {
+                databaseUrl: Redacted.make("postgres://test"),
+                redisUrl: Redacted.make("redis://test"),
+                analyticsRetentionDays: 365,
+                emailWorkerConcurrency: 1,
+                smtpUrl: Option.some(Redacted.make("smtp://localhost")),
+                emailFrom: "test@localhost",
+                environment: "test",
+              }),
+            ),
+          ),
+        ),
+      );
+      expect(transport.sendMail).toHaveBeenCalledOnce();
+      expect(transport.close).toHaveBeenCalledOnce();
+    }),
+  );
 });

@@ -2,7 +2,7 @@ import * as EmailQueue from "@prosewire/jobs/email-queue";
 import { Effect, Schedule } from "effect";
 import { DurableQueue, Workflow } from "effect/unstable/workflow";
 import { AnalyticsRetention } from "./analytics-retention.ts";
-import { EmailDelivery } from "./email-delivery.ts";
+import { EmailDelivery, isRetryable } from "./email-delivery.ts";
 import { EmailOutbox } from "./email-outbox.ts";
 import { Publishing } from "./publishing.ts";
 import { drainEmailOutbox } from "./worker-runtime.ts";
@@ -19,7 +19,7 @@ export const handlersLayer = EmailDeliveryWorkflow.toLayer((message) =>
 
 const emailDeliveryRetrySchedule = Schedule.min([
   Schedule.exponential("1 second", 2),
-  Schedule.spaced("5 minutes"),
+  Schedule.spaced("30 seconds"),
 ]);
 
 export const emailWorkerLayer = (concurrency: number) =>
@@ -31,7 +31,19 @@ export const emailWorkerLayer = (concurrency: number) =>
         Effect.tapError((error) =>
           Effect.logError("Email delivery attempt failed", error),
         ),
-        Effect.retry({ times: 99, schedule: emailDeliveryRetrySchedule }),
+        Effect.retry({
+          times: 5,
+          schedule: emailDeliveryRetrySchedule,
+          while: isRetryable,
+        }),
+        Effect.tapError((error) =>
+          Effect.logError("Email delivery permanently failed", {
+            outboxId: message.outboxId,
+            recipient: message.recipient,
+            retryable: isRetryable(error),
+            error,
+          }),
+        ),
       ),
     { concurrency },
   );

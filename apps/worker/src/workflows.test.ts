@@ -13,6 +13,7 @@ import { EmailOutbox } from "./email-outbox.ts";
 import { Publishing } from "./publishing.ts";
 import {
   EmailDeliveryWorkflow,
+  emailWorkerLayer,
   handlersLayer,
   startAnalyticsRetention,
   startEmailOutbox,
@@ -21,12 +22,15 @@ import {
 
 const now = "2026-08-25T12:00:00.000Z";
 
-function testLayer(state: {
-  published: number;
-  pruned: number;
-  outboxCalls: number;
-  delivered: Array<EmailQueue.EmailDeliveryJob>;
-}) {
+function testLayer(
+  state: {
+    published: number;
+    pruned: number;
+    outboxCalls: number;
+    delivered: Array<EmailQueue.EmailDeliveryJob>;
+  },
+  failure?: EmailQueue.EmailDeliveryError,
+) {
   const services = Layer.mergeAll(
     Layer.succeed(Publishing.Service, {
       publishScheduled: () =>
@@ -60,7 +64,7 @@ function testLayer(state: {
       deliver: (message) =>
         Effect.sync(() => {
           state.delivered.push(message);
-        }),
+        }).pipe(Effect.andThen(failure ? Effect.fail(failure) : Effect.void)),
     }),
   );
   const infrastructure = Layer.merge(
@@ -171,5 +175,35 @@ describe("worker workflows", () => {
 
       expect(state.delivered).toEqual([message]);
     }).pipe(Effect.provide(testLayer(state)));
+  });
+  it.effect("does not retry permanent SMTP rejection", () => {
+    const state = {
+      published: 0,
+      pruned: 0,
+      outboxCalls: 0,
+      delivered: [] as Array<EmailQueue.EmailDeliveryJob>,
+    };
+    const message = new EmailQueue.EmailDeliveryJob({
+      outboxId: "permanent-1",
+      recipient: "invalid@example.com",
+      subject: "Invitation",
+      text: "Join",
+      html: null,
+    });
+    const failure = new EmailQueue.EmailDeliveryError({
+      recipient: message.recipient,
+      cause: { responseCode: 550, code: "EENVELOPE" },
+    });
+    return Effect.gen(function* () {
+      const result = yield* Effect.result(
+        EmailDeliveryWorkflow.execute(message),
+      );
+      expect(result._tag).toBe("Failure");
+      expect(state.delivered).toHaveLength(1);
+    }).pipe(
+      Effect.provide(
+        emailWorkerLayer(1).pipe(Layer.provideMerge(testLayer(state, failure))),
+      ),
+    );
   });
 });
