@@ -20,14 +20,14 @@ import { type AppServices, runAppEffect } from "./app-runtime.ts";
 import { decodeTaggedError } from "./boundary-errors.ts";
 import { BlogId, MediaAssetId, PostId, PostRevisionId } from "./domain.ts";
 import { CompleteUploadInput, Media, StartUploadInput } from "./media.ts";
-import { PostErrors } from "./post-errors.ts";
 import {
   ArchivePostsCommand,
   CreatePostCommand,
-  Publishing,
   RestorePostRevisionCommand,
   UpdatePostCommand,
-} from "./publishing.ts";
+} from "./post-commands.ts";
+import { PostErrors } from "./post-errors.ts";
+import { PublishingRepository } from "./publishing-repository.ts";
 
 function toApiError(error: unknown) {
   const tagged = decodeTaggedError(error);
@@ -214,7 +214,7 @@ export function createPost(request: Request, input: CreatePostBoundaryInput) {
       const blogId = yield* decodeBlogId(input.blogId);
       const command = yield* decodeCreateInput(input);
       yield* access.requireBlog(actor, blogId);
-      const publishing = yield* Publishing.Service;
+      const publishing = yield* PublishingRepository.Service;
       const result = yield* publishing.createPost(command, {
         _tag: "Api",
         keyId: actor.keyId,
@@ -236,7 +236,7 @@ export function updatePost(
     request,
     Effect.gen(function* () {
       const actor = yield* principal(request, "content:write");
-      const publishing = yield* Publishing.Service;
+      const publishing = yield* PublishingRepository.Service;
       const postId = yield* decodePostId(id);
       const command = yield* decodeUpdateInput(postId, actor.blogId, input);
       const result = yield* publishing.updatePost(command, {
@@ -254,7 +254,7 @@ export function archivePost(request: Request, id: string) {
     request,
     Effect.gen(function* () {
       const actor = yield* principal(request, "content:write");
-      const publishing = yield* Publishing.Service;
+      const publishing = yield* PublishingRepository.Service;
       const postId = yield* decodePostId(id);
       const command = new ArchivePostsCommand({
         blogId: actor.blogId,
@@ -279,7 +279,7 @@ export function restorePostRevision(
     request,
     Effect.gen(function* () {
       const actor = yield* principal(request, "content:write");
-      const publishing = yield* Publishing.Service;
+      const publishing = yield* PublishingRepository.Service;
       const postId = yield* decodePostId(id);
       const parsedRevisionId = yield* decodeRevisionId(revisionId);
       const result = yield* publishing.restorePostRevision(

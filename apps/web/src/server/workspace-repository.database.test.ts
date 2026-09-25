@@ -27,8 +27,8 @@ import {
   RevokeApiKeyInput,
   UpdateMemberRoleInput,
   UpdateWorkspaceInput,
-  WorkspaceManagement,
-} from "./workspace-management.ts";
+  WorkspaceRepository,
+} from "./workspace-repository.ts";
 
 interface Actor {
   readonly id: UserId;
@@ -47,9 +47,9 @@ async function management(
     PlatformCrypto.layer,
   );
   return Effect.runPromise(
-    WorkspaceManagement.Service.pipe(
+    WorkspaceRepository.Service.pipe(
       Effect.provide(
-        WorkspaceManagement.live.pipe(Layer.provide(dependencies)),
+        WorkspaceRepository.layer.pipe(Layer.provide(dependencies)),
       ),
     ),
   );

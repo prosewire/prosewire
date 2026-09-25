@@ -4,16 +4,18 @@ import { requireDashboardSessionEffect } from "@/lib/session";
 import { runAppEffect } from "./app-runtime.ts";
 import { BlogErrors } from "./blog-errors.ts";
 import { UserId } from "./domain.ts";
-import { PostErrors } from "./post-errors.ts";
-import { SavePostInput } from "./post-form-input.ts";
 import {
   ArchivePostsCommand,
   CreatePostCommand,
-  Publishing,
   RestorePostRevisionCommand,
-  UpdateBlogSettingsInput,
   UpdatePostCommand,
-} from "./publishing.ts";
+} from "./post-commands.ts";
+import { PostErrors } from "./post-errors.ts";
+import { SavePostInput } from "./post-form-input.ts";
+import {
+  PublishingRepository,
+  UpdateBlogSettingsInput,
+} from "./publishing-repository.ts";
 
 export type SavePostBoundaryInput = Omit<
   typeof SavePostInput.Encoded,
@@ -71,7 +73,7 @@ export function savePost(input: SavePostBoundaryInput) {
     Effect.gen(function* () {
       const command = yield* decodeSavePost(input);
       const actorId = yield* currentActorId();
-      const publishing = yield* Publishing.Service;
+      const publishing = yield* PublishingRepository.Service;
       const fields = {
         blogId: command.blogId,
         authorId: command.authorId,
@@ -123,7 +125,7 @@ export function bulkArchive(input: BulkArchiveBoundaryInput) {
     Effect.gen(function* () {
       const command = yield* decodeBulkArchive(input);
       const actorId = yield* currentActorId();
-      const publishing = yield* Publishing.Service;
+      const publishing = yield* PublishingRepository.Service;
       const result = yield* publishing.archivePosts(command, {
         _tag: "Dashboard",
         userId: actorId,
@@ -138,7 +140,7 @@ export function restorePostRevision(input: RestorePostRevisionBoundaryInput) {
     Effect.gen(function* () {
       const command = yield* decodeRestorePostRevision(input);
       const actorId = yield* currentActorId();
-      const publishing = yield* Publishing.Service;
+      const publishing = yield* PublishingRepository.Service;
       return yield* publishing.restorePostRevision(command, {
         _tag: "Dashboard",
         userId: actorId,
@@ -152,7 +154,7 @@ export function updateBlogSettings(input: UpdateBlogSettingsBoundaryInput) {
     Effect.gen(function* () {
       const command = yield* decodeBlogSettings(input);
       const actorId = yield* currentActorId();
-      const publishing = yield* Publishing.Service;
+      const publishing = yield* PublishingRepository.Service;
       return yield* publishing.updateBlogSettings(command, actorId);
     }),
   );

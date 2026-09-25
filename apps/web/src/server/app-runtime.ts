@@ -15,8 +15,8 @@ import { PlatformCrypto } from "./platform-crypto.ts";
 import { PostExport } from "./post-export.ts";
 import { processSingleton } from "./process-singleton.ts";
 import { PublicContent } from "./public-content.ts";
-import { Publishing } from "./publishing.ts";
-import { WorkspaceManagement } from "./workspace-management.ts";
+import { PublishingRepository } from "./publishing-repository.ts";
+import { WorkspaceRepository } from "./workspace-repository.ts";
 
 const configLayer = WebConfig.layer;
 
@@ -42,8 +42,8 @@ const applicationLayer = Layer.mergeAll(
   Media.layer,
   PostExport.layer,
   PublicContent.layer,
-  Publishing.live,
-  WorkspaceManagement.live,
+  PublishingRepository.layer,
+  WorkspaceRepository.layer,
 ).pipe(Layer.provideMerge(domainLayer));
 
 export const appRuntime = processSingleton("@prosewire/web/AppRuntime/v1", () =>
@@ -62,8 +62,8 @@ export type AppServices =
   | Media.Service
   | PostExport.Service
   | PublicContent.Service
-  | Publishing.Service
-  | WorkspaceManagement.Service;
+  | PublishingRepository.Service
+  | WorkspaceRepository.Service;
 
 export function runAppEffect<A, E>(
   effect: Effect.Effect<A, E, AppServices>,

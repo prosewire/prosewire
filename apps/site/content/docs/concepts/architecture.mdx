@@ -29,6 +29,8 @@ Read [Choose an integration](/docs/integrate/) for authentication and rendering 
 
 ## Own the runtime
 
+The web runtime builds the publishing and workspace repository Layers once. Entrypoints call these services directly, where transactional authorization and publishing policy live. Command schemas come from their owning modules.
+
 The web app writes each invitation and its complete typed email intent in one Postgres transaction. That transaction also calls `pg_notify`; Postgres emits the notification only after the transaction commits. The request no longer depends on Redis, and a committed invitation cannot exist without a recoverable delivery intent.
 
 The worker keeps a dedicated Postgres `LISTEN` connection. A notification starts an email-outbox workflow as soon as the invitation transaction commits. A 30-second scan starts the same workflow path for notifications missed during a disconnect or restart. The outbox workflow leases rows with `FOR UPDATE SKIP LOCKED` and starts one idempotent email workflow per outbox ID. It marks the row dispatched only after the workflow engine has accepted that execution.

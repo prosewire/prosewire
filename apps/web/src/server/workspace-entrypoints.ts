@@ -9,10 +9,10 @@ import { runAppEffect } from "./app-runtime.ts";
 import { BlogAccess } from "./authorization.ts";
 import { WebConfig } from "./config.ts";
 import { BlogId, InvitationId, OrganizationId, UserId } from "./domain.ts";
-import { WorkspaceManagement } from "./workspace-management.ts";
+import { WorkspaceRepository } from "./workspace-repository.ts";
 
 const invalidInput = (message: string) =>
-  new WorkspaceManagement.InvalidWorkspaceInput({ message });
+  new WorkspaceRepository.InvalidWorkspaceInput({ message });
 
 const decode = <S extends Schema.Top>(
   schema: S,
@@ -39,36 +39,36 @@ const currentActor = Effect.fn("WorkspaceEntrypoints.currentActor")(
 );
 
 export type CreateWorkspaceBoundaryInput =
-  typeof WorkspaceManagement.CreateWorkspaceInput.Encoded;
+  typeof WorkspaceRepository.CreateWorkspaceInput.Encoded;
 export type CreatePublicationBoundaryInput =
-  typeof WorkspaceManagement.CreatePublicationInput.Encoded;
+  typeof WorkspaceRepository.CreatePublicationInput.Encoded;
 type UpdateWorkspaceBoundaryInput =
-  typeof WorkspaceManagement.UpdateWorkspaceInput.Encoded;
+  typeof WorkspaceRepository.UpdateWorkspaceInput.Encoded;
 type InviteMemberBoundaryInput = Omit<
-  typeof WorkspaceManagement.InviteMemberInput.Encoded,
+  typeof WorkspaceRepository.InviteMemberInput.Encoded,
   "role"
 > & { readonly role: string };
 type UpdateMemberRoleBoundaryInput = Omit<
-  typeof WorkspaceManagement.UpdateMemberRoleInput.Encoded,
+  typeof WorkspaceRepository.UpdateMemberRoleInput.Encoded,
   "role"
 > & { readonly role: string };
 type MemberMutationBoundaryInput =
-  typeof WorkspaceManagement.MemberMutationInput.Encoded;
+  typeof WorkspaceRepository.MemberMutationInput.Encoded;
 type CreateApiKeyBoundaryInput =
-  typeof WorkspaceManagement.CreateApiKeyInput.Encoded;
+  typeof WorkspaceRepository.CreateApiKeyInput.Encoded;
 type RevokeApiKeyBoundaryInput =
-  typeof WorkspaceManagement.RevokeApiKeyInput.Encoded;
+  typeof WorkspaceRepository.RevokeApiKeyInput.Encoded;
 
 export function createWorkspace(input: CreateWorkspaceBoundaryInput) {
   return runAppEffect(
     Effect.gen(function* () {
       const command = yield* decode(
-        WorkspaceManagement.CreateWorkspaceInput,
+        WorkspaceRepository.CreateWorkspaceInput,
         input,
         "Invalid workspace details",
       );
       const { actor } = yield* currentActor();
-      const service = yield* WorkspaceManagement.Service;
+      const service = yield* WorkspaceRepository.Service;
       return yield* service.createWorkspace(command, actor);
     }),
   );
@@ -78,12 +78,12 @@ export function createPublication(input: CreatePublicationBoundaryInput) {
   return runAppEffect(
     Effect.gen(function* () {
       const command = yield* decode(
-        WorkspaceManagement.CreatePublicationInput,
+        WorkspaceRepository.CreatePublicationInput,
         input,
         "Invalid publication details",
       );
       const { actor } = yield* currentActor();
-      const service = yield* WorkspaceManagement.Service;
+      const service = yield* WorkspaceRepository.Service;
       return yield* service.createPublication(command, actor);
     }),
   );
@@ -93,12 +93,12 @@ export function updateWorkspace(input: UpdateWorkspaceBoundaryInput) {
   return runAppEffect(
     Effect.gen(function* () {
       const command = yield* decode(
-        WorkspaceManagement.UpdateWorkspaceInput,
+        WorkspaceRepository.UpdateWorkspaceInput,
         input,
         "Invalid workspace settings",
       );
       const { actor } = yield* currentActor();
-      const service = yield* WorkspaceManagement.Service;
+      const service = yield* WorkspaceRepository.Service;
       return yield* service.updateWorkspace(command, actor);
     }),
   );
@@ -113,7 +113,7 @@ export function switchWorkspace(organizationId: string) {
         "Invalid workspace",
       );
       const { actor } = yield* currentActor();
-      const service = yield* WorkspaceManagement.Service;
+      const service = yield* WorkspaceRepository.Service;
       return yield* service.switchWorkspace(id, actor);
     }),
   );
@@ -124,7 +124,7 @@ export function switchPublication(blogId: string) {
     Effect.gen(function* () {
       const id = yield* decode(BlogId, blogId, "Invalid publication");
       const { actor } = yield* currentActor();
-      const service = yield* WorkspaceManagement.Service;
+      const service = yield* WorkspaceRepository.Service;
       return yield* service.switchPublication(id, actor);
     }),
   );
@@ -134,12 +134,12 @@ export function inviteMember(input: InviteMemberBoundaryInput) {
   return runAppEffect(
     Effect.gen(function* () {
       const command = yield* decode(
-        WorkspaceManagement.InviteMemberInput,
+        WorkspaceRepository.InviteMemberInput,
         input,
         "Invalid invitation",
       );
       const { actor } = yield* currentActor();
-      const service = yield* WorkspaceManagement.Service;
+      const service = yield* WorkspaceRepository.Service;
       return yield* service.inviteMember(command, actor);
     }),
   );
@@ -149,12 +149,12 @@ export function updateMemberRole(input: UpdateMemberRoleBoundaryInput) {
   return runAppEffect(
     Effect.gen(function* () {
       const command = yield* decode(
-        WorkspaceManagement.UpdateMemberRoleInput,
+        WorkspaceRepository.UpdateMemberRoleInput,
         input,
         "Invalid member role",
       );
       const { actor } = yield* currentActor();
-      const service = yield* WorkspaceManagement.Service;
+      const service = yield* WorkspaceRepository.Service;
       return yield* service.updateMemberRole(command, actor);
     }),
   );
@@ -164,12 +164,12 @@ export function removeMember(input: MemberMutationBoundaryInput) {
   return runAppEffect(
     Effect.gen(function* () {
       const command = yield* decode(
-        WorkspaceManagement.MemberMutationInput,
+        WorkspaceRepository.MemberMutationInput,
         input,
         "Invalid member",
       );
       const { actor } = yield* currentActor();
-      const service = yield* WorkspaceManagement.Service;
+      const service = yield* WorkspaceRepository.Service;
       return yield* service.removeMember(command, actor);
     }),
   );
@@ -187,12 +187,12 @@ export function cancelInvitation(input: {
         "Invalid workspace",
       );
       const command = yield* decode(
-        WorkspaceManagement.InvitationMutationInput,
+        WorkspaceRepository.InvitationMutationInput,
         { invitationId: input.invitationId },
         "Invalid invitation",
       );
       const { actor } = yield* currentActor();
-      const service = yield* WorkspaceManagement.Service;
+      const service = yield* WorkspaceRepository.Service;
       return yield* service.cancelInvitation(organizationId, command, actor);
     }),
   );
@@ -202,12 +202,12 @@ export function acceptInvitation(invitationId: string) {
   return runAppEffect(
     Effect.gen(function* () {
       const command = yield* decode(
-        WorkspaceManagement.InvitationMutationInput,
+        WorkspaceRepository.InvitationMutationInput,
         { invitationId },
         "Invalid invitation",
       );
       const { actor } = yield* currentActor();
-      const service = yield* WorkspaceManagement.Service;
+      const service = yield* WorkspaceRepository.Service;
       return yield* service.acceptInvitation(command, actor);
     }),
   );
@@ -217,12 +217,12 @@ export function createApiKey(input: CreateApiKeyBoundaryInput) {
   return runAppEffect(
     Effect.gen(function* () {
       const command = yield* decode(
-        WorkspaceManagement.CreateApiKeyInput,
+        WorkspaceRepository.CreateApiKeyInput,
         input,
         "Invalid API key details",
       );
       const { actor } = yield* currentActor();
-      const service = yield* WorkspaceManagement.Service;
+      const service = yield* WorkspaceRepository.Service;
       return yield* service.createApiKey(command, actor);
     }),
   );
@@ -232,12 +232,12 @@ export function revokeApiKey(input: RevokeApiKeyBoundaryInput) {
   return runAppEffect(
     Effect.gen(function* () {
       const command = yield* decode(
-        WorkspaceManagement.RevokeApiKeyInput,
+        WorkspaceRepository.RevokeApiKeyInput,
         input,
         "Invalid API key",
       );
       const { actor } = yield* currentActor();
-      const service = yield* WorkspaceManagement.Service;
+      const service = yield* WorkspaceRepository.Service;
       return yield* service.revokeApiKey(command, actor);
     }),
   );
@@ -253,7 +253,7 @@ export async function loadOnboarding() {
       const workspaces = yield* access.findWorkspaces(actor.id);
       let selfHostedTeamExists = false;
       if (config.deployment === "self-hosted") {
-        const management = yield* WorkspaceManagement.Service;
+        const management = yield* WorkspaceRepository.Service;
         selfHostedTeamExists = yield* management.hasWorkspace();
       }
       const activeId = Schema.decodeUnknownOption(OrganizationId)(
@@ -289,7 +289,7 @@ export async function loadInvitation(invitationId: string) {
     Effect.gen(function* () {
       const session = yield* getDashboardSessionEffect();
       const config = yield* WebConfig;
-      const service = yield* WorkspaceManagement.Service;
+      const service = yield* WorkspaceRepository.Service;
       const details = yield* service.invitationDetails(
         parsed.value,
         session?.user.email,
@@ -313,7 +313,7 @@ export async function loadAuthenticationState(invitationId?: string) {
       let openRegistration =
         config.environment !== "production" || config.allowSignUp;
       if (openRegistration && !cloudDeployment) {
-        const service = yield* WorkspaceManagement.Service;
+        const service = yield* WorkspaceRepository.Service;
         openRegistration = !(yield* service.hasInstallation());
       }
       const socialProviders = socialProviderIds.filter(
@@ -338,7 +338,7 @@ export async function loadAuthenticationState(invitationId?: string) {
           invitation: undefined,
         };
       }
-      const service = yield* WorkspaceManagement.Service;
+      const service = yield* WorkspaceRepository.Service;
       const details = yield* service.invitationDetails(parsed.value);
       return {
         session,

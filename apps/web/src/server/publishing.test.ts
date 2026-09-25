@@ -24,14 +24,14 @@ import {
   PostRevisionId,
   UserId,
 } from "./domain.ts";
-import { PostErrors } from "./post-errors.ts";
 import {
   ArchivePostsCommand,
   CreatePostCommand,
-  Publishing,
   RestorePostRevisionCommand,
   UpdatePostCommand,
-} from "./publishing.ts";
+} from "./post-commands.ts";
+import { PostErrors } from "./post-errors.ts";
+import { PublishingRepository } from "./publishing-repository.ts";
 
 const databaseUrl = process.env.DATABASE_URL;
 const blogId = "11111111-1111-4111-8111-111111111111";
@@ -116,7 +116,7 @@ describe("Publishing validation", () => {
       );
 
       return Effect.gen(function* () {
-        const publishing = yield* Publishing.Service;
+        const publishing = yield* PublishingRepository.Service;
         const error = yield* Effect.flip(
           publishing.createPost(
             new CreatePostCommand({
@@ -141,7 +141,9 @@ describe("Publishing validation", () => {
         expect(error.message).toMatch(/schedule time/);
         expect(executions).toBe(0);
       }).pipe(
-        Effect.provide(Publishing.live.pipe(Layer.provide(dependencies))),
+        Effect.provide(
+          PublishingRepository.layer.pipe(Layer.provide(dependencies)),
+        ),
       );
     },
   );
@@ -218,7 +220,7 @@ describe.skipIf(!databaseUrl)("Publishing transitions with PostgreSQL", () => {
   };
 
   const layer = () =>
-    Publishing.live.pipe(
+    PublishingRepository.layer.pipe(
       Layer.provide(
         Layer.mergeAll(
           databaseLayer(testDatabase.client),
@@ -239,7 +241,7 @@ describe.skipIf(!databaseUrl)("Publishing transitions with PostgreSQL", () => {
           await seedPublishedPost(actorId, publishedAt);
         });
 
-        const publishing = yield* Publishing.Service;
+        const publishing = yield* PublishingRepository.Service;
         yield* publishing.updatePost(
           new UpdatePostCommand({
             postId: PostId.make(postId),
@@ -289,7 +291,7 @@ describe.skipIf(!databaseUrl)("Publishing transitions with PostgreSQL", () => {
           await seedPublishedPost(actorId);
         });
 
-        const publishing = yield* Publishing.Service;
+        const publishing = yield* PublishingRepository.Service;
         const error = yield* Effect.flip(
           publishing.updatePost(
             new UpdatePostCommand({
@@ -366,7 +368,7 @@ describe.skipIf(!databaseUrl)("Publishing transitions with PostgreSQL", () => {
           });
         });
 
-        const publishing = yield* Publishing.Service;
+        const publishing = yield* PublishingRepository.Service;
         yield* publishing.updatePost(
           new UpdatePostCommand({
             postId: PostId.make(postId),
@@ -495,7 +497,7 @@ describe.skipIf(!databaseUrl)("Publishing transitions with PostgreSQL", () => {
         });
       });
 
-      const publishing = yield* Publishing.Service;
+      const publishing = yield* PublishingRepository.Service;
       const error = yield* Effect.flip(
         publishing.restorePostRevision(
           new RestorePostRevisionCommand({
@@ -543,7 +545,7 @@ describe.skipIf(!databaseUrl)("Publishing transitions with PostgreSQL", () => {
         });
       });
 
-      const publishing = yield* Publishing.Service;
+      const publishing = yield* PublishingRepository.Service;
       const result = yield* publishing.archivePosts(
         new ArchivePostsCommand({
           blogId: BlogId.make(blogId),
@@ -582,7 +584,7 @@ describe.skipIf(!databaseUrl)("Publishing transitions with PostgreSQL", () => {
           await seedPublishedPost("editor-1");
         });
 
-        const publishing = yield* Publishing.Service;
+        const publishing = yield* PublishingRepository.Service;
         const error = yield* Effect.flip(
           publishing.archivePosts(
             new ArchivePostsCommand({

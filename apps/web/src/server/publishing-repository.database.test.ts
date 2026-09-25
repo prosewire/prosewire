@@ -18,16 +18,18 @@ import {
 import {
   ArchivePostsCommand,
   CreatePostCommand,
-  Publishing,
-  UpdateBlogSettingsInput,
   UpdatePostCommand,
-} from "./publishing.ts";
+} from "./post-commands.ts";
+import {
+  PublishingRepository,
+  UpdateBlogSettingsInput,
+} from "./publishing-repository.ts";
 
 async function publishing(client: ReturnType<typeof openDb>["client"]) {
   return Effect.runPromise(
-    Publishing.Service.pipe(
+    PublishingRepository.Service.pipe(
       Effect.provide(
-        Publishing.live.pipe(Layer.provide(databaseLayer(client))),
+        PublishingRepository.layer.pipe(Layer.provide(databaseLayer(client))),
       ),
     ),
   );
@@ -137,7 +139,6 @@ describe.skipIf(!databaseUrl)("PostgreSQL publishing repository", () => {
             contentMarkdown: "# Dashboard post",
             status: "draft",
             featured: true,
-            locale: "",
             coverImageUrl: null,
             coverImageAlt: null,
             seoTitle: null,
