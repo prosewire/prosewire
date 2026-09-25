@@ -1,9 +1,9 @@
 import {
-  type TeamRole as CoreTeamRole,
   canUpdatePost,
   hasPermission,
-  isTeamRole,
+  normalizeTeamRole,
   type Permission,
+  permissions,
 } from "@prosewire/core";
 import type { Db } from "@prosewire/db/client";
 import * as schema from "@prosewire/db/schema";
@@ -19,24 +19,7 @@ import { Database } from "./database.ts";
 import { BlogId, MemberId, OrganizationId, UserId } from "./domain.ts";
 import { operationError } from "./operation-error.ts";
 
-export const Capability = Schema.Literals([
-  "workspace:update",
-  "workspace:delete",
-  "members:manage",
-  "publications:create",
-  "publications:update",
-  "publications:delete",
-  "content:read",
-  "content:create",
-  "content:update:any",
-  "content:update:own",
-  "content:publish",
-  "content:archive",
-  "analytics:read",
-  "integrations:read",
-  "integrations:manage",
-  "audit:read",
-]);
+export const Capability = Schema.Literals(permissions);
 export type Capability = typeof Capability.Type;
 
 export class WorkspaceAccessDenied extends Schema.TaggedError<WorkspaceAccessDenied>()(
@@ -101,11 +84,6 @@ export type Error =
   | NoWorkspaceAvailable
   | NoPublicationAvailable;
 
-function normalizeRole(role: string): CoreTeamRole | undefined {
-  if (role === "member") return "viewer";
-  return isTeamRole(role) ? role : undefined;
-}
-
 export const create = Effect.fn("BlogAccess.create")(function* () {
   const database = yield* Database;
   const persistenceError = operationError(
@@ -136,7 +114,7 @@ export const create = Effect.fn("BlogAccess.create")(function* () {
     );
     const decoded = yield* Effect.forEach(rows, (row) =>
       Effect.gen(function* () {
-        const role = normalizeRole(row.role);
+        const role = normalizeTeamRole(row.role);
         if (!role) return undefined;
         const workspace = yield* decodeWorkspace(row.workspace).pipe(
           persistenceError("workspace.decodeAuthorized"),
@@ -188,7 +166,7 @@ export const create = Effect.fn("BlogAccess.create")(function* () {
         .where(eq(schema.blog.id, blogId)),
     );
     const row = rows[0];
-    const role = row ? normalizeRole(row.role) : undefined;
+    const role = row ? normalizeTeamRole(row.role) : undefined;
     if (!row || !role) return undefined;
     const { blog, workspace } = yield* Effect.all({
       blog: decodeBlog(row.blog).pipe(

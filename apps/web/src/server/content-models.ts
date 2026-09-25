@@ -1,4 +1,8 @@
-import { contentHeadings, sanitizeRenderedHtml } from "@prosewire/core";
+import {
+  contentHeadings,
+  sanitizeRenderedHtml,
+  teamRoles,
+} from "@prosewire/core";
 import type * as databaseSchema from "@prosewire/db/schema";
 import { Schema } from "effect";
 import {
@@ -41,13 +45,7 @@ export class Blog extends Schema.Class<Blog>("Content.Blog")({
   ...timestamps,
 }) {}
 
-export const TeamRole = Schema.Literals([
-  "owner",
-  "admin",
-  "editor",
-  "author",
-  "viewer",
-]);
+export const TeamRole = Schema.Literals(teamRoles);
 export type TeamRole = typeof TeamRole.Type;
 
 export class Workspace extends Schema.Class<Workspace>("Content.Workspace")({

@@ -1,9 +1,5 @@
 import { Buffer } from "node:buffer";
-import {
-  type TeamRole as CoreTeamRole,
-  isTeamRole,
-  slugify,
-} from "@prosewire/core";
+import { normalizeTeamRole, slugify } from "@prosewire/core";
 import type { Db } from "@prosewire/db/client";
 import * as schema from "@prosewire/db/schema";
 import {
@@ -189,15 +185,10 @@ function requiredSlug(
       );
 }
 
-function normalizeRole(role: string): CoreTeamRole | undefined {
-  if (role === "member") return "viewer";
-  return isTeamRole(role) ? role : undefined;
-}
-
 function toInvitation(
   row: typeof schema.invitation.$inferSelect,
 ): WorkspaceInvitation | undefined {
-  const role = normalizeRole(row.role);
+  const role = normalizeTeamRole(row.role);
   if (!role) return undefined;
   return new WorkspaceInvitation({
     ...row,
@@ -911,7 +902,7 @@ export const create = Effect.fn("WorkspaceRepository.create")(function* () {
               role: schema.invitation.role,
             });
           if (!invitation) return undefined;
-          const role = normalizeRole(invitation.role);
+          const role = normalizeTeamRole(invitation.role);
           if (!role) throw new Error("Invitation has an invalid role");
           await tx
             .insert(schema.member)

@@ -1,4 +1,4 @@
-import { isTeamRole } from "@prosewire/core";
+import { normalizeTeamRole } from "@prosewire/core";
 import type { Db } from "@prosewire/db/client";
 import * as schema from "@prosewire/db/schema";
 import {
@@ -276,8 +276,8 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
     return {
       authors,
       members: members.flatMap((member) => {
-        const role = member.role === "member" ? "viewer" : member.role;
-        return isTeamRole(role)
+        const role = normalizeTeamRole(member.role);
+        return role
           ? [
               new TeamMember({
                 ...member,
@@ -304,8 +304,8 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
       }),
     );
     return invitations.flatMap((invitation) => {
-      const role = invitation.role === "member" ? "viewer" : invitation.role;
-      return isTeamRole(role)
+      const role = normalizeTeamRole(invitation.role);
+      return role
         ? [
             new WorkspaceInvitation({
               ...invitation,

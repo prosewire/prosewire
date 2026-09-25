@@ -63,6 +63,12 @@ export function isTeamRole(value: string): value is TeamRole {
   return teamRoleSet.has(value);
 }
 
+/** Maps the legacy member role without granting access to unknown stored roles. */
+export function normalizeTeamRole(value: string): TeamRole | undefined {
+  if (value === "member") return "viewer";
+  return isTeamRole(value) ? value : undefined;
+}
+
 export function hasPermission(role: TeamRole, permission: Permission): boolean {
   return rolePermissions[role].has(permission);
 }
