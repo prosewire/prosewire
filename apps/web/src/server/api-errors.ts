@@ -11,7 +11,7 @@ import {
   ApiRevisionNotFound,
   ApiUnavailable,
 } from "@prosewire/contract";
-import type { Effect } from "effect";
+import { type Effect, Predicate } from "effect";
 import type { ApiAccess } from "./api-access.ts";
 import type { ApiContent } from "./api-content.ts";
 import type { Media } from "./media.ts";
@@ -73,4 +73,47 @@ export function toApiError(error: ApiApplicationError) {
         ? "Media storage is temporarily unavailable"
         : error.message;
   return new Failure({ message });
+}
+
+function diagnosticString(value: unknown, pattern: RegExp): string | undefined {
+  return typeof value === "string" && pattern.test(value) ? value : undefined;
+}
+
+function knownErrorTag(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  return Object.hasOwn(constructors, value) || value === "DatabaseError"
+    ? value
+    : undefined;
+}
+
+/** Drizzle embeds query parameters in error messages and causes. Log metadata only. */
+export function apiFailureDiagnostics(error: unknown) {
+  const diagnostics = {
+    tag: undefined as string | undefined,
+    operation: undefined as string | undefined,
+    code: undefined as string | undefined,
+    constraint: undefined as string | undefined,
+  };
+  const seen = new Set<unknown>();
+  while (Predicate.isObject(error) && !seen.has(error) && seen.size < 16) {
+    seen.add(error);
+    const tag = knownErrorTag(error["_tag"]);
+    diagnostics.tag ??= tag;
+    if (tag !== undefined) {
+      diagnostics.operation ??= diagnosticString(
+        error["operation"],
+        /^[A-Za-z][A-Za-z0-9. _-]{0,79}$/,
+      );
+    }
+    diagnostics.code ??= diagnosticString(
+      error["code"],
+      /^(?:[A-Z0-9]{5}|E[A-Z_]{2,30})$/,
+    );
+    diagnostics.constraint ??= diagnosticString(
+      error["constraint"],
+      /^[a-z][a-z0-9_]{0,62}$/,
+    );
+    error = error["cause"];
+  }
+  return { ...diagnostics, tag: diagnostics.tag ?? "UnknownError" };
 }

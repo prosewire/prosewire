@@ -8,7 +8,11 @@ import {
 import { Effect, Result, Schema } from "effect";
 import { ApiAccess, type Scope } from "./api-access.ts";
 import { ApiContent, type PostListInput } from "./api-content.ts";
-import { type ApiApplicationError, toApiError } from "./api-errors.ts";
+import {
+  type ApiApplicationError,
+  apiFailureDiagnostics,
+  toApiError,
+} from "./api-errors.ts";
 import { type AppServices, runAppEffect } from "./app-runtime.ts";
 import { BlogId, MediaAssetId, PostId, PostRevisionId } from "./domain.ts";
 import { CompleteUploadInput, Media, StartUploadInput } from "./media.ts";
@@ -31,7 +35,10 @@ async function runApi<A, E extends ApiApplicationError>(
       const log =
         failure instanceof ApiUnavailable ||
         failure instanceof ApiMediaUnavailable
-          ? Effect.logError("Private API operation failed", error)
+          ? Effect.logError(
+              "Private API operation failed",
+              apiFailureDiagnostics(error),
+            )
           : Effect.void;
       return log.pipe(Effect.andThen(Effect.fail(failure)));
     }),

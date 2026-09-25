@@ -21,6 +21,8 @@ import {
   updatePost,
 } from "./api-entrypoints.ts";
 
+import { apiFailureDiagnostics } from "./api-errors.ts";
+
 type ApiError = InstanceType<(typeof apiErrors)[number]>;
 
 function isApiError(error: unknown): error is ApiError {
@@ -28,7 +30,11 @@ function isApiError(error: unknown): error is ApiError {
 }
 
 function apiErrorResponse(error: unknown): Response {
-  if (!isApiError(error)) console.error("Unhandled private API failure", error);
+  if (!isApiError(error))
+    console.error(
+      "Unhandled private API failure",
+      apiFailureDiagnostics(error),
+    );
   const failure = isApiError(error)
     ? error
     : new ApiUnavailable({ message: "Internal server error" });
