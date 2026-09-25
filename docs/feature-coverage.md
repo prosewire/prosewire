@@ -28,7 +28,7 @@ Known duplicate post slugs return HTTP 409 with a typed `ApiPostConflict`; dashb
 | --- | --- |
 | Public reader and author pages | Implemented with server rendering |
 | Public visibility rules | Drafts, archived posts, and future scheduled posts are excluded from public surfaces |
-| Slugs and redirects | Slugs are unique per publication; changing a published slug creates a permanent redirect |
+| Slugs and redirects | Slugs are unique per publication; changing a published slug creates a permanent redirect; generated slugs remove separators left at the 120-character truncation boundary |
 | Search and categories | Implemented on the reader and public JSON list endpoint |
 | Related posts and table of contents | Implemented in the public article reader |
 | RSS, XML sitemap, canonical metadata, Open Graph and social cards, and JSON-LD | Implemented across the bundled, Next.js, and Astro readers |

@@ -10,6 +10,11 @@ import {
 import { analyzeSeo } from "./seo.ts";
 
 describe("content helpers", () => {
+  it("does not leave a trailing separator after truncating a slug", () => {
+    expect(slugify(`${"a".repeat(119)} next`)).toBe("a".repeat(119));
+    expect(slugify("a".repeat(121))).toBe("a".repeat(120));
+  });
+
   it("creates stable clean slugs", () => {
     expect(slugify("  A Better Blog, Déjà Vu!  ")).toBe(
       "a-better-blog-deja-vu",
