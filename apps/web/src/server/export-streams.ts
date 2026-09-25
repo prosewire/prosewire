@@ -89,7 +89,15 @@ export function responseBody<E>(
     else signal.addEventListener("abort", interrupt, { once: true });
     return Effect.sync(() => signal.removeEventListener("abort", interrupt));
   });
-  return Stream.toReadableStream(body.pipe(Stream.interruptWhen(aborted)), {
-    strategy: { highWaterMark: 0 },
-  });
+  return Stream.toReadableStream(
+    body.pipe(
+      Stream.tapError((error) =>
+        Effect.logError("Publication export stream failed", error),
+      ),
+      Stream.interruptWhen(aborted),
+    ),
+    {
+      strategy: { highWaterMark: 0 },
+    },
+  );
 }
