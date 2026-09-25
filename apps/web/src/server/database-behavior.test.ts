@@ -22,16 +22,13 @@ import {
   UserId,
 } from "./domain.ts";
 import { PlatformCrypto } from "./platform-crypto.ts";
-import {
-  ArchivePostsCommand,
-  Publishing,
-  UpdatePostCommand,
-} from "./publishing.ts";
+import { ArchivePostsCommand, UpdatePostCommand } from "./post-commands.ts";
+import { PublishingRepository } from "./publishing-repository.ts";
 import {
   InvitationMutationInput,
   InviteMemberInput,
-  WorkspaceManagement,
-} from "./workspace-management.ts";
+  WorkspaceRepository,
+} from "./workspace-repository.ts";
 
 const databaseUrl = process.env["DATABASE_URL"];
 
@@ -65,9 +62,9 @@ async function workspaceManagement(client: Db, url: string) {
     PlatformCrypto.layer,
   );
   return Effect.runPromise(
-    WorkspaceManagement.Service.pipe(
+    WorkspaceRepository.Service.pipe(
       Effect.provide(
-        WorkspaceManagement.live.pipe(Layer.provide(dependencies)),
+        WorkspaceRepository.layer.pipe(Layer.provide(dependencies)),
       ),
     ),
   );
@@ -75,9 +72,9 @@ async function workspaceManagement(client: Db, url: string) {
 
 async function publishing(client: Db) {
   return Effect.runPromise(
-    Publishing.Service.pipe(
+    PublishingRepository.Service.pipe(
       Effect.provide(
-        Publishing.live.pipe(Layer.provide(databaseLayer(client))),
+        PublishingRepository.layer.pipe(Layer.provide(databaseLayer(client))),
       ),
     ),
   );
@@ -595,7 +592,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL-backed repository behavior", () => {
         ),
       );
 
-      expect(lostClaim).toBeInstanceOf(WorkspaceManagement.InvitationNotFound);
+      expect(lostClaim).toBeInstanceOf(WorkspaceRepository.InvitationNotFound);
       expect(unauthorized).toBeInstanceOf(BlogAccess.WorkspaceAccessDenied);
       const invitations = await resource.client
         .select({ id: schema.invitation.id, status: schema.invitation.status })

@@ -5,7 +5,7 @@ import { DatabaseError } from "./database.ts";
 import { PostId, PostRevisionId } from "./domain.ts";
 import { PostErrors } from "./post-errors.ts";
 import { SessionErrors } from "./session-errors.ts";
-import { SelfHostedWorkspaceAlreadyExists } from "./workspace-management.ts";
+import { SelfHostedWorkspaceAlreadyExists } from "./workspace-repository.ts";
 
 describe("actionErrorRedirect", () => {
   it("maps authentication failures to sign-in", () => {

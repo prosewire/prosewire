@@ -19,8 +19,8 @@ import {
   CreateWorkspaceInput,
   InvitationMutationInput,
   InviteMemberInput,
-  WorkspaceManagement,
-} from "./workspace-management.ts";
+  WorkspaceRepository,
+} from "./workspace-repository.ts";
 
 const databaseUrl = process.env.DATABASE_URL;
 const organizationId = OrganizationId.make("workspace-1");
@@ -99,7 +99,7 @@ describe.skipIf(!databaseUrl)(
     };
 
     const layer = () =>
-      WorkspaceManagement.live.pipe(
+      WorkspaceRepository.layer.pipe(
         Layer.provide(
           Layer.mergeAll(
             databaseLayer(testDatabase.client),
@@ -120,7 +120,7 @@ describe.skipIf(!databaseUrl)(
 
     it.effect("detects self-hosted installation data", () =>
       Effect.gen(function* () {
-        const management = yield* WorkspaceManagement.Service;
+        const management = yield* WorkspaceRepository.Service;
 
         expect(yield* management.hasWorkspace()).toBe(false);
         expect(yield* management.hasInstallation()).toBe(false);
@@ -184,7 +184,7 @@ describe.skipIf(!databaseUrl)(
             },
           ]),
         );
-        const management = yield* WorkspaceManagement.Service;
+        const management = yield* WorkspaceRepository.Service;
         const attempts = yield* Effect.all(
           [
             management.createWorkspace(
@@ -239,7 +239,7 @@ describe.skipIf(!databaseUrl)(
             ...actor,
             name: "A <script>alert(1)</script>",
           };
-          const management = yield* WorkspaceManagement.Service;
+          const management = yield* WorkspaceRepository.Service;
           const invitationIds = yield* Effect.all(
             [
               management.inviteMember(
@@ -302,7 +302,7 @@ describe.skipIf(!databaseUrl)(
               sql`alter table ${schema.emailDeliveryOutbox} add constraint email_delivery_outbox_test_reject check (${schema.emailDeliveryOutbox.recipient} <> 'rollback@example.com')`,
             );
           });
-          const management = yield* WorkspaceManagement.Service;
+          const management = yield* WorkspaceRepository.Service;
 
           const error = yield* Effect.flip(
             management.inviteMember(
@@ -343,7 +343,7 @@ describe.skipIf(!databaseUrl)(
       () =>
         Effect.gen(function* () {
           yield* Effect.promise(() => seedWorkspace());
-          const management = yield* WorkspaceManagement.Service;
+          const management = yield* WorkspaceRepository.Service;
           const error = yield* Effect.flip(
             management.acceptInvitation(input, actor),
           );
@@ -374,7 +374,7 @@ describe.skipIf(!databaseUrl)(
             await seedWorkspace();
             await seedInvitation();
           });
-          const management = yield* WorkspaceManagement.Service;
+          const management = yield* WorkspaceRepository.Service;
           const outcomes = yield* Effect.all(
             [
               management.acceptInvitation(input, actor),
@@ -417,7 +417,7 @@ describe.skipIf(!databaseUrl)(
       () =>
         Effect.gen(function* () {
           yield* Effect.promise(() => seedWorkspace({ actorIsOwner: true }));
-          const management = yield* WorkspaceManagement.Service;
+          const management = yield* WorkspaceRepository.Service;
           const error = yield* Effect.flip(
             management.cancelInvitation(organizationId, input, actor),
           );
@@ -438,7 +438,7 @@ describe.skipIf(!databaseUrl)(
             await seedWorkspace();
             await seedInvitation();
           });
-          const management = yield* WorkspaceManagement.Service;
+          const management = yield* WorkspaceRepository.Service;
           const error = yield* Effect.flip(
             management.cancelInvitation(organizationId, input, actor),
           );

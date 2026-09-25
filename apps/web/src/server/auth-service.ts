@@ -29,7 +29,7 @@ export const emailPasswordPolicy = {
   requireEmailVerification: false,
 } as const;
 
-// Workspace mutations run through WorkspaceManagement so authorization and
+// Workspace mutations run through WorkspaceRepository so authorization and
 // audit writes stay in the same application transaction boundary.
 export const disabledOrganizationMutationPaths = [
   "/organization/accept-invitation",
