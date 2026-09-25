@@ -31,27 +31,12 @@ export class Service extends Context.Service<Service, Interface>()(
   "@prosewire/jobs/Redis",
 ) {}
 
-// Disconnecting also removes subscriptions; keep error listeners until the socket
-// is closed so a cleanup failure cannot become an unhandled EventEmitter error.
-const closeClient = (client: {
-  readonly isOpen: boolean;
-  close(): Promise<unknown>;
-  destroy(): void;
-}) =>
-  Effect.tryPromise({
-    try: async () => {
-      if (client.isOpen) await client.close();
-    },
-    catch: (cause) => new ConnectionError({ operation: "close Redis", cause }),
-  }).pipe(
-    Effect.timeout("5 seconds"),
-    Effect.catch((error) => Effect.logError("Redis cleanup failed", error)),
-    Effect.ensuring(
-      Effect.sync(() => {
-        if (client.isOpen) client.destroy();
-      }),
-    ),
-  );
+// Scope users have already finalized. Destroy rejects any remaining commands and
+// also removes subscriptions; Redis 6 close() can otherwise await replies forever.
+const closeClient = (client: { readonly isOpen: boolean; destroy(): void }) =>
+  Effect.sync(() => {
+    if (client.isOpen) client.destroy();
+  });
 
 export const layer = Layer.effect(
   Service,
@@ -62,7 +47,7 @@ export const layer = Layer.effect(
         const client = createClient({
           url: Redacted.value(config.redisUrl),
           disableOfflineQueue: true,
-          socket: { connectTimeout: 10_000, reconnectStrategy: false },
+          socket: { connectTimeout: 10_000 },
         });
         client.on("error", (cause) => {
           console.error("Redis client error", cause);

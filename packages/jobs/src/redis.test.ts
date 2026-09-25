@@ -49,31 +49,31 @@ describe("Redis resource ownership", () => {
         );
         yield* Effect.yieldNow;
         yield* Fiber.interrupt(fiber);
-        expect(resource.close).toHaveBeenCalledOnce();
+        expect(resource.destroy).toHaveBeenCalledOnce();
         expect(resource.isOpen).toBe(false);
       }),
   );
 
-  it.effect("bounds connection attempts and destroys a stalled close", () =>
-    Effect.gen(function* () {
-      const resource = client();
-      resource.connect.mockImplementation(() => {
-        resource.isOpen = true;
-        return new Promise(() => {});
-      });
-      resource.close.mockImplementation(() => new Promise(() => {}));
-      mocks.create.mockReturnValue(resource);
-      const fiber = yield* Redis.Service.pipe(
-        Effect.provide(live),
-        Effect.exit,
-        Effect.forkChild,
-      );
-      yield* TestClock.adjust("10 seconds");
-      yield* TestClock.adjust("5 seconds");
-      const exit = yield* Fiber.join(fiber);
-      expect(exit._tag).toBe("Failure");
-      expect(resource.destroy).toHaveBeenCalledOnce();
-    }),
+  it.effect(
+    "bounds connection attempts and destroys the connecting socket",
+    () =>
+      Effect.gen(function* () {
+        const resource = client();
+        resource.connect.mockImplementation(() => {
+          resource.isOpen = true;
+          return new Promise(() => {});
+        });
+        mocks.create.mockReturnValue(resource);
+        const fiber = yield* Redis.Service.pipe(
+          Effect.provide(live),
+          Effect.exit,
+          Effect.forkChild,
+        );
+        yield* TestClock.adjust("10 seconds");
+        const exit = yield* Fiber.join(fiber);
+        expect(exit._tag).toBe("Failure");
+        expect(resource.destroy).toHaveBeenCalledOnce();
+      }),
   );
 
   it.effect("closes subscriptions even when subscribe fails", () =>
@@ -89,8 +89,8 @@ describe("Redis resource ownership", () => {
         yield* subscription;
       }).pipe(Effect.provide(live), Effect.scoped, Effect.exit);
       expect(result._tag).toBe("Failure");
-      expect(subscriber.close).toHaveBeenCalledOnce();
-      expect(resource.close).toHaveBeenCalledOnce();
+      expect(subscriber.destroy).toHaveBeenCalledOnce();
+      expect(resource.destroy).toHaveBeenCalledOnce();
     }),
   );
 });

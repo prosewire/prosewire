@@ -75,7 +75,7 @@ Upload reservations return HTTP 201 and are checked through the generated SDK ag
 | Managed infrastructure | A Compose topology is provided for an externally built image, Postgres, Redis, SMTP, and a load balancer |
 | Scheduled publishing | A named Effect workflow runs the database scan and atomic publication updates; the single workflow worker recovers persisted executions after restart |
 | Invitation delivery | Invitation state and a typed email intent commit together in Postgres; `LISTEN`/`NOTIFY` starts an outbox workflow immediately, a 30-second scan covers missed notifications, and an idempotent email workflow waits on Effect `DurableQueue` in Redis |
-| Redis connection lifecycle | Connections and subscriptions have a ten-second startup bound; scoped shutdown closes sockets and destroys them after a five-second drain bound |
+| Redis connection lifecycle | Connections and subscriptions have a ten-second startup bound; scoped shutdown destroys owned sockets and rejects outstanding commands, while established connections retain automatic reconnection |
 | Background workflow scaling | Workflow messages and results persist in Postgres; the pinned Effect SQL runner requires exactly one Prosewire worker process per database, with configurable in-process email concurrency |
 | Backups and restore | Postgres and object-storage recovery are documented; snapshot schedules, replication, and offsite retention remain deployment-owned |
 | Stable public container | Release automation exists, but documentation does not assume registry access until a public image is independently verified |
