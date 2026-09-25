@@ -129,7 +129,7 @@ export const create = Effect.fn("ApiContent.create")(function* () {
           orderBy: [desc(schema.postRevision.version)],
         }),
       );
-      return revisions.map(toApiPostRevision);
+      return yield* Effect.forEach(revisions, toApiPostRevision);
     }),
   };
 });

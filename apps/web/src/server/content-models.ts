@@ -4,7 +4,7 @@ import {
   teamRoles,
 } from "@prosewire/core";
 import type * as databaseSchema from "@prosewire/db/schema";
-import { Schema } from "effect";
+import { Effect, Schema } from "effect";
 import {
   ApiKeyId,
   AuditLogId,
@@ -23,7 +23,10 @@ import {
   SnippetId,
   UserId,
 } from "./domain.ts";
-import { PostRevisionSnapshot } from "./post-commands.ts";
+import {
+  decodeRevisionSnapshot,
+  PostRevisionSnapshot,
+} from "./post-commands.ts";
 
 const nullableString = Schema.NullOr(Schema.String);
 const timestamps = {
@@ -281,14 +284,19 @@ const toPostCategory = (row: PostCategoryRow) =>
     category: toCategory(row.category),
   });
 
-const toPostRevision = (row: PostRevisionRow) =>
-  new PostRevision({
+const toPostRevision = Effect.fn("ContentModels.toPostRevision")(function* (
+  row: PostRevisionRow,
+) {
+  const id = PostRevisionId.make(row.id);
+  const snapshot = yield* decodeRevisionSnapshot(id, row.snapshot);
+  return new PostRevision({
     ...row,
-    id: PostRevisionId.make(row.id),
+    id,
     postId: PostId.make(row.postId),
     editorId: row.editorId ? UserId.make(row.editorId) : null,
-    snapshot: Schema.decodeUnknownSync(PostRevisionSnapshot)(row.snapshot),
+    snapshot,
   });
+});
 
 const postValues = (row: PostRow) => ({
   ...row,
@@ -316,19 +324,31 @@ export const toDashboardPost = (
     viewCount,
   });
 
-export const toDashboardPostDetail = (
+export const toDashboardPostDetail = Effect.fn(
+  "ContentModels.toDashboardPostDetail",
+)(function* (
   row: PostRow & {
     readonly author: AuthorRow;
     readonly categories: ReadonlyArray<PostCategoryRow>;
     readonly revisions: ReadonlyArray<PostRevisionRow>;
   },
-) =>
-  new DashboardPostDetail({
+) {
+  const revisions = yield* Effect.forEach(row.revisions, (revision) =>
+    toPostRevision(revision).pipe(
+      Effect.catchTag("InvalidPostRevision", (error) =>
+        Effect.logError("Unable to load saved post revision", error).pipe(
+          Effect.as(undefined),
+        ),
+      ),
+    ),
+  );
+  return new DashboardPostDetail({
     ...postValues(row),
     author: toAuthor(row.author),
     categories: row.categories.map(toPostCategory),
-    revisions: row.revisions.map(toPostRevision),
+    revisions: revisions.filter((revision) => revision !== undefined),
   });
+});
 
 export const toPublicPost = (
   row: PostRow & {
