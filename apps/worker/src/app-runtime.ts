@@ -104,6 +104,7 @@ const emailWorkerLayer = Layer.unwrap(
 );
 
 const workflowRetentionLayer = WorkflowRetention.layer.pipe(
+  Layer.provideMerge(jobQueueLayer),
   Layer.provideMerge(databaseLayer),
   Layer.provideMerge(workflowEngineLayer),
 );

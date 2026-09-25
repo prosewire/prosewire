@@ -136,7 +136,7 @@ thirty days and its workflow has a terminal result, it clears that workflow's
 persisted messages/replies and scrubs the recipient, subject, body, and error
 from the outbox row. The outbox ID and dispatch marker remain as a deduplication
 record. Running, suspended, unknown, and recent executions are preserved.
-Cleanup records its intent before clearing workflow storage, so a restart can
+Cleanup also removes the matching Redis queue identity. It preserves queued, pending, locked, and failed queue identities. Legacy identities defer cleanup while the queue has waiting work. Cleanup records its intent before clearing workflow storage, so a restart can
 finish cleanup even when the workflow result has already been removed.
 
 Migration `0016_cold_darkhawk` adds two nullable cleanup timestamps without
@@ -147,3 +147,10 @@ recover historical delivery payloads after retention, restore the matching
 PostgreSQL backup to a separate database for inspection. Do not clear dispatch
 markers or restore only workflow tables into a live worker database, because
 that can replay previously dispatched email.
+
+Effect RC.115 stores queue identities in Redis sorted sets. At startup the worker
+converts legacy sets in restartable batches, retaining the original set until
+the final atomic replacement. Stop the old worker and back up Redis before
+upgrading; run exactly one worker during conversion. Pending payloads and locks
+are preserved. To roll back to RC.112, stop the worker and restore the matching
+Redis and PostgreSQL backups; an old worker cannot read the new sorted sets.

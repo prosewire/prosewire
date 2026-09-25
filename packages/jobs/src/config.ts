@@ -10,3 +10,5 @@ export class Service extends Context.Service<Service, Shape>()(
 
 export const layer = (redisUrl: Redacted.Redacted<string>) =>
   Layer.succeed(Service, Service.of({ redisUrl }));
+
+export const redisQueuePrefix = "{prosewire-jobs}:effectq:";

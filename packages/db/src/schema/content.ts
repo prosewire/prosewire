@@ -63,14 +63,18 @@ export const blog = pgTable(
   ],
 );
 
+const namedPublicationRecord = () => ({
+  id: uuid("id").primaryKey().defaultRandom(),
+  blogId: uuid("blog_id")
+    .notNull()
+    .references(() => blog.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+});
+
 export const author = pgTable(
   "author",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    blogId: uuid("blog_id")
-      .notNull()
-      .references(() => blog.id, { onDelete: "cascade" }),
-    name: text("name").notNull(),
+    ...namedPublicationRecord(),
     slug: text("slug").notNull(),
     bio: text("bio"),
     avatarUrl: text("avatar_url"),
@@ -88,11 +92,7 @@ export const author = pgTable(
 export const category = pgTable(
   "category",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    blogId: uuid("blog_id")
-      .notNull()
-      .references(() => blog.id, { onDelete: "cascade" }),
-    name: text("name").notNull(),
+    ...namedPublicationRecord(),
     slug: text("slug").notNull(),
     description: text("description"),
     ...timestamps,
@@ -325,11 +325,7 @@ export const redirect = pgTable(
 export const snippet = pgTable(
   "snippet",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    blogId: uuid("blog_id")
-      .notNull()
-      .references(() => blog.id, { onDelete: "cascade" }),
-    name: text("name").notNull(),
+    ...namedPublicationRecord(),
     key: text("key").notNull(),
     contentMarkdown: text("content_markdown").notNull(),
     ...timestamps,
@@ -342,11 +338,7 @@ export const snippet = pgTable(
 export const apiKey = pgTable(
   "api_key",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    blogId: uuid("blog_id")
-      .notNull()
-      .references(() => blog.id, { onDelete: "cascade" }),
-    name: text("name").notNull(),
+    ...namedPublicationRecord(),
     prefix: text("prefix").notNull(),
     keyHash: text("key_hash").notNull().unique(),
     scopes: text("scopes").array().notNull().default(["content:read"]),
