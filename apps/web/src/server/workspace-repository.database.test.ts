@@ -199,8 +199,8 @@ describe.skipIf(!databaseUrl)("PostgreSQL workspace repository", () => {
         ),
       );
       expect(failure).toMatchObject({
-        _tag: "WorkspaceRepositoryPersistenceError",
-        operation: "workspace.create",
+        _tag: "InvalidWorkspaceInput",
+        message: "A publication with this slug already exists",
       });
       await expect(
         resource.client.query.organization.findFirst({

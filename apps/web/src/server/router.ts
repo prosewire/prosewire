@@ -1,15 +1,7 @@
 import {
-  ApiAccessDenied,
-  ApiAuthenticationFailed,
-  ApiInputRejected,
-  ApiMediaConflict,
-  ApiMediaNotFound,
-  ApiMediaTooLarge,
-  ApiMediaUnavailable,
-  ApiPostNotFound,
-  ApiRevisionNotFound,
   ApiUnavailable,
   apiErrorStatusByTag,
+  apiErrors,
   decodePrivateApiRequest,
 } from "@prosewire/contract";
 import {
@@ -29,34 +21,14 @@ import {
   updatePost,
 } from "./api-entrypoints.ts";
 
-type ApiError =
-  | ApiInputRejected
-  | ApiAuthenticationFailed
-  | ApiAccessDenied
-  | ApiPostNotFound
-  | ApiRevisionNotFound
-  | ApiMediaNotFound
-  | ApiMediaConflict
-  | ApiMediaTooLarge
-  | ApiMediaUnavailable
-  | ApiUnavailable;
+type ApiError = InstanceType<(typeof apiErrors)[number]>;
 
 function isApiError(error: unknown): error is ApiError {
-  return (
-    error instanceof ApiInputRejected ||
-    error instanceof ApiAuthenticationFailed ||
-    error instanceof ApiAccessDenied ||
-    error instanceof ApiPostNotFound ||
-    error instanceof ApiRevisionNotFound ||
-    error instanceof ApiMediaNotFound ||
-    error instanceof ApiMediaConflict ||
-    error instanceof ApiMediaTooLarge ||
-    error instanceof ApiMediaUnavailable ||
-    error instanceof ApiUnavailable
-  );
+  return apiErrors.some((ErrorClass) => error instanceof ErrorClass);
 }
 
 function apiErrorResponse(error: unknown): Response {
+  if (!isApiError(error)) console.error("Unhandled private API failure", error);
   const failure = isApiError(error)
     ? error
     : new ApiUnavailable({ message: "Internal server error" });
@@ -109,5 +81,3 @@ export async function handlePrivateApi(request: Request): Promise<Response> {
     return apiErrorResponse(error);
   }
 }
-
-export * as PrivateApi from "./router";

@@ -127,29 +127,36 @@ describe.skipIf(!databaseUrl)("PostgreSQL publishing repository", () => {
       });
 
       const service = await publishing(resource.client);
+      const command = new CreatePostCommand({
+        blogId,
+        authorId,
+        categoryIds: [categoryId],
+        title: "Created from dashboard",
+        slug: "created-from-dashboard",
+        excerpt: "",
+        contentMarkdown: "# Dashboard post",
+        status: "draft",
+        featured: true,
+        coverImageUrl: null,
+        coverImageAlt: null,
+        seoTitle: null,
+        seoDescription: null,
+        focusKeyword: null,
+        canonicalUrl: null,
+        scheduledAt: null,
+      });
       const saved = await Effect.runPromise(
-        service.createPost(
-          new CreatePostCommand({
-            blogId,
-            authorId,
-            categoryIds: [categoryId],
-            title: "Created from dashboard",
-            slug: "created-from-dashboard",
-            excerpt: "",
-            contentMarkdown: "# Dashboard post",
-            status: "draft",
-            featured: true,
-            coverImageUrl: null,
-            coverImageAlt: null,
-            seoTitle: null,
-            seoDescription: null,
-            focusKeyword: null,
-            canonicalUrl: null,
-            scheduledAt: null,
-          }),
-          { _tag: "Dashboard", userId: ownerId },
+        service.createPost(command, { _tag: "Dashboard", userId: ownerId }),
+      );
+      const conflict = await Effect.runPromise(
+        Effect.flip(
+          service.createPost(command, { _tag: "Dashboard", userId: ownerId }),
         ),
       );
+      expect(conflict).toMatchObject({
+        _tag: "PostConflict",
+        message: "A post with this slug already exists in this publication",
+      });
       const savedId = saved.postId;
       const archived = await Effect.runPromise(
         service.archivePosts(

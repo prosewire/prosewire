@@ -21,6 +21,7 @@ export function actionErrorRedirect(
       return "/sign-in";
     case "PasswordChangeRequired":
       return "/change-password";
+    case "PostConflict":
     case "InvalidPost":
     case "InvalidBlogSettings":
     case "InvalidPasswordChange":

@@ -14,6 +14,7 @@ import type { ApiAccess } from "./api-access.ts";
 import { BlogAccess } from "./authorization.ts";
 import { BlogErrors } from "./blog-errors.ts";
 import { Database } from "./database.ts";
+import { databaseConflictMessage } from "./database-conflicts.ts";
 import {
   type ApiKeyId,
   AuthorId,
@@ -84,9 +85,12 @@ type PostRow = typeof schema.post.$inferSelect;
 
 export const create = Effect.fn("PublishingRepository.create")(function* () {
   const database = yield* Database;
-  const persistenceError = operationError(
-    (input) => new PersistenceError(input),
-  );
+  const persistenceError = operationError((input) => {
+    const message = databaseConflictMessage(input.cause);
+    return message
+      ? new PostErrors.PostConflict({ message })
+      : new PersistenceError(input);
+  });
   const execute = <A>(
     operation: string,
     evaluate: (client: Db) => PromiseLike<A>,
@@ -95,7 +99,7 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
   const executeResult = <A, E>(
     operation: string,
     evaluate: (client: Db) => PromiseLike<Result.Result<A, E>>,
-  ): Effect.Effect<A, PersistenceError | E> =>
+  ): Effect.Effect<A, PersistenceError | PostErrors.PostConflict | E> =>
     execute(operation, evaluate).pipe(
       Effect.flatMap(
         Result.match({

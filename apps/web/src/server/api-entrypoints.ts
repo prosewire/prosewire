@@ -1,13 +1,5 @@
 import {
-  ApiAccessDenied,
-  ApiAuthenticationFailed,
-  ApiInputRejected,
-  ApiMediaConflict,
-  ApiMediaNotFound,
-  ApiMediaTooLarge,
   ApiMediaUnavailable,
-  ApiPostNotFound,
-  ApiRevisionNotFound,
   ApiUnavailable,
   type MediaStartUploadInput,
   type PostCreateInput,
@@ -16,8 +8,8 @@ import {
 import { Effect, Result, Schema } from "effect";
 import { ApiAccess, type Scope } from "./api-access.ts";
 import { ApiContent, type PostListInput } from "./api-content.ts";
+import { type ApiApplicationError, toApiError } from "./api-errors.ts";
 import { type AppServices, runAppEffect } from "./app-runtime.ts";
-import { decodeTaggedError } from "./boundary-errors.ts";
 import { BlogId, MediaAssetId, PostId, PostRevisionId } from "./domain.ts";
 import { CompleteUploadInput, Media, StartUploadInput } from "./media.ts";
 import {
@@ -29,52 +21,23 @@ import {
 import { PostErrors } from "./post-errors.ts";
 import { PublishingRepository } from "./publishing-repository.ts";
 
-function toApiError(error: unknown) {
-  const tagged = decodeTaggedError(error);
-  switch (tagged?._tag) {
-    case "ApiAuthenticationFailed":
-      return new ApiAuthenticationFailed({ message: tagged.message });
-    case "ApiScopeDenied":
-    case "ApiBlogDenied":
-    case "ApiBlogReferenceDenied":
-      return new ApiAccessDenied({ message: tagged.message });
-    case "PostNotFound":
-      return new ApiPostNotFound({ message: tagged.message });
-    case "PostRevisionNotFound":
-      return new ApiRevisionNotFound({ message: tagged.message });
-    case "InvalidPost":
-    case "MediaInvalidUpload":
-    case "MediaInvalidImage":
-      return new ApiInputRejected({ message: tagged.message });
-    case "MediaAssetNotFound":
-      return new ApiMediaNotFound({ message: tagged.message });
-    case "MediaAssetInUse":
-    case "MediaInvalidState":
-    case "MediaUploadExpired":
-      return new ApiMediaConflict({ message: tagged.message });
-    case "MediaQuotaExceeded":
-      return new ApiMediaTooLarge({ message: tagged.message });
-    case "MediaStorageNotConfigured":
-    case "MediaObjectStorageError":
-    case "MediaImageProcessingError":
-      return new ApiMediaUnavailable({ message: tagged.message });
-    case "ApiAccessPersistenceError":
-    case "ApiContentPersistenceError":
-    case "PublishingRepositoryPersistenceError":
-    case "MediaPersistenceError":
-    case "InvalidPostRevision":
-    case "PostRenderingFailed":
-      return new ApiUnavailable({ message: tagged.message });
-  }
-  throw error;
-}
-
-async function runApi<A, E>(
+async function runApi<A, E extends ApiApplicationError>(
   request: Request,
   effect: Effect.Effect<A, E, AppServices>,
 ): Promise<A> {
-  const result = await runAppEffect(Effect.result(effect), request.signal);
-  if (Result.isFailure(result)) throw toApiError(result.failure);
+  const observed = effect.pipe(
+    Effect.catch((error) => {
+      const failure = toApiError(error);
+      const log =
+        failure instanceof ApiUnavailable ||
+        failure instanceof ApiMediaUnavailable
+          ? Effect.logError("Private API operation failed", error)
+          : Effect.void;
+      return log.pipe(Effect.andThen(Effect.fail(failure)));
+    }),
+  );
+  const result = await runAppEffect(Effect.result(observed), request.signal);
+  if (Result.isFailure(result)) throw result.failure;
   return result.success;
 }
 
@@ -374,5 +337,3 @@ export function deleteMedia(request: Request, id: string) {
     }),
   );
 }
-
-export * as ApiEntrypoints from "./api-entrypoints";

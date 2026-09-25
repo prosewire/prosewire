@@ -20,6 +20,8 @@ missing.
 | Localization | Publication language lists, default-language selection, and post locale assignment are implemented; translation management is not |
 | Import | Not implemented |
 
+Known duplicate post slugs return HTTP 409 with a typed `ApiPostConflict`; dashboard writes show an actionable conflict message. Internal API persistence failures log their cause and return a stable, nonempty public message.
+
 ## Publishing and discovery
 
 | Capability | Coverage |

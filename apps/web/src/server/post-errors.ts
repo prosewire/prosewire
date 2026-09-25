@@ -10,6 +10,11 @@ export class PostNotFound extends Schema.TaggedError<PostNotFound>()(
   }
 }
 
+export class PostConflict extends Schema.TaggedError<PostConflict>()(
+  "PostConflict",
+  { message: Schema.String },
+) {}
+
 export class InvalidPost extends Schema.TaggedError<InvalidPost>()(
   "InvalidPost",
   { message: Schema.String },
@@ -44,6 +49,7 @@ export class PostRenderingFailed extends Schema.TaggedError<PostRenderingFailed>
 export type Error =
   | PostNotFound
   | InvalidPost
+  | PostConflict
   | PostRevisionNotFound
   | InvalidPostRevision
   | PostRenderingFailed;
