@@ -58,17 +58,17 @@
     "provenance": true
   },
   "dependencies": {
-    "@effect/platform-node-shared": "4.0.0-rc.112",
+    "@effect/platform-node-shared": "4.0.0-rc.115",
     "@prosewire/sdk": "workspace:^",
-    "effect": "4.0.0-rc.112"
+    "effect": "4.0.0-rc.115"
   },
   "devDependencies": {
     "@prosewire/config": "workspace:*",
     "@prosewire/contract": "workspace:*",
-    "@types/node": "^26.2.0",
-    "tsdown": "^0.22.0",
+    "@types/node": "^26.6.1",
+    "tsdown": "^0.23.0",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.1"
   },
   "tsdown": {
     "entry": [

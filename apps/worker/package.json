@@ -15,23 +15,23 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@effect/platform-node-shared": "4.0.0-rc.112",
-    "@effect/sql-pg": "4.0.0-rc.112",
+    "@effect/platform-node-shared": "4.0.0-rc.115",
+    "@effect/sql-pg": "4.0.0-rc.115",
     "@prosewire/db": "workspace:*",
     "@prosewire/jobs": "workspace:*",
-    "better-auth": "^1.7.1",
+    "better-auth": "^1.7.5",
     "drizzle-orm": "^0.45.2",
-    "effect": "4.0.0-rc.112",
-    "nodemailer": "^9.0.5"
+    "effect": "4.0.0-rc.115",
+    "nodemailer": "^10.0.10"
   },
   "devDependencies": {
-    "@effect/vitest": "4.0.0-rc.112",
+    "@effect/vitest": "4.0.0-rc.115",
     "@prosewire/config": "workspace:*",
-    "@types/node": "^26.2.0",
+    "@types/node": "^26.6.1",
     "@types/nodemailer": "^8.0.1",
-    "tsdown": "^0.22.0",
-    "tsx": "^4.21.0",
+    "tsdown": "^0.23.0",
+    "tsx": "^4.23.13",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.1"
   }
 }

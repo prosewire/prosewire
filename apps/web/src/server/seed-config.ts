@@ -25,12 +25,12 @@ export class SeedConfig extends Context.Service<SeedConfig, SeedConfigShape>()(
   static readonly layer = Layer.effect(
     SeedConfig,
     Effect.gen(function* () {
-      const adminEmail = yield* Config.string("ADMIN_EMAIL").pipe(
+      const adminEmail = yield* Config.String("ADMIN_EMAIL").pipe(
         Config.withDefault("admin@prosewire.local"),
       );
-      const adminPassword = yield* Config.redacted("ADMIN_PASSWORD");
+      const adminPassword = yield* Config.Redacted("ADMIN_PASSWORD");
       const seedApiKey = yield* Config.option(
-        Config.redacted("PROSEWIRE_SEED_API_KEY"),
+        Config.Redacted("PROSEWIRE_SEED_API_KEY"),
       );
 
       const adminPasswordValue = Redacted.value(adminPassword);

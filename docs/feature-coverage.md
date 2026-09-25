@@ -39,6 +39,7 @@ missing.
 | --- | --- |
 | Workspaces and publications | Self-hosted uses one implicit team with multiple publications; Cloud supports multiple explicit workspaces; publication APIs remain isolated |
 | Self-hosted administrator bootstrap | The migration job can create one administrator on an empty installation; first login requires a password change and revokes existing sessions |
+| Authentication account identity | Accounts are unique by provider and provider account ID; the Better Auth 1.7.5 migration preserves historical issuers and rejects identity collisions |
 | Roles | Owner, admin, editor, author, and viewer are enforced at dashboard and private API boundaries |
 | Invitations | Email invitations, 48-hour expiry, acceptance, and cancellation are implemented |
 | Audit history | Dashboard visibility and records for workspace, membership, publication, content, scheduler, and API-key mutations are implemented |
@@ -54,6 +55,7 @@ missing.
 | Public JSON API | Implemented for published lists and individual posts |
 | Private management API | Implemented for health, publication listing, post list/get/create/update/archive, revision list/restore, and media upload/list/delete |
 | TypeScript SDK | Promise and Effect clients are published as pre-1.0 packages |
+| Framework packages | Headless Next.js and Astro readers are published; the Next.js package supports direct Node.js ES module imports |
 | CLI | Public read commands and authenticated create/update/archive commands are published |
 | MCP server | Read, mutating, and destructive tools are published with operation metadata and approval requirements |
 | Portable export | Versioned JSON includes publication relationships, revisions, and the media manifest; CSV includes managed cover identifiers; a separate ZIP contains sanitized original media files |

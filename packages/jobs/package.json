@@ -20,13 +20,13 @@
   },
   "dependencies": {
     "@redis/client": "^6.2.1",
-    "effect": "4.0.0-rc.112"
+    "effect": "4.0.0-rc.115"
   },
   "devDependencies": {
-    "@effect/vitest": "4.0.0-rc.112",
+    "@effect/vitest": "4.0.0-rc.115",
     "@prosewire/config": "workspace:*",
-    "@types/node": "^26.2.0",
+    "@types/node": "^26.6.1",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.1"
   }
 }

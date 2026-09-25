@@ -135,7 +135,6 @@ export default async function globalSetup(): Promise<void> {
         userId: acceptance.owner.id,
         accountId: acceptance.owner.id,
         providerId: "credential",
-        issuer: "local:credential",
         password,
       },
       {
@@ -143,7 +142,6 @@ export default async function globalSetup(): Promise<void> {
         userId: acceptance.viewer.id,
         accountId: acceptance.viewer.id,
         providerId: "credential",
-        issuer: "local:credential",
         password,
       },
       {
@@ -151,7 +149,6 @@ export default async function globalSetup(): Promise<void> {
         userId: acceptance.otherOwner.id,
         accountId: acceptance.otherOwner.id,
         providerId: "credential",
-        issuer: "local:credential",
         password,
       },
       {
@@ -159,7 +156,6 @@ export default async function globalSetup(): Promise<void> {
         userId: acceptance.workspaceLessOwner.id,
         accountId: acceptance.workspaceLessOwner.id,
         providerId: "credential",
-        issuer: "local:credential",
         password,
       },
       {
@@ -167,7 +163,6 @@ export default async function globalSetup(): Promise<void> {
         userId: acceptance.publicationLessOwner.id,
         accountId: acceptance.publicationLessOwner.id,
         providerId: "credential",
-        issuer: "local:credential",
         password,
       },
     ]);

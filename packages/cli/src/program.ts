@@ -60,13 +60,13 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
   const dependencies = { ...defaults, ...overrides };
   const root = Command.make("prosewire").pipe(
     Command.withSharedFlags({
-      url: Flag.string("url").pipe(
+      url: Flag.String("url").pipe(
         Flag.withDescription("Prosewire URL"),
         Flag.withDefault(
           dependencies.env["PROSEWIRE_API_URL"] ?? "http://localhost:3000",
         ),
       ),
-      key: Flag.string("key").pipe(
+      key: Flag.String("key").pipe(
         Flag.withDescription("Private API key"),
         Flag.optional,
       ),
@@ -76,7 +76,7 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
     ),
   );
 
-  const publication = Flag.string("blog").pipe(
+  const publication = Flag.String("blog").pipe(
     Flag.withDescription("Publication slug"),
     Flag.optional,
   );
@@ -85,7 +85,7 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
     "posts",
     {
       blog: publication,
-      search: Flag.string("search").pipe(
+      search: Flag.String("search").pipe(
         Flag.withDescription("Search published content"),
         Flag.optional,
       ),
@@ -113,7 +113,7 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
   const get = Command.make(
     "get",
     {
-      slug: Argument.string("slug"),
+      slug: Argument.String("slug"),
       blog: publication,
     },
     Effect.fn("Cli.get")(function* ({ blog, slug }) {
@@ -132,7 +132,7 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
     }),
   ).pipe(Command.withDescription("Get one published post"));
 
-  const dataFile = Flag.string("data").pipe(
+  const dataFile = Flag.String("data").pipe(
     Flag.withDescription("Path to JSON request body"),
   );
 
@@ -162,7 +162,7 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
 
   const update = Command.make(
     "update",
-    { id: Argument.string("id"), data: dataFile },
+    { id: Argument.String("id"), data: dataFile },
     Effect.fn("Cli.update")(function* ({ data, id }) {
       const parent = yield* root;
       const key =
@@ -192,8 +192,8 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
   const archive = Command.make(
     "archive",
     {
-      id: Argument.string("id"),
-      yes: Flag.boolean("yes").pipe(
+      id: Argument.String("id"),
+      yes: Flag.Boolean("yes").pipe(
         Flag.withDescription("Confirm the archive operation"),
       ),
     },
@@ -219,7 +219,7 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
 
   const revisions = Command.make(
     "revisions",
-    { id: Argument.string("id") },
+    { id: Argument.String("id") },
     Effect.fn("Cli.revisions")(function* ({ id }) {
       const parent = yield* root;
       const key =
@@ -240,9 +240,9 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
   const restore = Command.make(
     "restore",
     {
-      id: Argument.string("id"),
-      revisionId: Argument.string("revision-id"),
-      yes: Flag.boolean("yes").pipe(
+      id: Argument.String("id"),
+      revisionId: Argument.String("revision-id"),
+      yes: Flag.Boolean("yes").pipe(
         Flag.withDescription("Confirm the restore operation"),
       ),
     },
@@ -297,8 +297,8 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
   const mediaUpload = Command.make(
     "media-upload",
     {
-      file: Argument.string("file"),
-      blogId: Flag.string("blog-id").pipe(
+      file: Argument.String("file"),
+      blogId: Flag.String("blog-id").pipe(
         Flag.withDescription("Publication UUID"),
       ),
     },
@@ -351,8 +351,8 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
   const mediaDelete = Command.make(
     "media-delete",
     {
-      id: Argument.string("id"),
-      yes: Flag.boolean("yes").pipe(
+      id: Argument.String("id"),
+      yes: Flag.Boolean("yes").pipe(
         Flag.withDescription("Confirm permanent media deletion"),
       ),
     },

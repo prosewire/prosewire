@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound, permanentRedirect } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation.js";
 import { cache, createElement } from "react";
 import { ProsewireIndex, ProsewirePost } from "./components.tsx";
 import { postPresentationMetadata } from "./metadata.ts";

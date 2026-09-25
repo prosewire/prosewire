@@ -34,6 +34,12 @@ export default defineConfig({
       PROSEWIRE_PUBLIC_URL: baseURL,
       NEXT_PUBLIC_PROSEWIRE_PUBLIC_URL: baseURL,
       PROSEWIRE_DEPLOYMENT: "cloud",
+      // Cloud startup requires storage settings; this suite does not upload media.
+      PROSEWIRE_MEDIA_ENDPOINT: "http://127.0.0.1:9",
+      PROSEWIRE_MEDIA_BUCKET: "acceptance",
+      PROSEWIRE_MEDIA_ACCESS_KEY_ID: "acceptance-only",
+      PROSEWIRE_MEDIA_SECRET_ACCESS_KEY: "acceptance-only",
+      PROSEWIRE_MEDIA_PUBLIC_URL: "https://media.prosewire.test",
     },
   },
 });

@@ -18,9 +18,9 @@ class MigrationError extends Schema.TaggedError<MigrationError>()(
 }
 
 const program = Effect.gen(function* () {
-  const databaseUrl = yield* Config.redacted("DATABASE_URL");
+  const databaseUrl = yield* Config.Redacted("DATABASE_URL");
   const migrationsDir = yield* Config.option(
-    Config.string("PROSEWIRE_MIGRATIONS_DIR"),
+    Config.String("PROSEWIRE_MIGRATIONS_DIR"),
   );
   const bootstrapConfig = yield* loadBootstrapAdminConfig;
   const migrationsDirectory = Option.getOrUndefined(migrationsDir);
