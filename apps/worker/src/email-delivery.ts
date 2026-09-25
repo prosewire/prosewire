@@ -2,7 +2,7 @@ import {
   EmailDeliveryError,
   type EmailDeliveryJob,
 } from "@prosewire/jobs/email-queue";
-import { Context, Effect, Layer, Option, Redacted } from "effect";
+import { Context, Effect, Layer, Option, Redacted, Schema } from "effect";
 import nodemailer from "nodemailer";
 import { WorkerConfig } from "./worker-config.ts";
 
@@ -14,6 +14,30 @@ export interface Interface {
 
 type Deliver = (message: EmailDeliveryJob) => Promise<void>;
 
+const smtpFailure = Schema.Struct({
+  responseCode: Schema.optionalKey(Schema.Finite),
+  code: Schema.optionalKey(Schema.String),
+});
+
+export const isRetryable = (error: EmailDeliveryError): boolean => {
+  const failure = Schema.decodeUnknownOption(smtpFailure)(error.cause);
+  if (Option.isNone(failure)) return false;
+  const { responseCode, code } = failure.value;
+  if (responseCode !== undefined)
+    return responseCode >= 400 && responseCode < 500;
+  return (
+    code !== undefined &&
+    [
+      "ECONNECTION",
+      "ECONNRESET",
+      "ECONNREFUSED",
+      "ETIMEDOUT",
+      "ESOCKET",
+      "EDNS",
+    ].includes(code)
+  );
+};
+
 export function make(send: Deliver): Interface {
   const deliver = Effect.fn("EmailDelivery.deliver")(
     (message: EmailDeliveryJob) =>
@@ -22,6 +46,9 @@ export function make(send: Deliver): Interface {
         catch: (cause) =>
           new EmailDeliveryError({ recipient: message.recipient, cause }),
       }).pipe(
+        // Nodemailer has no per-message AbortSignal. Settle the SMTP
+        // operation before interruption releases the durable queue lease.
+        Effect.uninterruptible,
         Effect.tap(() =>
           Effect.logInfo("Email delivered", { recipient: message.recipient }),
         ),
@@ -41,11 +68,21 @@ export const layer = Layer.effect(
     const config = yield* WorkerConfig;
     const smtpUrl = Option.getOrUndefined(config.smtpUrl);
     const transport = smtpUrl
-      ? yield* Effect.try({
-          try: () => nodemailer.createTransport(Redacted.value(smtpUrl)),
-          catch: (cause) =>
-            new EmailDeliveryError({ recipient: "<transport>", cause }),
-        })
+      ? yield* Effect.acquireRelease(
+          Effect.try({
+            try: () =>
+              nodemailer.createTransport({
+                url: Redacted.value(smtpUrl),
+                dnsTimeout: 10_000,
+                connectionTimeout: 10_000,
+                greetingTimeout: 10_000,
+                socketTimeout: 30_000,
+              }),
+            catch: (cause) =>
+              new EmailDeliveryError({ recipient: "<transport>", cause }),
+          }),
+          (transport) => Effect.sync(() => transport.close()),
+        )
       : undefined;
     const send: Deliver = async (message) => {
       if (!transport) {
