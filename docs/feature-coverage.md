@@ -82,3 +82,5 @@ Upload reservations return HTTP 201 and are checked through the generated SDK ag
 | Backups and restore | Postgres and object-storage recovery are documented; snapshot schedules, replication, and offsite retention remain deployment-owned |
 | Stable public container | Release automation exists, but documentation does not assume registry access until a public image is independently verified |
 | Cloud legal baseline | Public Terms, Privacy, acceptable use, retention, subprocessor, data-location, security, copyright, data-request, and DPA pages are implemented; the maintainer runbook keeps business sales gated until provider, region, processor, transfer, and deletion facts are verified |
+
+Production workers reject missing or blank `SMTP_URL` during configuration, before starting email delivery or dispatching outbox intents. Development workers may omit SMTP.

@@ -1,5 +1,12 @@
-import type { Option, Redacted } from "effect";
-import { Config, Context, Effect, Layer, Schema } from "effect";
+import {
+  Config,
+  Context,
+  Effect,
+  Layer,
+  Option,
+  Redacted,
+  Schema,
+} from "effect";
 
 export class WorkerConfigurationError extends Schema.TaggedError<WorkerConfigurationError>()(
   "WorkerConfigurationError",
@@ -7,6 +14,7 @@ export class WorkerConfigurationError extends Schema.TaggedError<WorkerConfigura
     variable: Schema.Literals([
       "DATABASE_URL",
       "REDIS_URL",
+      "SMTP_URL",
       "PROSEWIRE_ANALYTICS_RETENTION_DAYS",
       "PROSEWIRE_EMAIL_WORKER_CONCURRENCY",
     ]),
@@ -56,6 +64,15 @@ export class WorkerConfig extends Context.Service<
       const environment = yield* Config.String("NODE_ENV").pipe(
         Config.withDefault("development"),
       );
+      if (
+        environment === "production" &&
+        (Option.isNone(smtpUrl) || Redacted.value(smtpUrl.value).trim() === "")
+      ) {
+        return yield* new WorkerConfigurationError({
+          variable: "SMTP_URL",
+          cause: new Error("SMTP_URL is required in production"),
+        });
+      }
       if (
         !Number.isInteger(analyticsRetentionDays) ||
         analyticsRetentionDays < 1
