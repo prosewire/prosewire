@@ -106,6 +106,13 @@
       "when": 1788380600132,
       "tag": "0014_yummy_wildside",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1790320552620,
+      "tag": "0015_freezing_norman_osborn",
+      "breakpoints": true
     }
   ]
 }

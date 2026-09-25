@@ -39,6 +39,7 @@ missing.
 | --- | --- |
 | Workspaces and publications | Self-hosted uses one implicit team with multiple publications; Cloud supports multiple explicit workspaces; publication APIs remain isolated |
 | Self-hosted administrator bootstrap | The migration job can create one administrator on an empty installation; first login requires a password change and revokes existing sessions |
+| Authentication account identity | Accounts are unique by provider and provider account ID; the Better Auth 1.7.5 migration preserves historical issuers and rejects identity collisions |
 | Roles | Owner, admin, editor, author, and viewer are enforced at dashboard and private API boundaries |
 | Invitations | Email invitations, 48-hour expiry, acceptance, and cancellation are implemented |
 | Audit history | Dashboard visibility and records for workspace, membership, publication, content, scheduler, and API-key mutations are implemented |

@@ -56,7 +56,6 @@ export const create = Effect.fn("AccountSecurity.create")(function* () {
           where: and(
             eq(schema.account.userId, userId),
             eq(schema.account.providerId, "credential"),
-            eq(schema.account.issuer, "local:credential"),
           ),
         }),
     );

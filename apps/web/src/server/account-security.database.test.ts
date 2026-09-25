@@ -35,7 +35,6 @@ describe.skipIf(!databaseUrl)("required bootstrap password change", () => {
           userId,
           accountId: userId,
           providerId: "credential",
-          issuer: "local:credential",
           password: temporaryHash,
         });
         await transaction.insert(schema.session).values([

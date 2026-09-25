@@ -131,7 +131,6 @@ export async function bootstrapAdmin(
             and(
               eq(schema.account.userId, existing.id),
               eq(schema.account.providerId, "credential"),
-              eq(schema.account.issuer, "local:credential"),
             ),
           )
           .limit(1);
@@ -147,7 +146,6 @@ export async function bootstrapAdmin(
             userId: existing.id,
             accountId: existing.id,
             providerId: "credential",
-            issuer: "local:credential",
             password,
           });
         }
@@ -172,7 +170,6 @@ export async function bootstrapAdmin(
         userId,
         accountId: userId,
         providerId: "credential",
-        issuer: "local:credential",
         password,
       });
       return "created";

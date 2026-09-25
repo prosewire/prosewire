@@ -103,6 +103,17 @@ Keep web, worker, and migrations on the same source version. Do not run differen
 
 Migration `0013_friendly_slipstream.sql` adds the required-password-change marker with a `false` default, so existing accounts are not forced through the bootstrap flow. If the migration job stops because bootstrap credentials are incomplete or invalid, correct or remove those variables and rerun it. The schema migration is idempotent. If the database itself cannot apply the column, keep the old release running and restore the pre-upgrade backup before retrying.
 
+Migration `0015_freezing_norman_osborn.sql` adapts accounts to Better Auth 1.7.5. It retains historical `issuer` values, makes the field optional, and replaces issuer-based uniqueness with `(provider_id, account_id)` uniqueness. Before upgrading, stop authentication writes, back up Postgres, and check for collisions:
+
+```sql
+SELECT provider_id, account_id, count(*)
+FROM account
+GROUP BY provider_id, account_id
+HAVING count(*) > 1;
+```
+
+The query must return no rows. If it finds collisions, keep the old release running and review the account owners and provider configuration. Do not merge different users or delete their accounts automatically. The migration creates the new unique index first and refuses collisions before relaxing the old constraints. Resolve each identity using trusted provider records, then rerun the migration. Deploy web and worker together after migration. To return to Better Auth 1.7.0 through 1.7.2 after accepting new accounts, restore the pre-upgrade database backup and previous application together; new accounts can lack an issuer, so reverting the application alone is unsafe.
+
 Migration `0011_flaky_bug.sql` rejects content relationships that already cross publication boundaries. Check before upgrading:
 
 ```sql
