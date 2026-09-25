@@ -91,7 +91,7 @@ describe.skipIf(!databaseUrl)("PostgreSQL scheduled publishing", () => {
       ]);
       expect(byId.get(duePostId)).toMatchObject({
         status: "published",
-        publishedAt: now,
+        publishedAt: new Date("2029-12-31T12:00:00.000Z"),
       });
       expect(byId.get(futurePostId)).toMatchObject({
         status: "scheduled",

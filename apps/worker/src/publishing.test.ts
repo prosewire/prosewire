@@ -175,7 +175,10 @@ describe.skipIf(!databaseUrl)(
             testDatabase.client.query.auditLog.findMany(),
           );
           expect(persisted?.status).toBe("published");
-          expect(persisted?.publishedAt).toEqual(now);
+          expect(persisted?.publishedAt).toEqual(
+            new Date("2026-08-19T00:00:00.000Z"),
+          );
+          expect(persisted?.updatedAt).toEqual(now);
           expect(audits).toEqual([
             expect.objectContaining({
               organizationId: "workspace-1",

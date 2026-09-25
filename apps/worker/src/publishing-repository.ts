@@ -27,7 +27,11 @@ export function make(db: Db): Interface {
           db.transaction(async (tx) => {
             const published = await tx
               .update(schema.post)
-              .set({ status: "published", publishedAt: now, updatedAt: now })
+              .set({
+                status: "published",
+                publishedAt: schema.post.scheduledAt,
+                updatedAt: now,
+              })
               .where(
                 and(
                   eq(schema.post.status, "scheduled"),

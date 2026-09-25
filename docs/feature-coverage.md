@@ -33,6 +33,8 @@ missing.
 | Custom CSS | Implemented per publication for rendered surfaces |
 | Analytics | First-party view events, overview metrics, and raw-event retention are implemented; external analytics adapters are not |
 
+Scheduled posts keep their scheduled time as the public publication date, including when a worker publishes them late.
+
 ## Teams and tenancy
 
 | Capability | Coverage |
