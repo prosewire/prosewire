@@ -1,9 +1,7 @@
+import { PostId } from "@prosewire/contract/domain";
 import { Schema } from "effect";
 
-export const PostId = Schema.String.check(Schema.isUUID()).pipe(
-  Schema.brand("@prosewire/PostId"),
-);
-export type PostId = typeof PostId.Type;
+export { PostId } from "@prosewire/contract/domain";
 
 export class PublishedPost extends Schema.Class<PublishedPost>(
   "Publishing.PublishedPost",

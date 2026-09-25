@@ -3,11 +3,20 @@ import {
   canUpdatePost,
   hasPermission,
   isTeamRole,
+  normalizeTeamRole,
   permissions,
   teamRoles,
 } from "./permissions.ts";
 
 describe("workspace permissions", () => {
+  it("normalizes legacy members and denies unknown stored roles", () => {
+    expect(normalizeTeamRole("member")).toBe("viewer");
+    for (const role of teamRoles) expect(normalizeTeamRole(role)).toBe(role);
+    expect(normalizeTeamRole("superadmin")).toBeUndefined();
+    expect(normalizeTeamRole("owner,admin")).toBeUndefined();
+    expect(normalizeTeamRole("")).toBeUndefined();
+  });
+
   it("keeps the persisted role vocabulary explicit", () => {
     expect(teamRoles).toEqual(["owner", "admin", "editor", "author", "viewer"]);
     expect(isTeamRole("editor")).toBe(true);

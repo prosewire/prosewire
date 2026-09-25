@@ -1,4 +1,8 @@
-import { hasPermission, isTeamRole, type Permission } from "@prosewire/core";
+import {
+  hasPermission,
+  normalizeTeamRole,
+  type Permission,
+} from "@prosewire/core";
 import type { Db } from "@prosewire/db/client";
 import * as schema from "@prosewire/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -16,11 +20,6 @@ import {
 } from "./domain.ts";
 
 export type TransactionClient = Parameters<Parameters<Db["transaction"]>[0]>[0];
-
-function role(value: string) {
-  const normalized = value === "member" ? "viewer" : value;
-  return isTeamRole(normalized) ? normalized : undefined;
-}
 
 export async function lockWorkspaceAuthorization(
   transaction: TransactionClient,
@@ -47,7 +46,7 @@ export async function lockWorkspaceAuthorization(
     )
     .for("share");
   const row = rows[0];
-  const normalizedRole = row ? role(row.role) : undefined;
+  const normalizedRole = row ? normalizeTeamRole(row.role) : undefined;
   if (!row || !normalizedRole || !hasPermission(normalizedRole, capability)) {
     return undefined;
   }
@@ -86,7 +85,7 @@ export async function lockBlogAuthorization(
     .where(eq(schema.blog.id, blogId))
     .for("share");
   const row = rows[0];
-  const normalizedRole = row ? role(row.role) : undefined;
+  const normalizedRole = row ? normalizeTeamRole(row.role) : undefined;
   if (!row || !normalizedRole || !hasPermission(normalizedRole, capability)) {
     return undefined;
   }

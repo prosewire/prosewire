@@ -250,6 +250,9 @@ importers:
       '@effect/sql-pg':
         specifier: 4.0.0-rc.115
         version: 4.0.0-rc.115(effect@4.0.0-rc.115)
+      '@prosewire/contract':
+        specifier: workspace:*
+        version: link:../../packages/contract
       '@prosewire/db':
         specifier: workspace:*
         version: link:../../packages/db
