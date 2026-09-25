@@ -45,6 +45,11 @@ import {
 } from "./domain.ts";
 import { operationError } from "./operation-error.ts";
 
+export class ViewRateLimited extends Schema.TaggedError<ViewRateLimited>()(
+  "ViewRateLimited",
+  {},
+) {}
+
 export interface PublicPostOptions {
   readonly search?: string;
   readonly category?: string;
@@ -505,8 +510,27 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
     referrer: string | null,
   ) {
     const now = new Date(yield* Clock.currentTimeMillis);
-    return yield* execute("postView.create", (client) =>
+    const result = yield* execute("postView.create", (client) =>
       client.transaction(async (transaction) => {
+        // This lock is shared by replicas and never queues behind a hot post.
+        const lock = await transaction.execute<{ acquired: boolean }>(
+          sql`select pg_try_advisory_xact_lock(hashtextextended(${postId}, 7331)) as acquired`,
+        );
+        if (!lock.rows[0]?.acquired) return new ViewRateLimited({});
+        const recent = await transaction
+          .select({ id: schema.postView.id })
+          .from(schema.postView)
+          .where(
+            and(
+              eq(schema.postView.postId, postId),
+              gte(
+                schema.postView.occurredAt,
+                sql`statement_timestamp() - interval '1 minute'`,
+              ),
+            ),
+          )
+          .limit(600);
+        if (recent.length >= 600) return new ViewRateLimited({});
         const [publicPost] = await transaction
           .select({ id: schema.post.id })
           .from(schema.post)
@@ -527,6 +551,8 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
         return true;
       }),
     );
+    if (result instanceof ViewRateLimited) return yield* result;
+    return result;
   });
 
   return {

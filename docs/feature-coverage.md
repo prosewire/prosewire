@@ -31,7 +31,7 @@ missing.
 | Related posts and table of contents | Implemented in the public article reader |
 | RSS, XML sitemap, canonical metadata, Open Graph and social cards, and JSON-LD | Implemented across the bundled, Next.js, and Astro readers |
 | Custom CSS | Implemented per publication for rendered surfaces |
-| Analytics | First-party view events, overview metrics, and raw-event retention are implemented; external analytics adapters are not |
+| Analytics | First-party view events are limited to 600 per post per rolling minute across replicas, with HTTP 429 on excess or concurrent contention; overview metrics and raw-event retention are implemented; external analytics adapters are not |
 
 ## Teams and tenancy
 
