@@ -59,7 +59,11 @@ export class Database extends Context.Service<Database, DatabaseShape>()(
             Effect.tryPromise({
               try: () => evaluate(client),
               catch: (cause) => new DatabaseError({ operation, cause }),
-            }),
+            }).pipe(
+              // Drizzle cannot cancel an in-flight transaction. Keep its fiber
+              // alive until commit or rollback finishes before running finalizers.
+              Effect.uninterruptible,
+            ),
           ).pipe(Effect.withSpan(operation));
         return { client, execute };
       }),

@@ -304,43 +304,93 @@ describe("web infrastructure", () => {
     }),
   );
 
-  it("opens the database lazily and closes it with the managed runtime", async () => {
-    let opened = 0;
-    let closed = 0;
-    const config = Layer.succeed(WebConfig, {
-      defaultBlog: "fieldnotes",
-      publicUrl: "http://localhost:3000",
-      databaseUrl: Redacted.make("postgres://test"),
-      authSecret: Redacted.make("test-secret-at-least-32-characters"),
-      allowSignUp: false,
-      deployment: "self-hosted",
-      environment: "test",
-    });
-    const database = Database.layerWith(() => {
-      opened += 1;
-      const resource = openDb("postgres://test");
-      return {
-        client: resource.client,
-        close: async () => {
-          closed += 1;
-          await resource.close();
-        },
-      };
-    }).pipe(Layer.provide(config));
-    const runtime = ManagedRuntime.make(database);
+  it.each(["commit", "rollback"] as const)(
+    "waits for database %s before interruption cleanup",
+    async (outcome) => {
+      let opened = 0;
+      let closed = 0;
+      const config = Layer.succeed(WebConfig, {
+        defaultBlog: "fieldnotes",
+        publicUrl: "http://localhost:3000",
+        databaseUrl: Redacted.make("postgres://test"),
+        authSecret: Redacted.make("test-secret-at-least-32-characters"),
+        allowSignUp: false,
+        deployment: "self-hosted",
+        environment: "test",
+      });
+      const database = Database.layerWith(() => {
+        opened += 1;
+        const resource = openDb("postgres://test");
+        return {
+          client: resource.client,
+          close: async () => {
+            closed += 1;
+            await resource.close();
+          },
+        };
+      }).pipe(Layer.provide(config));
+      const runtime = ManagedRuntime.make(database);
 
-    try {
-      await runtime.runPromise(Effect.void);
-      expect(opened).toBe(0);
+      try {
+        await runtime.runPromise(Effect.void);
+        expect(opened).toBe(0);
 
-      await runtime.runPromise(
-        Effect.flatMap(Database, (service) => service.client),
-      );
-      expect(opened).toBe(1);
-    } finally {
-      await runtime.dispose();
-    }
+        await runtime.runPromise(
+          Effect.flatMap(Database, (service) => service.client),
+        );
+        expect(opened).toBe(1);
+        const events: string[] = [];
+        let settle!: () => void;
+        let started!: () => void;
+        const ready = new Promise<void>((resolve) => {
+          started = resolve;
+        });
+        const controller = new AbortController();
+        const running = runtime
+          .runPromise(
+            Effect.flatMap(Database, (service) =>
+              service.execute("transaction", () => {
+                started();
+                return new Promise<void>((resolve, reject) => {
+                  settle = () => {
+                    events.push(outcome);
+                    if (outcome === "commit") resolve();
+                    else reject(new Error("transaction rolled back"));
+                  };
+                });
+              }),
+            ).pipe(
+              Effect.ensuring(
+                Effect.sync(() => {
+                  events.push("finalized");
+                }),
+              ),
+            ),
+            { signal: controller.signal },
+          )
+          .then(
+            () => {
+              events.push("completed");
+            },
+            () => {
+              events.push("interrupted");
+            },
+          );
+        await ready;
+        controller.abort();
+        await Promise.resolve();
+        expect(events).toEqual([]);
+        expect(closed).toBe(0);
+        settle();
+        await running;
+        expect(events[0]).toBe(outcome);
+        expect(events.indexOf("finalized")).toBeGreaterThan(0);
+        expect(events.at(-1)).toBe("interrupted");
+      } finally {
+        await runtime.dispose();
+      }
 
-    expect(closed).toBe(1);
-  });
+      expect(closed).toBe(1);
+    },
+  );
 });
