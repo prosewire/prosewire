@@ -45,6 +45,12 @@ import {
 } from "./domain.ts";
 import { operationError } from "./operation-error.ts";
 
+const isPostLockUnavailable = Schema.is(
+  Schema.Struct({
+    cause: Schema.Struct({ code: Schema.Literal("55P03") }),
+  }),
+);
+
 export class ViewRateLimited extends Schema.TaggedError<ViewRateLimited>()(
   "ViewRateLimited",
   {},
@@ -531,7 +537,7 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
           )
           .limit(600);
         if (recent.length >= 600) return new ViewRateLimited({});
-        const [publicPost] = await transaction
+        const posts = await transaction
           .select({ id: schema.post.id })
           .from(schema.post)
           .where(
@@ -542,11 +548,21 @@ export const create = Effect.fn("ContentQueries.create")(function* () {
               lte(schema.post.publishedAt, now),
             ),
           )
-          .for("update");
-        if (!publicPost) return false;
+          .for("update", { noWait: true })
+          .catch((cause: unknown) => {
+            if (isPostLockUnavailable(cause)) return new ViewRateLimited({});
+            throw cause;
+          });
+        if (posts instanceof ViewRateLimited) return posts;
+        if (!posts[0]) return false;
         await transaction
           .insert(schema.postView)
-          .values({ postId, eventId, referrer })
+          .values({
+            postId,
+            eventId,
+            referrer,
+            occurredAt: sql`statement_timestamp()`,
+          })
           .onConflictDoNothing({ target: schema.postView.eventId });
         return true;
       }),

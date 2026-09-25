@@ -404,6 +404,19 @@ describe.skipIf(!databaseUrl)("PostgreSQL content queries", () => {
         ),
       ).toBe(true);
       await resource.client.transaction(async (transaction) => {
+        await transaction
+          .select()
+          .from(schema.post)
+          .where(eq(schema.post.id, fixture.firstPostId))
+          .for("update");
+        const error = await Effect.runPromise(
+          Effect.flip(
+            second.recordPostView(fixture.firstPostId, randomUUID(), null),
+          ).pipe(Effect.timeout("2 seconds")),
+        );
+        expect(error._tag).toBe("ViewRateLimited");
+      });
+      await resource.client.transaction(async (transaction) => {
         await transaction.execute(
           sql`select pg_advisory_xact_lock(hashtextextended(${fixture.firstPostId}, 7331))`,
         );
