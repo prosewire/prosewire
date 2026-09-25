@@ -213,28 +213,42 @@ export function make(
       }),
     getStream: (key) =>
       Stream.unwrap(
-        Effect.acquireRelease(
-          request("stream object", async (signal) => {
+        Effect.gen(function* () {
+          const resource = yield* Effect.acquireRelease(
+            Effect.sync(
+              (): { body: ReadableStream<Uint8Array> | undefined } => ({
+                body: undefined,
+              }),
+            ),
+            (resource) =>
+              Effect.tryPromise({
+                try: async () => {
+                  if (resource.body && !resource.body.locked)
+                    await resource.body.cancel();
+                },
+                catch: (cause) => storageError("close object stream", cause),
+              }).pipe(
+                Effect.tapError((error) =>
+                  Effect.logError("Failed to close object stream", error),
+                ),
+                Effect.ignore,
+              ),
+          );
+          const body = yield* request("stream object", async (signal) => {
             const output = await client.send(
               new GetObjectCommand({ Bucket: config.bucket, Key: key }),
               { abortSignal: signal },
             );
             if (!output.Body)
               throw new Error("Object storage returned no body");
-            return output.Body.transformToWebStream();
-          }),
-          (body) =>
-            Effect.promise(async () => {
-              if (!body.locked) await body.cancel();
-            }).pipe(Effect.ignore),
-        ).pipe(
-          Effect.map((body) =>
-            Stream.fromReadableStream({
-              evaluate: () => body,
-              onError: (cause) => storageError("stream object", cause),
-            }),
-          ),
-        ),
+            resource.body = output.Body.transformToWebStream();
+            return resource.body;
+          });
+          return Stream.fromReadableStream({
+            evaluate: () => body,
+            onError: (cause) => storageError("stream object", cause),
+          });
+        }),
       ),
     put: (key, contentType, body) =>
       request("write processed object", (signal) =>

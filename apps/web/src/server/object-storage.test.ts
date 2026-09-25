@@ -16,9 +16,9 @@ const storageConfig = {
   uploadUrlExpiresSeconds: 600,
 };
 
-it.effect(
-  "aborts S3 and waits for its request to settle before releasing the caller",
-  () =>
+it.effect.each(["put", "stream"] as const)(
+  "%s aborts S3 and waits for its request to settle before releasing the caller",
+  (operation) =>
     Effect.gen(function* () {
       const started = yield* Deferred.make<void>();
       const aborted = yield* Deferred.make<void>();
@@ -42,7 +42,9 @@ it.effect(
       });
       const storage = ObjectStorage.make(storageConfig, client);
       const fiber = yield* Effect.forkChild(
-        storage.put("file", "image/png", new Uint8Array([1])),
+        operation === "put"
+          ? storage.put("file", "image/png", new Uint8Array([1]))
+          : Stream.runDrain(storage.getStream("file")),
       );
       yield* Deferred.await(started);
       const interrupt = yield* Effect.forkChild(Fiber.interrupt(fiber));
