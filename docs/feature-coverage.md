@@ -67,7 +67,7 @@ missing.
 | Local development | Node.js, pnpm, and Docker workflow with migrations and development seed |
 | Source-based self-hosting | Docker Compose runs Postgres, Redis with AOF persistence, a one-shot migration, web, and worker services |
 | Managed infrastructure | A Compose topology is provided for an externally built image, Postgres, Redis, SMTP, and a load balancer |
-| Scheduled publishing | A named Effect workflow runs the database scan and atomic publication updates; the single workflow worker recovers persisted executions after restart |
+| Scheduled publishing | Publication dates preserve the scheduled time when a worker runs late; a named Effect workflow runs the database scan and atomic publication updates; the single workflow worker recovers persisted executions after restart |
 | Invitation delivery | Invitation state and a typed email intent commit together in Postgres; `LISTEN`/`NOTIFY` starts an outbox workflow immediately, a 30-second scan covers missed notifications, and an idempotent email workflow waits on Effect `DurableQueue` in Redis |
 | Background workflow scaling | Workflow messages and results persist in Postgres; the pinned Effect SQL runner requires exactly one Prosewire worker process per database, with configurable in-process email concurrency |
 | Backups and restore | Postgres and object-storage recovery are documented; snapshot schedules, replication, and offsite retention remain deployment-owned |
