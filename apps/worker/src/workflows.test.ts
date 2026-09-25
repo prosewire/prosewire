@@ -3,17 +3,20 @@ import * as EmailQueue from "@prosewire/jobs/email-queue";
 import { Effect, Layer } from "effect";
 import * as PersistedQueue from "effect/unstable/persistence/PersistedQueue";
 import { DurableQueue, WorkflowEngine } from "effect/unstable/workflow";
-import { AnalyticsRetention } from "./analytics-retention.ts";
+import {
+  AnalyticsRetention,
+  AnalyticsRetentionError,
+} from "./analytics-retention.ts";
 import { PostId, PublishedPost } from "./domain.ts";
 import { EmailDelivery } from "./email-delivery.ts";
 import { EmailOutbox } from "./email-outbox.ts";
 import { Publishing } from "./publishing.ts";
 import {
-  AnalyticsRetentionWorkflow,
   EmailDeliveryWorkflow,
-  EmailOutboxWorkflow,
   handlersLayer,
-  ScheduledPublishingWorkflow,
+  startAnalyticsRetention,
+  startEmailOutbox,
+  startScheduledPublishing,
 } from "./workflows.ts";
 
 const now = "2026-08-25T12:00:00.000Z";
@@ -71,7 +74,7 @@ function testLayer(state: {
 }
 
 describe("worker workflows", () => {
-  it.effect("deduplicates publishing and retention execution ids", () => {
+  it.effect("runs repeatable scans without requiring workflow storage", () => {
     const state = {
       published: 0,
       pruned: 0,
@@ -82,29 +85,27 @@ describe("worker workflows", () => {
     return Effect.gen(function* () {
       const published = yield* Effect.all(
         [
-          ScheduledPublishingWorkflow.execute({ requestedAt: now }),
-          ScheduledPublishingWorkflow.execute({ requestedAt: now }),
+          startScheduledPublishing(new Date(now)),
+          startScheduledPublishing(new Date(now)),
         ],
         { concurrency: "unbounded" },
       );
       const retained = yield* Effect.all(
         [
-          AnalyticsRetentionWorkflow.execute({ requestedAt: now }),
-          AnalyticsRetentionWorkflow.execute({
-            requestedAt: "2026-08-25T23:59:00.000Z",
-          }),
+          startAnalyticsRetention(new Date(now)),
+          startAnalyticsRetention(new Date("2026-08-25T23:59:00.000Z")),
         ],
         { concurrency: "unbounded" },
       );
 
       expect(published[0]).toEqual(published[1]);
       expect(retained).toEqual([3, 3]);
-      expect(state.published).toBe(1);
-      expect(state.pruned).toBe(1);
+      expect(state.published).toBe(2);
+      expect(state.pruned).toBe(2);
     }).pipe(Effect.provide(testLayer(state)));
   });
 
-  it.effect("drains the outbox inside its workflow", () => {
+  it.effect("waits for the complete outbox drain", () => {
     const state = {
       published: 0,
       pruned: 0,
@@ -113,14 +114,37 @@ describe("worker workflows", () => {
     };
 
     return Effect.gen(function* () {
-      const result = yield* EmailOutboxWorkflow.execute({
-        requestId: "request-1",
-        requestedAt: now,
-      });
+      const result = yield* startEmailOutbox();
 
       expect(result).toEqual({ dispatched: 2, deferred: 0 });
       expect(state.outboxCalls).toBe(2);
     }).pipe(Effect.provide(testLayer(state)));
+  });
+
+  it.effect("retries retention after a failed run on the same day", () => {
+    let attempts = 0;
+    return Effect.gen(function* () {
+      const first = yield* Effect.result(
+        startAnalyticsRetention(new Date(now)),
+      );
+      expect(first._tag).toBe("Failure");
+      expect(yield* startAnalyticsRetention(new Date(now))).toBe(3);
+      expect(attempts).toBe(2);
+    }).pipe(
+      Effect.provideService(AnalyticsRetention.Service, {
+        pruneExpired: () =>
+          Effect.suspend(() =>
+            ++attempts === 1
+              ? Effect.fail(
+                  new AnalyticsRetentionError({
+                    operation: "prune",
+                    cause: new Error("temporary failure"),
+                  }),
+                )
+              : Effect.succeed(3),
+          ),
+      }),
+    );
   });
 
   it.effect("waits for Redis-style queue work before completing email", () => {

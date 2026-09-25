@@ -73,8 +73,9 @@ Upload reservations return HTTP 201 and are checked through the generated SDK ag
 | Local development | Node.js, pnpm, and Docker workflow with migrations and development seed |
 | Source-based self-hosting | Docker Compose runs Postgres, Redis with AOF persistence, a one-shot migration, web, and worker services |
 | Managed infrastructure | A Compose topology is provided for an externally built image, Postgres, Redis, SMTP, and a load balancer |
-| Scheduled publishing | A named Effect workflow runs the database scan and atomic publication updates; the single workflow worker recovers persisted executions after restart |
-| Invitation delivery | Invitation state and a typed email intent commit together in Postgres; `LISTEN`/`NOTIFY` starts an outbox workflow immediately, a 30-second scan covers missed notifications, and an idempotent email workflow waits on Effect `DurableQueue` in Redis |
+| Scheduled publishing | Supervised Effect scans await atomic publication updates every 30 seconds; scans restart immediately after process recovery without persisting empty polling executions |
+| Invitation delivery | Invitation state and a typed email intent commit together in Postgres; `LISTEN`/`NOTIFY` drains the outbox immediately, a 30-second scan covers missed notifications, and an idempotent email workflow waits on Effect `DurableQueue` in Redis |
+| Analytics retention recovery | Supervised daily scans retry transient failures three times at one-minute intervals; a failed run does not prevent same-day retry or restart recovery |
 | Redis connection lifecycle | Connections and subscriptions have a ten-second startup bound; scoped shutdown destroys owned sockets and rejects outstanding commands, while established connections retain automatic reconnection |
 | Background workflow scaling | Workflow messages and results persist in Postgres; the pinned Effect SQL runner requires exactly one Prosewire worker process per database, with configurable in-process email concurrency |
 | Backups and restore | Postgres and object-storage recovery are documented; snapshot schedules, replication, and offsite retention remain deployment-owned |
