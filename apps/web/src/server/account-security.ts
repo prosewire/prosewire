@@ -1,7 +1,7 @@
 import * as schema from "@prosewire/db/schema";
 import { hashPassword, verifyPassword } from "better-auth/crypto";
 import { and, eq } from "drizzle-orm";
-import { Context, Effect, Layer, Result, Schema } from "effect";
+import { Clock, Context, Effect, Layer, Result, Schema } from "effect";
 import { Database, type DatabaseError } from "./database.ts";
 import type { UserId } from "./domain.ts";
 import { promiseEffect } from "./external-effect.ts";
@@ -86,6 +86,7 @@ export const create = Effect.fn("AccountSecurity.create")(function* () {
       (cause) => new PasswordHashingFailed({ cause }),
     );
 
+    const now = new Date(yield* Clock.currentTimeMillis);
     const result = yield* database.execute(
       "accountSecurity.changeRequiredPassword",
       (client) =>
@@ -109,7 +110,7 @@ export const create = Effect.fn("AccountSecurity.create")(function* () {
           }
           const updatedCredentials = await transaction
             .update(schema.account)
-            .set({ password, updatedAt: new Date() })
+            .set({ password, updatedAt: now })
             .where(
               and(
                 eq(schema.account.id, credential.id),
@@ -127,7 +128,7 @@ export const create = Effect.fn("AccountSecurity.create")(function* () {
           }
           await transaction
             .update(schema.user)
-            .set({ mustChangePassword: false, updatedAt: new Date() })
+            .set({ mustChangePassword: false, updatedAt: now })
             .where(eq(schema.user.id, userId));
           await transaction
             .delete(schema.session)

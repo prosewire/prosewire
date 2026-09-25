@@ -90,6 +90,7 @@ export const loadBootstrapAdminConfig = Effect.gen(function* () {
 export async function bootstrapAdmin(
   databaseUrl: string,
   config: BootstrapAdminConfig,
+  now: Date,
 ): Promise<BootstrapAdminResult> {
   const database = openDb(databaseUrl);
   try {
@@ -138,7 +139,7 @@ export async function bootstrapAdmin(
         if (credential) {
           await transaction
             .update(schema.account)
-            .set({ password, updatedAt: new Date() })
+            .set({ password, updatedAt: now })
             .where(eq(schema.account.id, credential.id));
         } else {
           await transaction.insert(schema.account).values({
@@ -147,11 +148,13 @@ export async function bootstrapAdmin(
             accountId: existing.id,
             providerId: "credential",
             password,
+            createdAt: now,
+            updatedAt: now,
           });
         }
         await transaction
           .update(schema.user)
-          .set({ name: config.name, updatedAt: new Date() })
+          .set({ name: config.name, updatedAt: now })
           .where(eq(schema.user.id, existing.id));
         return "refreshed";
       }
@@ -164,6 +167,8 @@ export async function bootstrapAdmin(
         name: config.name,
         role: "admin",
         mustChangePassword: true,
+        createdAt: now,
+        updatedAt: now,
       });
       await transaction.insert(schema.account).values({
         id: randomUUID(),
@@ -171,6 +176,8 @@ export async function bootstrapAdmin(
         accountId: userId,
         providerId: "credential",
         password,
+        createdAt: now,
+        updatedAt: now,
       });
       return "created";
     });
