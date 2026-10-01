@@ -44,9 +44,9 @@
     "tailwind-merge": "^3.7.0"
   },
   "devDependencies": {
-    "@effect/vitest": "4.0.0-rc.115",
-    "@modelcontextprotocol/sdk": "^1.30.0",
-    "@next/playwright": "16.3.5",
+    "@effect/vitest": "4.0.0-rc.117",
+    "@modelcontextprotocol/sdk": "^1.30.1",
+    "@next/playwright": "16.3.6",
     "@playwright/test": "^1.63.0",
     "@prosewire/cli": "workspace:*",
     "@prosewire/config": "workspace:*",
@@ -54,7 +54,7 @@
     "@prosewire/sdk": "workspace:*",
     "@tailwindcss/postcss": "^4.3.1",
     "@tiptap/core": "3.31.3",
-    "@types/node": "^26.6.1",
+    "@types/node": "^26.6.2",
     "@types/pg": "^8.20.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
