@@ -365,6 +365,12 @@ export default async function globalSetup(): Promise<void> {
         publishedAt: past,
       },
     ]);
+    await database.insert(schema.redirect).values({
+      blogId: acceptance.blog.id,
+      fromPath: "acceptance-original",
+      toPath: "acceptance-published",
+      statusCode: 301,
+    });
     await database.insert(schema.postCategory).values({
       postId: acceptance.posts.published,
       categoryId: acceptance.category.id,

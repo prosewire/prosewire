@@ -1,7 +1,7 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "ui": "tui",
-  "globalPassThroughEnv": ["PUBLISHED_PACKAGES"],
+  "globalPassThroughEnv": ["PUBLISHED_PACKAGES", "PROSEWIRE_ONBOARDING_URL"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

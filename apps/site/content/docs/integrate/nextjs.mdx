@@ -5,7 +5,7 @@ section: Integrate
 order: 1
 ---
 
-## Five-minute setup
+## Scaffold the reader
 
 Run the scaffolder from the root of an existing Next.js project:
 
@@ -21,6 +21,16 @@ It detects the App Router or Pages Router, installs `@prosewire/next`, and creat
 In a monorepo, run the command from the workspace root. A single Next.js or Astro app is selected automatically. When the workspace has multiple supported apps, add `--cwd apps/web`. The dependency is written to that app, but installation uses the workspace package manager at the root, so the command does not create a nested lockfile.
 
 The generated reader needs no API key. Only published content whose publication time has arrived is available through the public client.
+
+## Verify the first build
+
+The deployment URL must be reachable during the production build, and the publication slug must match a publication on that deployment. Publish a post in the dashboard before building the host application:
+
+```shell
+pnpm build
+```
+
+Run the built application with your deployment's normal production command. Open `/blog` and the published article. The index and article should render without a management key or client-side JavaScript. Check that a draft, future scheduled post, archived post, and unknown slug return 404; rename the published post and confirm its previous slug redirects to the replacement.
 
 ## App Router shape
 

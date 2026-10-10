@@ -1,6 +1,6 @@
 ---
 title: Run Prosewire locally
-description: Bring up the dashboard, background worker, and Postgres in a few minutes.
+description: Bring up the dashboard, background worker, Postgres, and Redis from source.
 section: Start here
 order: 1
 ---
@@ -16,13 +16,13 @@ This guide is for local development from source. For a production instance, use 
 
 ## Clone and start
 
-Clone the repository, install the workspace, start Postgres, then run all development processes.
+Clone the repository, install the workspace, start Postgres and Redis, then run all development processes.
 
 ```shell
 git clone https://github.com/prosewire/prosewire.git
 cd prosewire
 cp .env.example .env
-pnpm install
+pnpm install --frozen-lockfile
 pnpm dev:services
 pnpm dev
 ```
@@ -61,7 +61,7 @@ The response should report `"status":"ok"`. Then open the Fieldnotes reader from
 
 ## Stop local services
 
-Stop `pnpm dev` with `Ctrl+C`, then stop the supporting container:
+Stop `pnpm dev` with `Ctrl+C`, then stop the supporting containers:
 
 ```shell
 docker compose -f docker-compose.yml -f docker-compose.dev.yml down

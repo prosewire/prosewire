@@ -14,7 +14,14 @@ const executable = (name) =>
     process.platform === "win32" ? `${name}.cmd` : name,
   );
 const npm = join(root, executable("npm"));
-const registryMode = process.argv.includes("--registry");
+const readerMode = process.argv.includes("--readers");
+const latestRegistryMode = process.argv.includes("--registry-latest");
+const registryMode = process.argv.includes("--registry") || latestRegistryMode;
+if (readerMode)
+  assert.ok(
+    process.env.PROSEWIRE_ONBOARDING_URL,
+    "PROSEWIRE_ONBOARDING_URL must point to a backend with the acceptance fixtures",
+  );
 const packageArgument = process.argv.find((argument) =>
   argument.startsWith("--packages="),
 );
@@ -130,7 +137,9 @@ try {
 
   if (registryMode) {
     for (const [, name] of packages)
-      dependencies[name] = sourceManifests.get(name).version;
+      dependencies[name] = latestRegistryMode
+        ? capture(npm, ["view", name, "dist-tags.latest"]).trim()
+        : sourceManifests.get(name).version;
   } else {
     run(pnpm, [...packages.flatMap(([, name]) => ["--filter", name]), "build"]);
     await mkdir(tarballs);
@@ -309,7 +318,10 @@ try {
           )
         : join(temporary, "node_modules", name, "package.json");
       const manifest = JSON.parse(await readFile(installedPath, "utf8"));
-      assert.equal(manifest.version, sourceManifests.get(name).version);
+      assert.equal(manifest.version, dependencies[name]);
+      process.stdout.write(
+        `Verified registry package ${name}@${manifest.version}\n`,
+      );
       manifests.set(name, manifest);
     }
   }
@@ -462,6 +474,10 @@ try {
   }
 
   process.stdout.write("Package tarball consumer smoke tests passed.\n");
+  if (readerMode) {
+    const { verifyFreshReaders } = await import("./framework-reader-smoke.mjs");
+    await verifyFreshReaders({ root, temporary, dependencies, npm, run });
+  }
 } finally {
   await rm(temporary, { recursive: true, force: true });
 }
