@@ -26,6 +26,8 @@ export default defineConfig({
         "src/server/content-queries.ts",
         "src/server/publishing-repository.ts",
         "src/server/transactional-access.ts",
+        "src/server/portable-import.ts",
+        "src/server/import-preparation.ts",
         "src/server/workspace-repository.ts",
       ],
       reportsDirectory: "coverage/database",
@@ -35,6 +37,18 @@ export default defineConfig({
         branches: 65,
         functions: 85,
         lines: 85,
+        "src/server/portable-import.ts": {
+          statements: 85,
+          branches: 70,
+          functions: 90,
+          lines: 85,
+        },
+        "src/server/import-preparation.ts": {
+          statements: 85,
+          branches: 70,
+          functions: 90,
+          lines: 85,
+        },
         "src/server/api-access.ts": {
           statements: 75,
           branches: 65,

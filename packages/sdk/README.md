@@ -64,6 +64,7 @@ const drafts = await management.posts.list({ status: "draft" });
 
 Available Promise operations are:
 
+- `imports.run()` (streamed portable import, `content:write`)
 - `health()`
 - `blogs.list()`
 - `posts.list()`, `posts.get()`, and `posts.create()`
@@ -80,6 +81,19 @@ The optional `blog` value on `posts.list()` is a safety assertion. It must match
 
 For Effect applications, `createEffectClient` exposes the same operations as
 typed Effects. `createClient` is the Promise-compatible facade for existing
-callers; both are generated from the shared Effect HttpApi contract.
+callers; both share the Effect HttpApi contract; portable import uses its own streaming adapter and shared report/error schemas.
 
 Non-success responses reject. Public-client errors include the HTTP status; management errors retain the typed Effect HTTP API failure when using `createEffectClient`.
+
+## Portable import
+
+```ts
+import { openPortableImportFile } from "@prosewire/sdk/import-node";
+
+const preview = await management.imports.run({
+  ...openPortableImportFile("export.json", "media.zip"),
+  mode: "preview",
+});
+```
+
+The main entrypoint accepts a `ReadableStream<Uint8Array>` and `application/json` or `application/zip`; the Node-only helper streams local export artifacts. Explicit `mode: "apply"` creates content, with posts defaulting to drafts unless `preserveStates: true` is supplied. Failures retain `status`, `item`, and `reason` in `ProsewireImportError`. See [portable import](https://prosewire.com/docs/operate/portable-import/) for supported formats, limits, and exact-artifact retry policy.

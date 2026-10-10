@@ -49,3 +49,5 @@ The server advertises read-only, idempotent, destructive, and approval metadata 
 The API key determines the publication boundary. The optional `blog` argument on `posts_list` asserts that its slug or UUID matches the key's publication; a mismatch is rejected.
 
 The MCP upload tools deliberately split reservation and completion. The client must send the file itself to the signed URL between those calls using the returned method and headers. Do not pass image bytes through the MCP tool input. `media_delete` fails while a current post references the asset.
+
+`publication_import` streams a local `file` and optional `mediaFile` to the scoped publication. Its required `mode` is `preview` or `apply`; `preserveStates` defaults to false, so imported posts remain drafts. The tool requires approval and never overwrites existing content. See [portable import](https://prosewire.com/docs/operate/portable-import/) for limits and retry policy.

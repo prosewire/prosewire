@@ -1,0 +1,62 @@
+---
+title: Import a Prosewire export
+description: Preview and restore portable content and managed media into a publication without overwriting existing posts.
+section: Operate
+order: 2
+---
+
+Download the **portable JSON export** and **media ZIP** from the source publication. The importer accepts Prosewire JSON format version 2 and the matching sanitized originals from media ZIP version 1. CSV, Markdown, and third-party formats are not supported.
+
+Create the destination publication first and configure every language used by the posts or revisions. Use a destination API key with `content:write`; its publication is the only destination. Publication settings, source users, memberships, credentials, and analytics are not imported. Authors retain their public profile but are not connected to source user accounts.
+
+## Preview and apply
+
+```sh
+export PROSEWIRE_API_URL=https://destination.example
+export PROSEWIRE_API_KEY=pw_live_...
+
+prosewire import --data source-prosewire-export.json --media source-prosewire-media.zip
+prosewire import --data source-prosewire-export.json --media source-prosewire-media.zip --apply
+```
+
+Omit `--media` only when the export has no managed media. The CLI streams the files into one ZIP envelope. Preview validates content, relationships, image checksums, destination languages, collisions, permissions, and quota, then reports a fingerprint and collection counts. Preview writes no database rows or object-storage files. Apply repeats validation; a preview is not a reservation.
+
+All imported posts arrive as **drafts** by default. Source publication, schedule, and archive dates are retained, but the worker does not publish drafts. To deliberately restore published, scheduled, and archived states, add `--preserve-states` to both preview and apply. Published content becomes public immediately when its preserved publication time has arrived; scheduled content follows the existing scheduler.
+
+The import preserves slugs, Markdown, authors, categories, snippets, direct slug redirects, and saved revisions. IDs and relationships are remapped into the destination. Source editor identities are removed from revisions; new posts receive no fabricated revision. Markdown is rendered and sanitized again. Managed originals are checksum-verified and image-validated, copied byte-for-byte to destination storage, and thumbnails and large variants are regenerated. Managed cover URLs and recognized source media URLs in Markdown and author avatars are rewritten. Other external URLs remain external.
+
+Only **ready** media assets are supported. Exports containing pending, processing, failed, or deleted media records are rejected with an item-specific error. The JSON export and media ZIP must contain exactly one original for each ready asset. Historical references to authors, categories, or media missing from the export are rejected rather than silently dropped.
+
+## Atomic writes and retries
+
+Apply creates all metadata and its required audit record in one transaction. Destination media quota, API-key scope and expiry, publication languages, and collisions are rechecked under a publication lock after file processing. Failed writes roll back metadata and attempt awaited object cleanup, including failed commits. Cleanup failures are logged for the operator; inspect destination object storage if a storage or database outage prevents cleanup.
+
+Existing slugs, snippet keys, redirect paths, or content are never overwritten. There is no update or merge mode, so imports do not change an existing post or create a replacement revision or redirect for it.
+
+Retry the exact same JSON bytes with the same state policy. Destination IDs are deterministic, and an unchanged complete import returns `alreadyImported: true`, even after its audit record has been removed by retention. Concurrent identical attempts serialize. A changed file, edited destination content, changed relationship, or partial prior import is rejected; no existing record is replaced. Keep the export artifacts until you have verified the result.
+
+## SDK and HTTP
+
+```ts
+import { createClient } from "@prosewire/sdk";
+import { openPortableImportFile } from "@prosewire/sdk/import-node";
+
+const client = createClient({
+  baseUrl: process.env.PROSEWIRE_API_URL!,
+  apiKey: process.env.PROSEWIRE_API_KEY!,
+});
+const preview = await client.imports.run({
+  ...openPortableImportFile("export.json", "media.zip"),
+  mode: "preview",
+});
+```
+
+`createEffectClient` exposes the same `imports.run` operation. The Node-only file helper is a separate package entrypoint; the main SDK accepts a `ReadableStream<Uint8Array>`. Failures expose the HTTP `status`, source `item`, and reason through `ProsewireImportError`.
+
+Send authenticated `POST /api/v1/import?mode=preview&preserveStates=false` with `application/json` for content without managed media or `application/zip` for an envelope containing `export.json` and `media.zip`. A flattened envelope containing `export.json`, `manifest.json`, and `assets/<source-id>/original.<extension>` is also accepted. Use `mode=apply` to write. The transport uses streaming file spooling and the shared report/error schemas, outside the buffered HttpApi JSON adapter. Invalid records return 400, collisions return 409, authentication failures return 401/403, and infrastructure failures return 500. Errors identify the first invalid collection item; nothing is partially applied.
+
+Imports have explicit per-request limits: **64 MB JSON**, **8 MB per collection record (including its revisions)**, **10,000 collection records**, **300 MB ZIP input/expanded envelope**, and **20 MB per original**. Destination upload and media quota limits still apply, and may be smaller. These import limits do not change a publication's storage quota. Large collections are streamed to temporary disk; only one bounded record or image is processed in memory. Temporary files are removed on completion or failure.
+
+## MCP
+
+`publication_import` takes `file`, optional `mediaFile`, required `mode` (`preview` or `apply`), and optional `preserveStates`. Paths refer to files accessible to the MCP server. It uses the same streamed SDK operation and requires client approval because the tool can apply an import. Specify `mode: "preview"` first, review its result, then explicitly request apply.

@@ -12,6 +12,7 @@ import { Media } from "./media.ts";
 import { MediaImage } from "./media-image.ts";
 import { ObjectStorage } from "./object-storage.ts";
 import { PlatformCrypto } from "./platform-crypto.ts";
+import { PortableImport } from "./portable-import.ts";
 import { PostExport } from "./post-export.ts";
 import { processSingleton } from "./process-singleton.ts";
 import { PublicContent } from "./public-content.ts";
@@ -41,6 +42,7 @@ const applicationLayer = Layer.mergeAll(
   Dashboard.layer,
   Media.layer,
   PostExport.layer,
+  PortableImport.layer,
   PublicContent.layer,
   PublishingRepository.layer,
   WorkspaceRepository.layer,
@@ -61,6 +63,7 @@ export type AppServices =
   | Dashboard.Service
   | Media.Service
   | PostExport.Service
+  | PortableImport.Service
   | PublicContent.Service
   | PublishingRepository.Service
   | WorkspaceRepository.Service;
@@ -71,5 +74,3 @@ export function runAppEffect<A, E>(
 ): Promise<A> {
   return appRuntime.runPromise(effect, { signal });
 }
-
-export * as AppRuntime from "./app-runtime";

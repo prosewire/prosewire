@@ -53,3 +53,5 @@ The key fixes the server to one publication. The optional `blog` argument on `po
 Do not commit MCP client configuration containing a real API key.
 
 Restart the MCP client after changing configuration. To diagnose startup failures, run `prosewire-mcp` in a shell with the same environment and verify the deployment URL and key without printing the key.
+
+`publication_import` streams a local `file` and optional `mediaFile` to the scoped publication. Its required `mode` is `preview` or `apply`; `preserveStates` defaults to false, so imported posts remain drafts. The tool requires approval and never overwrites existing content. See [portable import](https://prosewire.com/docs/operate/portable-import/) for limits and retry policy.

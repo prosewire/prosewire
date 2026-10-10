@@ -45,3 +45,5 @@ environment files when supplying them.
 Commands write formatted JSON to standard output. Treat that output as potentially containing unpublished content when using private commands.
 
 The executable is defined with Effect CLI and uses typed, interruptible command handlers.
+
+`import --data export.json [--media media.zip]` previews a Prosewire portable export with a `content:write` destination key. Add `--apply` to create content and `--preserve-states` only when deliberately restoring public or scheduled states. Posts otherwise arrive as drafts. Existing content is never overwritten. See [portable import](https://prosewire.com/docs/operate/portable-import/) for format limits and exact-artifact retry policy.

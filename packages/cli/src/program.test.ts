@@ -8,6 +8,7 @@ function privateClient(
   mediaOverrides: Partial<CliPrivateClient["media"]> = {},
 ): CliPrivateClient {
   return {
+    imports: { run: vi.fn() },
     blogs: { list: vi.fn() },
     posts: {
       create: vi.fn(),
@@ -43,6 +44,64 @@ function publicClient(
 }
 
 describe("Prosewire CLI", () => {
+  it.each([
+    [[], "preview", false],
+    [["--apply", "--preserve-states", "--media", "media.zip"], "apply", true],
+  ] as const)(
+    "streams an import with flags %j",
+    async (flags, mode, preserveStates) => {
+      const report = {
+        mode,
+        fingerprint: "hash",
+        counts: {},
+        preserveStates,
+        alreadyImported: false,
+      };
+      const run = vi.fn(() => Effect.succeed(report));
+      const client = { ...privateClient(), imports: { run } };
+      const input = {
+        body: new Blob(["export"]).stream(),
+        contentType: "application/zip" as const,
+      };
+      const openPortableImportFile = vi.fn(() => input);
+      const output = vi.fn();
+      await runProgram(
+        [
+          "node",
+          "prosewire",
+          "--key",
+          "pw_test",
+          "import",
+          "--data",
+          "export.json",
+          ...flags,
+        ],
+        {
+          createEffectClient: () => client,
+          openPortableImportFile,
+          output,
+          env: {},
+        },
+      );
+      expect(openPortableImportFile).toHaveBeenCalledWith(
+        "export.json",
+        mode === "apply" ? "media.zip" : undefined,
+      );
+      expect(run).toHaveBeenCalledWith({ ...input, mode, preserveStates });
+      expect(output).toHaveBeenCalledWith(report);
+    },
+  );
+  it("refuses import without a destination key before opening files", async () => {
+    const openPortableImportFile = vi.fn();
+    await expect(
+      runProgram(["node", "prosewire", "import", "--data", "export.json"], {
+        env: {},
+        openPortableImportFile,
+      }),
+    ).rejects.toThrow("--key or PROSEWIRE_API_KEY is required");
+    expect(openPortableImportFile).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["media-list"],
     ["media-upload", "cover.webp", "--blog-id", "publication-id"],

@@ -70,6 +70,7 @@ Authorization: Bearer pw_live_...
 | `GET` | `/api/v1/media/:id` | `content:read` | Retrieve one media asset |
 | `POST` | `/api/v1/media/uploads` | `content:write` | Reserve quota and return a signed direct-upload request |
 | `POST` | `/api/v1/media/:id/complete` | `content:write` | Validate the stored upload and create sanitized variants |
+| `POST` | `/api/v1/import?mode=preview&preserveStates=false` | `content:write` | Stream a portable JSON v2 or ZIP import; `mode=apply` creates content |
 | `DELETE` | `/api/v1/media/:id` | `content:write` | Delete an asset that has no current post references |
 
 The private list accepts `search`, `status`, `page`, and `pageSize`. Create requires `blogId`, `authorId`, `title`, and `slug`; optional fields have the same limits enforced by the SDK and CLI. Slugs contain lowercase letters, numbers, and single hyphens, with a maximum length of 120 characters.
@@ -81,3 +82,5 @@ A media upload has three steps. First, create a reservation with the publication
 Expect 400 for invalid input, 401 for a missing or invalid key, 403 for an insufficient scope or publication boundary, and 404 for a missing post, revision, or media asset. Media reference and state conflicts return 409, quota failures return 413, and unavailable object storage returns 503. Other service failures return 500.
 
 Keep management tokens on trusted servers. Browser applications should use the public JSON or rendered endpoints unless they are backed by a server that holds the token.
+
+Portable import uses a streaming route and shared report/error schemas outside the buffered JSON HttpApi adapter. Preview performs validation without writes; apply defaults posts to drafts and never overwrites existing content. Import validation and quota failures return 400, collisions return 409, and infrastructure failures return 500. See [portable import](/docs/operate/portable-import/) for envelope limits, state preservation, media, and retry policy.

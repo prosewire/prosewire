@@ -11,6 +11,7 @@ export default defineConfig({
     exclude: [
       ...configDefaults.exclude,
       "acceptance/**",
+      ".next/**",
       "src/server/database-behavior.test.ts",
       "src/server/api-access.test.ts",
       "src/server/auth-service.test.ts",
@@ -28,6 +29,8 @@ export default defineConfig({
         "src/server/content-queries.ts",
         "src/server/publishing-repository.ts",
         "src/server/transactional-access.ts",
+        "src/server/portable-import.ts",
+        "src/server/import-preparation.ts",
         "src/server/workspace-repository.ts",
       ],
       thresholds: { lines: 33, functions: 20, branches: 18, statements: 32 },

@@ -30,6 +30,11 @@
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs",
       "default": "./dist/index.mjs"
+    },
+    "./import-node": {
+      "types": "./dist/import-node.d.mts",
+      "import": "./dist/import-node.mjs",
+      "default": "./dist/import-node.mjs"
     }
   },
   "files": [
@@ -50,7 +55,8 @@
     "provenance": true
   },
   "dependencies": {
-    "effect": "4.0.0-rc.115"
+    "effect": "4.0.0-rc.115",
+    "fflate": "^0.8.3"
   },
   "devDependencies": {
     "@prosewire/config": "workspace:*",
@@ -61,6 +67,10 @@
     "vitest": "^5.0.1"
   },
   "tsdown": {
+    "entry": [
+      "src/index.ts",
+      "src/import-node.ts"
+    ],
     "dts": {
       "eager": true
     },

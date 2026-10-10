@@ -1,3 +1,6 @@
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { ApiUnavailable } from "@prosewire/contract";
 import { Context, Deferred, Effect, Fiber, Option, Stream } from "effect";
 import { Tool } from "effect/unstable/ai";
@@ -67,6 +70,7 @@ const mediaAsset = {
 
 function mockClient(): ProsewireMcpClient {
   return {
+    imports: { run: vi.fn() },
     blogs: { list: vi.fn(() => Effect.succeed([])) },
     posts: {
       list: vi.fn(() =>
@@ -148,7 +152,62 @@ async function runTool<A, E, E2>(
 }
 
 describe("Prosewire Effect MCP server", () => {
+  it.each(["preview", "apply"] as const)(
+    "streams a local portable file in explicit %s mode",
+    async (mode) => {
+      const directory = await mkdtemp(join(tmpdir(), "prosewire-mcp-import-"));
+      const file = join(directory, "export.json");
+      await writeFile(file, '{"version":2}');
+      const client = mockClient();
+      const report = {
+        mode,
+        preserveStates: mode === "apply",
+        counts: {},
+        fingerprint: "hash",
+        alreadyImported: false,
+      };
+      const run = vi.fn(
+        (input: Parameters<ProsewireMcpClient["imports"]["run"]>[0]) =>
+          Effect.promise(async () => {
+            expect(input).toMatchObject({
+              mode,
+              preserveStates: report.preserveStates,
+              contentType: "application/json",
+            });
+            expect(await new Response(input.body).text()).toBe('{"version":2}');
+            return report;
+          }),
+      );
+      const importClient = { ...client, imports: { run } };
+      try {
+        expect(
+          await runTool(importClient, (toolkit) =>
+            toolkit.handle("publication_import", {
+              file,
+              mode,
+              ...(mode === "apply" ? { preserveStates: true } : {}),
+            }),
+          ),
+        ).toEqual(report);
+        expect(run).toHaveBeenCalledTimes(1);
+        await expect(
+          runTool(importClient, (toolkit) =>
+            toolkit.handle("publication_import", { file } as never),
+          ),
+        ).rejects.toThrow();
+        expect(run).toHaveBeenCalledTimes(1);
+      } finally {
+        await rm(directory, { recursive: true, force: true });
+      }
+    },
+  );
+
   it("advertises risk annotations for every public tool", () => {
+    const tool = ProsewireToolkit.tools.publication_import;
+    expect(tool.needsApproval).toBe(true);
+    expect(Context.get(tool.annotations, Tool.Readonly)).toBe(false);
+    expect(Context.get(tool.annotations, Tool.Destructive)).toBe(false);
+    expect(Context.get(tool.annotations, Tool.Idempotent)).toBe(true);
     expect(Object.keys(ProsewireToolkit.tools)).toEqual([
       "publication_get",
       "posts_list",
@@ -162,6 +221,7 @@ describe("Prosewire Effect MCP server", () => {
       "media_upload_start",
       "media_upload_complete",
       "media_delete",
+      "publication_import",
     ]);
     expect(
       Context.get(ProsewireToolkit.tools.posts_list.annotations, Tool.Readonly),

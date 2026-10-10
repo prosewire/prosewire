@@ -59,6 +59,29 @@ function capture(command, args, options = {}) {
   return result.stdout;
 }
 
+function compareVersion(left, right) {
+  for (let index = 0; index < left.length; index++) {
+    const difference = left[index] - right[index];
+    if (difference !== 0) return difference;
+  }
+  return 0;
+}
+function withinCaretUpperBound(
+  major,
+  minor,
+  patch,
+  rangeMajor,
+  rangeMinor,
+  rangePatch,
+) {
+  const upper =
+    rangeMajor > 0
+      ? [rangeMajor + 1, 0, 0]
+      : rangeMinor > 0
+        ? [0, rangeMinor + 1, 0]
+        : [0, 0, rangePatch + 1];
+  return compareVersion([major, minor, patch], upper) < 0;
+}
 function assertCaretAccepts(range, version, packageName) {
   assert.match(range, /^\^\d+\.\d+\.\d+$/);
   const [rangeMajor, rangeMinor, rangePatch] = range
@@ -67,15 +90,18 @@ function assertCaretAccepts(range, version, packageName) {
     .map(Number);
   const [major, minor, patch] = version.split(".").map(Number);
   const atLeastMinimum =
-    major > rangeMajor ||
-    (major === rangeMajor && minor > rangeMinor) ||
-    (major === rangeMajor && minor === rangeMinor && patch >= rangePatch);
-  const beforeUpperBound =
-    rangeMajor > 0
-      ? major === rangeMajor
-      : rangeMinor > 0
-        ? major === 0 && minor === rangeMinor
-        : major === 0 && minor === 0 && patch === rangePatch;
+    compareVersion(
+      [major, minor, patch],
+      [rangeMajor, rangeMinor, rangePatch],
+    ) >= 0;
+  const beforeUpperBound = withinCaretUpperBound(
+    major,
+    minor,
+    patch,
+    rangeMajor,
+    rangeMinor,
+    rangePatch,
+  );
   assert.ok(
     atLeastMinimum && beforeUpperBound,
     `${packageName} dependency ${range} does not accept @prosewire/sdk@${version}`,
@@ -195,6 +221,16 @@ try {
       assert.equal(packedManifest.publishConfig.provenance, true);
       assert.doesNotMatch(JSON.stringify(packedManifest), /workspace:/);
 
+      if (name === "@prosewire/sdk") {
+        for (const required of [
+          "package/dist/import-node.mjs",
+          "package/dist/import-node.d.mts",
+        ])
+          assert.ok(
+            contents.includes(required),
+            `${name} tarball is missing ${required}`,
+          );
+      }
       if (name === "@prosewire/mcp") {
         for (const required of [
           "package/dist/server.mjs",
@@ -247,12 +283,29 @@ try {
   if (hasPackage("@prosewire/sdk")) {
     javascript.push(
       'import { createClient, createPublicClient } from "@prosewire/sdk";',
+      'import { openPortableImportFile } from "@prosewire/sdk/import-node";',
+      'import { writeFile, mkdtemp, rm } from "node:fs/promises";',
+      'import { tmpdir } from "node:os";',
+      'import { join } from "node:path";',
+      'import { unzipSync, strFromU8 } from "fflate";',
+      'const importDirectory = await mkdtemp(join(tmpdir(), "prosewire-import-consumer-"));',
+      "try {",
+      '  const jsonFile = join(importDirectory, "export.json"); const mediaFile = join(importDirectory, "media.zip");',
+      '  await writeFile(jsonFile, "portable JSON"); await writeFile(mediaFile, "media ZIP");',
+      "  const streamed = openPortableImportFile(jsonFile, mediaFile);",
+      '  assert.equal(streamed.contentType, "application/zip");',
+      "  const archive = unzipSync(new Uint8Array(await new Response(streamed.body).arrayBuffer()));",
+      '  assert.equal(strFromU8(archive["export.json"]), "portable JSON");',
+      '  assert.equal(strFromU8(archive["media.zip"]), "media ZIP");',
+      "} finally { await rm(importDirectory, { recursive: true, force: true }); }",
       'assert.equal(typeof createClient, "function");',
       'assert.equal(typeof createPublicClient, "function");',
     );
     typescript.push(
       'import { createClient, type Client } from "@prosewire/sdk";',
+      'import { openPortableImportFile } from "@prosewire/sdk/import-node";',
       'const client: Client = createClient({ baseUrl: "https://example.com" });',
+      'client.imports.run({ ...openPortableImportFile("export.json", "media.zip"), mode: "preview" });',
     );
   }
   if (hasPackage("@prosewire/mcp")) {
@@ -343,6 +396,7 @@ try {
 
   for (const [directory, declaration] of [
     ["sdk", "index.d.mts"],
+    ["sdk", "import-node.d.mts"],
     ["cli", "index.d.mts"],
     ["mcp", "server.d.mts"],
   ]) {

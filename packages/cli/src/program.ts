@@ -7,12 +7,14 @@ import {
   type EffectClient,
   type ProsewireClientOptions,
 } from "@prosewire/sdk";
+import { openPortableImportFile } from "@prosewire/sdk/import-node";
 import { Effect, Option, Schema } from "effect";
 import { Argument, CliError, Command, Flag } from "effect/unstable/cli";
 import { nodeServicesLayer } from "./node-services.ts";
 import { version } from "./version.ts";
 
 export interface CliPrivateClient {
+  readonly imports: EffectClient["imports"];
   readonly blogs: EffectClient["blogs"];
   readonly posts: Pick<
     EffectClient["posts"],
@@ -22,6 +24,7 @@ export interface CliPrivateClient {
 }
 
 interface CliDependencies {
+  readonly openPortableImportFile: typeof openPortableImportFile;
   readonly readFile: typeof readFile;
   readonly createEffectClient: (
     options: ProsewireClientOptions,
@@ -33,6 +36,7 @@ interface CliDependencies {
 }
 
 const defaults: CliDependencies = {
+  openPortableImportFile,
   readFile,
   createEffectClient,
   createPublicClient,
@@ -146,6 +150,55 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
 
   const dataFile = Flag.String("data").pipe(
     Flag.withDescription("Path to JSON request body"),
+  );
+
+  const portableImport = Command.make(
+    "import",
+    {
+      data: dataFile,
+      media: Flag.String("media").pipe(
+        Flag.optional,
+        Flag.withDescription(
+          "Matching Prosewire media ZIP (optional for content without media)",
+        ),
+      ),
+      apply: Flag.Boolean("apply").pipe(
+        Flag.withDefault(false),
+        Flag.withDescription(
+          "Apply the import; otherwise preview without writes",
+        ),
+      ),
+      preserveStates: Flag.Boolean("preserve-states").pipe(
+        Flag.withDefault(false),
+        Flag.withDescription(
+          "Explicitly restore published, scheduled, and archived states",
+        ),
+      ),
+    },
+    Effect.fn("Cli.import")(function* ({ data, media, apply, preserveStates }) {
+      const parent = yield* root;
+      const key =
+        Option.getOrUndefined(parent.key) ??
+        dependencies.env["PROSEWIRE_API_KEY"];
+      if (!key)
+        return yield* userError("--key or PROSEWIRE_API_KEY is required");
+      const input = dependencies.openPortableImportFile(
+        data,
+        Option.getOrUndefined(media),
+      );
+      const result = yield* fromClient(() =>
+        privateClient({ baseUrl: parent.url, apiKey: key }).imports.run({
+          ...input,
+          mode: apply ? "apply" : "preview",
+          preserveStates,
+        }),
+      );
+      yield* Effect.sync(() => dependencies.output(result));
+    }),
+  ).pipe(
+    Command.withDescription(
+      "Preview or apply a create-only Prosewire portable import",
+    ),
   );
 
   const create = Command.make(
@@ -401,6 +454,7 @@ export function createProgram(overrides: Partial<CliDependencies> = {}) {
       mediaList,
       mediaUpload,
       mediaDelete,
+      portableImport,
     ]),
   );
 }
