@@ -65,7 +65,6 @@ describe("Prosewire CLI", () => {
     expect(output).not.toHaveBeenCalled();
   });
 
-
   it.each([
     ["private", ["--key", "pw_test", "media-list"]],
     ["public", ["posts", "--blog", "fieldnotes"]],
