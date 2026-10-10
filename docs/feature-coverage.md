@@ -41,7 +41,7 @@ Scheduled posts keep their scheduled time as the public publication date, includ
 
 | Capability | Coverage |
 | --- | --- |
-| Workspaces and publications | Self-hosted uses one implicit team with multiple publications; Cloud supports multiple explicit workspaces; publication APIs remain isolated |
+| Workspaces and publications | Self-hosted uses one implicit team with multiple publications; Cloud supports multiple explicit workspaces; publication APIs remain isolated; credential sign-in starts a fresh document so earlier session redirects do not survive first workspace or publication creation |
 | Self-hosted administrator bootstrap | The migration job can create one administrator on an empty installation; first login requires a password change and revokes existing sessions |
 | Authentication account identity | Accounts are unique by provider and provider account ID; the Better Auth 1.7.5 migration preserves historical issuers and rejects identity collisions |
 | Roles | Owner, admin, editor, author, and viewer are enforced at dashboard and private API boundaries |

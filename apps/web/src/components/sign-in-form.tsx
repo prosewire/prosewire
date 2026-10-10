@@ -5,7 +5,6 @@ import SiGoogle from "@icons-pack/react-simple-icons/icons/SiGoogle";
 import { Eye, EyeSlash } from "@phosphor-icons/react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import prosewireIconDark from "@/assets/prosewire-mark-on-dark.svg";
 import prosewireIcon from "@/assets/prosewire-mark-on-light.svg";
@@ -33,7 +32,6 @@ export function SignInForm({
   showDevelopmentCredentials: boolean;
   socialProviders: ReadonlyArray<SocialProviderId>;
 }) {
-  const router = useRouter();
   const [email, setEmail] = useState(
     showDevelopmentCredentials ? "admin@prosewire.local" : "",
   );
@@ -137,8 +135,8 @@ export function SignInForm({
               setError(result.error.message ?? "Sign in failed");
               return;
             }
-            router.push(returnTo);
-            router.refresh();
+            // Authentication starts a new document without prior session redirects.
+            window.location.assign(returnTo);
           }}
         >
           {passwordChanged ? (

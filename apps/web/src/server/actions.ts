@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { forbidden, redirect } from "next/navigation";
+import { internalPath } from "@/lib/internal-path";
 import { changeRequiredPassword as runChangeRequiredPassword } from "./account-entrypoints.ts";
 import { actionErrorRedirect } from "./action-errors.ts";
 import { decodeErrorTag, decodeTaggedError } from "./boundary-errors.ts";
@@ -49,10 +50,6 @@ function rawText(formData: FormData, name: string): string {
 
 function nullableText(formData: FormData, name: string): string | null {
   return text(formData, name) || null;
-}
-
-function internalPath(value: string, fallback: string): string {
-  return value.startsWith("/") && !value.startsWith("//") ? value : fallback;
 }
 
 async function setPublicationCookie(blogId: string): Promise<void> {

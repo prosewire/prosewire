@@ -7,6 +7,10 @@ export const acceptance = {
     id: "acceptance-owner",
     email: "owner@acceptance.test",
   },
+  onboardingOwner: {
+    id: "acceptance-onboarding-owner",
+    email: "onboarding-owner@acceptance.test",
+  },
   viewer: {
     id: "acceptance-viewer",
     email: "viewer@acceptance.test",

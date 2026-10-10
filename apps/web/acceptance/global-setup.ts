@@ -99,6 +99,12 @@ export default async function globalSetup(): Promise<void> {
     const password = await hashPassword(acceptance.password);
     await database.insert(schema.user).values([
       {
+        id: acceptance.onboardingOwner.id,
+        email: acceptance.onboardingOwner.email,
+        name: "Onboarding Owner",
+        emailVerified: true,
+      },
+      {
         id: acceptance.owner.id,
         email: acceptance.owner.email,
         name: "Acceptance Owner",
@@ -130,6 +136,13 @@ export default async function globalSetup(): Promise<void> {
       },
     ]);
     await database.insert(schema.account).values([
+      {
+        id: "acceptance-onboarding-owner-account",
+        userId: acceptance.onboardingOwner.id,
+        accountId: acceptance.onboardingOwner.id,
+        providerId: "credential",
+        password,
+      },
       {
         id: "acceptance-owner-account",
         userId: acceptance.owner.id,

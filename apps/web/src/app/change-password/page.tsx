@@ -2,6 +2,7 @@ import { WarningCircle } from "@phosphor-icons/react/ssr";
 import { redirect } from "next/navigation";
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { internalPath } from "@/lib/internal-path";
 import { changeRequiredPassword } from "@/server/actions";
 import { loadAuthenticationState } from "@/server/workspace-entrypoints";
 
@@ -14,10 +15,7 @@ export default async function ChangePasswordPage({
   searchParams: Promise<{ error?: string; returnTo?: string }>;
 }) {
   const { error, returnTo } = await searchParams;
-  const safeReturnTo =
-    returnTo?.startsWith("/") && !returnTo.startsWith("//")
-      ? returnTo
-      : "/dashboard";
+  const safeReturnTo = internalPath(returnTo, "/dashboard");
   const { session } = await loadAuthenticationState();
   if (!session) {
     redirect(`/sign-in?returnTo=${encodeURIComponent(safeReturnTo)}`);

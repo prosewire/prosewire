@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { SignUpForm } from "@/components/sign-up-form";
+import { internalPath } from "@/lib/internal-path";
 import { loadAuthenticationState } from "@/server/workspace-entrypoints";
 
 export const metadata = { title: "Create account" };
@@ -10,10 +11,7 @@ export default async function SignUpPage({
   searchParams: Promise<{ returnTo?: string }>;
 }) {
   const { returnTo } = await searchParams;
-  const safeReturnTo =
-    returnTo?.startsWith("/") && !returnTo.startsWith("//")
-      ? returnTo
-      : "/onboarding";
+  const safeReturnTo = internalPath(returnTo, "/onboarding");
   const invitationId = safeReturnTo.match(
     /^\/accept-invitation\/([^/]+)$/,
   )?.[1];
