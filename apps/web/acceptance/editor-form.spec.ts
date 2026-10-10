@@ -1,4 +1,10 @@
-import { expect, type Page, test } from "@playwright/test";
+import { setTimeout as delay } from "node:timers/promises";
+import {
+  type BrowserContext,
+  test as base,
+  expect,
+  type Page,
+} from "@playwright/test";
 import { createClient } from "@prosewire/sdk";
 import { acceptance } from "./fixtures.ts";
 
@@ -6,13 +12,49 @@ const baseUrl =
   process.env["PROSEWIRE_ACCEPTANCE_URL"] ?? "http://localhost:3000";
 const client = createClient({ baseUrl, apiKey: acceptance.apiKey });
 
+type OwnerState = Awaited<ReturnType<BrowserContext["storageState"]>>;
+
+const test = base.extend<
+  { storageState: OwnerState },
+  { ownerState: OwnerState }
+>({
+  ownerState: [
+    async ({ browser }, use) => {
+      const context = await browser.newContext();
+      try {
+        const signIn = () =>
+          context.request.post(`${baseUrl}/api/auth/sign-in/email`, {
+            headers: { origin: baseUrl },
+            data: {
+              email: acceptance.owner.email,
+              password: acceptance.password,
+            },
+          });
+        let response = await signIn();
+        if (response.status() === 429) {
+          // Other acceptance files share the real auth limit; respect its window once.
+          const retrySeconds = Number(response.headers()["x-retry-after"]);
+          expect(retrySeconds).toBeGreaterThan(0);
+          expect(retrySeconds).toBeLessThanOrEqual(10);
+          await delay(retrySeconds * 1_000);
+          response = await signIn();
+        }
+        expect(response.ok()).toBe(true);
+        await use(await context.storageState());
+      } finally {
+        await context.close();
+      }
+    },
+    { scope: "worker" },
+  ],
+  storageState: async ({ ownerState }, use) => {
+    await use(ownerState);
+  },
+});
+
 async function openNewPost(page: Page) {
-  await page.goto("/sign-in?returnTo=/posts/new");
-  await expect(page.locator("form")).toHaveAttribute("data-hydrated", "true");
-  await page.getByLabel("Email").fill(acceptance.owner.email);
-  await page.getByLabel("Password", { exact: true }).fill(acceptance.password);
-  await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await expect(page).toHaveURL(/\/posts\/new$/);
+  await page.goto("/posts/new");
+  await expect(page).toHaveURL(`${baseUrl}/posts/new`);
   await expect(
     page.getByRole("tab", { name: "SEO", exact: true }),
   ).toHaveAttribute("aria-selected", "true");
