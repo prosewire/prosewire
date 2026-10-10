@@ -47,7 +47,8 @@ Scheduled posts keep their scheduled time as the public publication date, includ
 | Roles | Owner, admin, editor, author, and viewer are enforced at dashboard and private API boundaries |
 | Invitations | Email invitations, 48-hour expiry, acceptance, and cancellation are implemented |
 | Audit history | Dashboard visibility and records for workspace, membership, publication, content, scheduler, and API-key mutations are implemented |
-| Owner transfer and workspace deletion | Permission concepts exist, but complete dashboard workflows are not implemented |
+| Owner transfer | Owners can confirm an audited, transactional handover to an existing member in the dashboard; the former owner becomes admin. Role changes, removals, and transfers serialize on the workspace. Publication-scoped SDK, CLI, and MCP do not expose workspace membership operations |
+| Workspace deletion | Permission concept exists, but the dashboard workflow is not implemented |
 | SSO and two-factor authentication | Not implemented |
 
 ## Delivery and automation

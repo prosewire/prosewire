@@ -29,6 +29,7 @@ import { operationError } from "./operation-error.ts";
 import {
   lockBlogAuthorization,
   lockWorkspaceAuthorization,
+  lockWorkspaceMembershipAuthorization,
 } from "./transactional-access.ts";
 
 const EditableRole = Schema.Literals(
@@ -111,6 +112,14 @@ export class MemberMutationInput extends Schema.Class<MemberMutationInput>(
 )({
   organizationId: OrganizationId,
   memberId: MemberId,
+}) {}
+
+export class TransferOwnershipInput extends Schema.Class<TransferOwnershipInput>(
+  "WorkspaceManagement.TransferOwnershipInput",
+)({
+  organizationId: OrganizationId,
+  memberId: MemberId,
+  confirmed: Schema.Literal(true),
 }) {}
 
 export class InvitationMutationInput extends Schema.Class<InvitationMutationInput>(
@@ -698,7 +707,7 @@ export const create = Effect.fn("WorkspaceRepository.create")(function* () {
         BlogAccess.WorkspaceAccessDenied | MemberNotFound | ProtectedMember
       >("member.updateRole", (client) =>
         client.transaction(async (tx) => {
-          const authorization = await lockWorkspaceAuthorization(
+          const authorization = await lockWorkspaceMembershipAuthorization(
             tx,
             input.organizationId,
             actor.id,
@@ -769,7 +778,7 @@ export const create = Effect.fn("WorkspaceRepository.create")(function* () {
       BlogAccess.WorkspaceAccessDenied | MemberNotFound | ProtectedMember
     >("member.remove", (client) =>
       client.transaction(async (tx) => {
-        const authorization = await lockWorkspaceAuthorization(
+        const authorization = await lockWorkspaceMembershipAuthorization(
           tx,
           input.organizationId,
           actor.id,
@@ -825,6 +834,98 @@ export const create = Effect.fn("WorkspaceRepository.create")(function* () {
       }),
     );
   });
+
+  const transferOwnership = Effect.fn("WorkspaceManagement.transferOwnership")(
+    function* (input: TransferOwnershipInput, actor: Actor) {
+      if (!input.confirmed) {
+        return yield* new InvalidWorkspaceInput({
+          message: "Confirm the ownership transfer",
+        });
+      }
+      yield* executeResult<
+        void,
+        BlogAccess.WorkspaceAccessDenied | MemberNotFound | ProtectedMember
+      >("workspace.transferOwnership", (client) =>
+        client.transaction(async (tx) => {
+          const authorization = await lockWorkspaceMembershipAuthorization(
+            tx,
+            input.organizationId,
+            actor.id,
+            "workspace:transfer",
+          );
+          if (!authorization) {
+            return Result.fail(
+              new BlogAccess.WorkspaceAccessDenied({
+                organizationId: input.organizationId,
+                userId: actor.id,
+                capability: "workspace:transfer",
+              }),
+            );
+          }
+          const [targetRow] = await tx
+            .select({
+              member: schema.member,
+              disabledAt: schema.user.disabledAt,
+            })
+            .from(schema.member)
+            .innerJoin(schema.user, eq(schema.member.userId, schema.user.id))
+            .where(
+              and(
+                eq(schema.member.id, input.memberId),
+                eq(schema.member.organizationId, input.organizationId),
+              ),
+            )
+            .for("update");
+          if (!targetRow)
+            return Result.fail(
+              new MemberNotFound({ memberId: input.memberId }),
+            );
+          const target = targetRow.member;
+          if (
+            targetRow.disabledAt !== null ||
+            target.userId === actor.id ||
+            target.role === "owner" ||
+            !normalizeTeamRole(target.role)
+          ) {
+            return Result.fail(
+              new ProtectedMember({
+                message:
+                  "Choose another active member who is not already an owner",
+              }),
+            );
+          }
+          await tx
+            .update(schema.member)
+            .set({ role: "owner" })
+            .where(eq(schema.member.id, target.id));
+          await tx
+            .update(schema.member)
+            .set({ role: "admin" })
+            .where(eq(schema.member.id, authorization.memberId));
+          await tx.insert(schema.auditLog).values({
+            organizationId: input.organizationId,
+            actorId: actor.id,
+            action: "workspace.ownership_transferred",
+            entityType: "workspace",
+            entityId: input.organizationId,
+            before: {
+              ownerId: actor.id,
+              ownerMemberId: authorization.memberId,
+              targetMemberId: target.id,
+              targetRole: target.role,
+            },
+            after: {
+              ownerId: target.userId,
+              ownerMemberId: target.id,
+              formerOwnerId: actor.id,
+              formerOwnerRole: "admin",
+            },
+          });
+          return Result.succeed(undefined);
+        }),
+      );
+    },
+  );
 
   const cancelInvitation = Effect.fn("WorkspaceManagement.cancelInvitation")(
     function* (
@@ -1085,6 +1186,7 @@ export const create = Effect.fn("WorkspaceRepository.create")(function* () {
     inviteMember,
     updateMemberRole,
     removeMember,
+    transferOwnership,
     cancelInvitation,
     acceptInvitation,
     createApiKey,

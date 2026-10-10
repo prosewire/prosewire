@@ -175,6 +175,26 @@ export function removeMember(input: MemberMutationBoundaryInput) {
   );
 }
 
+export function transferOwnership(
+  input: Omit<
+    typeof WorkspaceRepository.TransferOwnershipInput.Encoded,
+    "confirmed"
+  > & { readonly confirmed: boolean },
+) {
+  return runAppEffect(
+    Effect.gen(function* () {
+      const command = yield* decode(
+        WorkspaceRepository.TransferOwnershipInput,
+        input,
+        "Confirm the ownership transfer and choose a member",
+      );
+      const { actor } = yield* currentActor();
+      const service = yield* WorkspaceRepository.Service;
+      return yield* service.transferOwnership(command, actor);
+    }),
+  );
+}
+
 export function cancelInvitation(input: {
   readonly organizationId: string;
   readonly invitationId: string;

@@ -5,6 +5,7 @@ import {
   cancelInvitation,
   inviteMember,
   removeMember,
+  transferOwnership,
   updateMemberRole,
 } from "@/server/actions";
 import { loadDashboardTeam } from "@/server/page-entrypoints";
@@ -15,7 +16,11 @@ export const metadata = { title: "Authors & team" };
 export default async function TeamPage({
   searchParams,
 }: {
-  searchParams: Promise<{ invited?: string }>;
+  searchParams: Promise<{
+    invited?: string;
+    transferred?: string;
+    error?: string;
+  }>;
 }) {
   const [query, result] = await Promise.all([
     searchParams,
@@ -23,6 +28,10 @@ export default async function TeamPage({
   ]);
   const { authors, cloudDeployment, context, invitations, members } =
     dashboardData(result);
+  const transferTargets = members.filter(
+    (member) => member.role !== "owner" && member.id !== context.memberId,
+  );
+  const canTransfer = hasPermission(context.role, "workspace:transfer");
   const canManage = hasPermission(context.role, "members:manage");
   return (
     <main className="mx-auto max-w-[1100px] px-4 py-6 sm:px-7 lg:px-9 lg:py-8">
@@ -39,6 +48,22 @@ export default async function TeamPage({
       {query.invited === "1" ? (
         <p className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-semibold text-emerald-700">
           Invitation sent.
+        </p>
+      ) : null}
+      {query.error ? (
+        <p
+          role="alert"
+          className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+        >
+          {query.error}
+        </p>
+      ) : null}
+      {query.transferred === "1" ? (
+        <p
+          role="status"
+          className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
+        >
+          Ownership transferred. Your role is now admin.
         </p>
       ) : null}
       {canManage ? (
@@ -159,6 +184,58 @@ export default async function TeamPage({
           ))}
         </div>
       </section>
+      {canTransfer ? (
+        <section className="card mt-4 p-5">
+          <h2 className="text-sm font-semibold">Transfer ownership</h2>
+          <p className="mt-2 text-sm leading-6 text-[#6e787d]">
+            Choose an existing member to become an owner. You will become an
+            admin and will no longer be able to transfer ownership. Other owners
+            keep their roles.
+          </p>
+          {transferTargets.length ? (
+            <form action={transferOwnership} className="mt-4 grid gap-4">
+              <input
+                type="hidden"
+                name="organizationId"
+                value={context.workspace.id}
+              />
+              <div className="min-w-0 text-xs font-semibold">
+                <Select
+                  label="New owner"
+                  labelClassName="cursor-default"
+                  name="memberId"
+                  required
+                  aria-label="New owner"
+                  placeholder="Choose a member"
+                  options={transferTargets.map((member) => ({
+                    value: member.id,
+                    label: `${member.name} (${member.email})`,
+                  }))}
+                  className="mt-2 font-normal"
+                />
+              </div>
+              <label className="flex items-start gap-2 text-sm leading-6">
+                <input
+                  type="checkbox"
+                  name="confirmed"
+                  required
+                  className="mt-1.5"
+                />
+                I confirm that the selected member will become an owner and my
+                role will become admin.
+              </label>
+              <button className="h-10 w-fit rounded-xl bg-[#172329] px-4 text-sm font-semibold text-white">
+                Transfer ownership
+              </button>
+            </form>
+          ) : (
+            <p className="mt-3 text-sm text-[#6e787d]">
+              Invite another member and wait for them to join before
+              transferring ownership.
+            </p>
+          )}
+        </section>
+      ) : null}
       {invitations.length ? (
         <section className="card mt-4 overflow-hidden">
           <div className="border-b border-[#e2e3de] px-5 py-4">

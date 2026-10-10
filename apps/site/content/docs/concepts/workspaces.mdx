@@ -17,13 +17,19 @@ The dashboard stores the active workspace in the authenticated session and the a
 
 | Role | Capabilities |
 | --- | --- |
-| Owner | Workspace settings, members, publications, content, integrations, analytics, and audit history |
+| Owner | Ownership transfer, workspace settings, members, publications, content, integrations, analytics, and audit history |
 | Admin | Workspace settings, members, publications, content, integrations, analytics, and audit history |
 | Editor | Create, edit, schedule, publish, and archive all content; read analytics and integration details |
 | Author | Create drafts and edit only posts they created; read analytics and integration details |
 | Viewer | Read dashboard content, analytics, and integration details without mutations |
 
-Invitations are sent by email, expire after 48 hours, and can be canceled before acceptance. The current dashboard does not expose owner transfer or workspace deletion. The owner cannot be reassigned, demoted, or removed through routine role editing.
+Invitations are sent by email, expire after 48 hours, and can be canceled before acceptance. Owners cannot be demoted or removed through routine role editing.
+
+## Transfer ownership
+
+An owner can use **Authors & team → Transfer ownership** to hand ownership to an existing member who is not already an owner. Select the member and confirm the role change: that member becomes an owner and you become an admin. Other existing owners keep their roles. Invite a new person and wait for them to accept before transferring to them.
+
+The role changes and audit entry commit together. Concurrent transfers, role changes, and removals recheck membership after acquiring the workspace lock. Publication API keys and the SDK, CLI, and MCP built on them cannot manage workspace membership. The dashboard does not expose workspace deletion.
 
 Public author profiles are separate from workspace memberships. A member can have an author profile for one publication without that profile automatically applying to every publication in the workspace.
 

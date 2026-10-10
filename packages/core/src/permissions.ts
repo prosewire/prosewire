@@ -11,6 +11,7 @@ export type TeamRole = (typeof teamRoles)[number];
 export const permissions = [
   "workspace:update",
   "workspace:delete",
+  "workspace:transfer",
   "members:manage",
   "publications:create",
   "publications:update",
@@ -32,7 +33,11 @@ export type Permission = (typeof permissions)[number];
 const rolePermissions: Record<TeamRole, ReadonlySet<Permission>> = {
   owner: new Set(permissions),
   admin: new Set(
-    permissions.filter((permission) => permission !== "workspace:delete"),
+    permissions.filter(
+      (permission) =>
+        permission !== "workspace:delete" &&
+        permission !== "workspace:transfer",
+    ),
   ),
   editor: new Set<Permission>([
     "content:read",

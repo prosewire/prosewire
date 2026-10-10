@@ -26,6 +26,7 @@ export function actionErrorRedirect(
     case "InvalidBlogSettings":
     case "InvalidPasswordChange":
     case "InvalidWorkspaceInput":
+    case "ProtectedMember":
     case "SelfHostedWorkspaceAlreadyExists":
     case "MediaInvalidUpload":
     case "MediaQuotaExceeded":

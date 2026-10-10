@@ -31,6 +31,10 @@ describe("web infrastructure", () => {
       "/organization/update-member-role",
     );
     expect(disabledOrganizationMutationPaths).toContain("/organization/create");
+    expect(disabledOrganizationMutationPaths).toContain(
+      "/organization/remove-member",
+    );
+    expect(disabledOrganizationMutationPaths).toContain("/organization/leave");
   });
 
   it("fails configuration when required production credentials are absent", async () => {
