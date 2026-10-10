@@ -64,6 +64,7 @@ common_env=(
   --env NODE_ENV=production
   --env DATABASE_URL="$database_url"
   --env REDIS_URL="$redis_url"
+  --env SMTP_URL=smtp://127.0.0.1:2525
   --env BETTER_AUTH_SECRET="$auth_secret"
   --env PROSEWIRE_PUBLIC_URL=http://web:3000
   --env NEXT_PUBLIC_PROSEWIRE_PUBLIC_URL=http://web:3000
@@ -99,7 +100,11 @@ if [ -n "$deployment_id" ]; then
     grep -F "?dpl=$deployment_id" >/dev/null
 fi
 
-test "$(docker inspect "$worker" --format '{{.State.Running}}')" = "true"
+if ! docker inspect "$worker" --format '{{.State.Running}}' | grep -q true; then
+  docker logs "$worker" >&2
+  echo "Worker process exited before runtime verification passed" >&2
+  exit 1
+fi
 docker run --rm --entrypoint /bin/sh "$image" -ec '
   test -f /app/apps/web/server.js
   test -f /app/apps/worker/dist/index.mjs
