@@ -10,15 +10,17 @@ by repository code.
 - [ ] Confirm `main` contains all changes intended for this release.
 - [ ] Dispatch `Validate` for `main` when a full repository check is wanted
       before publishing.
-- [ ] Dispatch `Release packages` from `main` and wait for its serialized job.
+- [ ] Dispatch `Release packages` from `main` and wait for its preparation job.
 - [ ] Confirm the workflow generated the expected package versions and
-      changelogs, ran the tarball preflight, and pushed one release commit.
+      changelogs, ran the tarball preflight, and pushed one release commit to a
+      `release/packages-<source-sha>` branch without publishing.
+- [ ] Open and merge a pull request for the prepared version branch.
+- [ ] Confirm no pending Changesets remain, then dispatch `Release packages`
+      again on `main` to publish the reviewed versions.
 - [ ] Confirm every expected package reached npm with provenance and passed the
       registry consumer smoke test.
 - [ ] Confirm every published package has a Changesets Git tag and GitHub
-      release pointing to the generated version commit.
-- [ ] **External, GitHub:** the release identity may bypass the pull-request rule
-      only for the generated version commit.
+      release pointing to the merged publication commit.
 - [ ] **External, npm:** trusted publishing is scoped to this repository and the
       package release workflow.
 
@@ -58,6 +60,5 @@ by repository code.
   npm first and publish only missing versions.
 - Do not create a stable image tag or GitHub release for a digest that has not
   passed manifest, architecture, file-layout, migration, and runtime checks.
-- If the package workflow generated a version commit but publication failed,
-  keep that commit. Do not rewrite `main`; inspect npm and follow the partial
-  release recovery rule.
+- If publication failed after the version pull request merged, keep that commit.
+  Do not rewrite `main`; inspect npm and follow the partial release recovery rule.
