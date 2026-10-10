@@ -2,7 +2,6 @@ import type {
   PublicPost,
   PublicPostPage,
   PublicPostResult,
-  PublicRedirect,
 } from "@prosewire/sdk";
 import type { GetStaticPaths, GetStaticProps } from "next";
 import Head from "next/head.js";
@@ -43,17 +42,11 @@ export function createProsewirePages(options: ProsewireNextOptions) {
   }
 
   const postGetStaticPaths = (async () => {
-    const [posts, redirects] = await Promise.all([
-      client.listAllPosts(),
-      client.listRedirects(),
-    ]);
+    const posts = await client.listAllPosts();
     return {
-      paths: [
-        ...posts.map((post: PublicPost) => ({ params: { slug: post.slug } })),
-        ...redirects.map((redirect: PublicRedirect) => ({
-          params: { slug: redirect.fromPath },
-        })),
-      ],
+      // Next.js rejects redirect props while prerendering known paths.
+      // Blocking fallback resolves old slugs on request instead.
+      paths: posts.map((post: PublicPost) => ({ params: { slug: post.slug } })),
       fallback: "blocking",
     };
   }) satisfies GetStaticPaths;

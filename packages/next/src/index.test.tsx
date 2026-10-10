@@ -169,7 +169,7 @@ describe("@prosewire/next", () => {
     expect(article).not.toContain("pw-post-date");
   });
 
-  it("prebuilds canonical and legacy paths for the Pages Router", async () => {
+  it("prebuilds canonical paths and defers legacy slugs to blocking fallback", async () => {
     const integration = createProsewirePages({
       baseUrl: "https://content.example",
       publication: "field-notes",
@@ -179,10 +179,7 @@ describe("@prosewire/next", () => {
     });
 
     await expect(integration.post.getStaticPaths()).resolves.toEqual({
-      paths: [
-        { params: { slug: "published" } },
-        { params: { slug: "old-slug" } },
-      ],
+      paths: [{ params: { slug: "published" } }],
       fallback: "blocking",
     });
   });
