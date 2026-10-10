@@ -3,7 +3,7 @@ import {
   EmailDeliveryError,
   EmailDeliveryJob,
 } from "@prosewire/jobs/email-queue";
-import { Effect, Fiber, Layer, Option, Redacted } from "effect";
+import { ConfigProvider, Effect, Fiber, Layer, Option, Redacted } from "effect";
 import { vi } from "vitest";
 import { isRetryable, layer, make, Service } from "./email-delivery.ts";
 import { WorkerConfig } from "./worker-config.ts";
@@ -47,6 +47,28 @@ describe("EmailDelivery", () => {
       expect(error.recipient).toBe(job.recipient);
     });
   });
+  for (const environment of ["production", "development"]) {
+    it.effect(`does not report delivery without SMTP in ${environment}`, () =>
+      Effect.gen(function* () {
+        transport.sendMail.mockClear();
+        const delivery = yield* Service;
+        const error = yield* Effect.flip(delivery.deliver(job));
+        expect(error).toBeInstanceOf(EmailDeliveryError);
+        expect(isRetryable(error)).toBe(false);
+        expect(transport.sendMail).not.toHaveBeenCalled();
+      }).pipe(
+        Effect.provide(layer.pipe(Layer.provide(WorkerConfig.layer))),
+        Effect.provideService(
+          ConfigProvider.ConfigProvider,
+          ConfigProvider.fromUnknown({
+            DATABASE_URL: "postgres://test",
+            REDIS_URL: "redis://test",
+            NODE_ENV: environment,
+          }),
+        ),
+      ),
+    );
+  }
   it.each([
     [{ responseCode: 450 }, true],
     [{ responseCode: 550 }, false],

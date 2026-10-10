@@ -1,5 +1,5 @@
 import * as JobRedis from "@prosewire/jobs/redis";
-import { Clock, Effect, Schedule } from "effect";
+import { Clock, Effect, Option, Schedule } from "effect";
 import { disposeWorkerRuntime, runWorkerEffect } from "./app-runtime.ts";
 import { EmailOutboxNotifications } from "./email-outbox-notifications.ts";
 import { runUntilShutdown } from "./shutdown.ts";
@@ -61,10 +61,16 @@ const runWorker = Effect.gen(function* () {
     Effect.forever,
   );
 
+  if (Option.isNone(config.smtpUrl)) {
+    yield* Effect.logWarning(
+      "Email delivery is disabled: configure SMTP_URL and restart the worker to deliver pending emails",
+    );
+  }
   yield* Effect.logInfo("Publishing worker ready", {
     workflows: "effect-cluster-postgres",
     queue: "effect-durable-queue-redis",
     emailConcurrency: config.emailWorkerConcurrency,
+    emailEnabled: Option.isSome(config.smtpUrl),
   });
   return yield* Effect.all(
     [

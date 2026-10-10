@@ -57,22 +57,15 @@ export class WorkerConfig extends Context.Service<
       const emailWorkerConcurrency = yield* Config.Number(
         "PROSEWIRE_EMAIL_WORKER_CONCURRENCY",
       ).pipe(Config.withDefault(4));
-      const smtpUrl = yield* Config.option(Config.Redacted("SMTP_URL"));
+      const smtpUrl = yield* Config.option(Config.Redacted("SMTP_URL")).pipe(
+        Config.map(Option.filter((url) => Redacted.value(url).trim() !== "")),
+      );
       const emailFrom = yield* Config.String("EMAIL_FROM").pipe(
         Config.withDefault("Prosewire <prosewire@localhost>"),
       );
       const environment = yield* Config.String("NODE_ENV").pipe(
         Config.withDefault("development"),
       );
-      if (
-        environment === "production" &&
-        (Option.isNone(smtpUrl) || Redacted.value(smtpUrl.value).trim() === "")
-      ) {
-        return yield* new WorkerConfigurationError({
-          variable: "SMTP_URL",
-          cause: new Error("SMTP_URL is required in production"),
-        });
-      }
       if (
         !Number.isInteger(analyticsRetentionDays) ||
         analyticsRetentionDays < 1
