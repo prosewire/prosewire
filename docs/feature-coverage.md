@@ -82,7 +82,7 @@ Upload reservations return HTTP 201 and are checked through the generated SDK ag
 | Workflow history retention | Daily scans clear terminal email workflow messages and replies after thirty days, scrub the delivery payload, remove completed Redis deduplication identities, preserve outbox deduplication records, and resume interrupted cleanup; active executions remain intact |
 | Background workflow scaling | Workflow messages and results persist in Postgres; the pinned Effect SQL runner requires exactly one Prosewire worker process per database, with configurable in-process email concurrency |
 | Backups and restore | Postgres and object-storage recovery are documented; snapshot schedules, replication, and offsite retention remain deployment-owned |
-| Stable public container | Release automation exists, but documentation does not assume registry access until a public image is independently verified |
+| Stable public container | Public [`ghcr.io/prosewire/prosewire:v0.3.1`](https://github.com/prosewire/prosewire/releases/tag/v0.3.1) image is independently verified for `linux/amd64`; `v0.3.1`, `0.3.1`, and `latest` share one digest, with anonymous pulls, migrations, web health, worker startup, and runtime files checked |
 | Cloud legal baseline | Public Terms, Privacy, acceptable use, retention, subprocessor, data-location, security, copyright, data-request, and DPA pages are implemented; the maintainer runbook keeps business sales gated until provider, region, processor, transfer, and deletion facts are verified |
 
 Production workers reject missing or blank `SMTP_URL` during configuration, before starting email delivery or dispatching outbox intents. Development workers may omit SMTP.
