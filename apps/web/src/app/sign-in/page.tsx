@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { SignInForm } from "@/components/sign-in-form";
+import { internalPath } from "@/lib/internal-path";
 import { loadAuthenticationState } from "@/server/workspace-entrypoints";
 
 export const metadata = { title: "Sign in" };
@@ -10,10 +11,7 @@ export default async function SignInPage({
   searchParams: Promise<{ passwordChanged?: string; returnTo?: string }>;
 }) {
   const { passwordChanged, returnTo } = await searchParams;
-  const safeReturnTo =
-    returnTo?.startsWith("/") && !returnTo.startsWith("//")
-      ? returnTo
-      : "/dashboard";
+  const safeReturnTo = internalPath(returnTo, "/dashboard");
   const state = await loadAuthenticationState();
   if (state.session?.user.mustChangePassword) {
     redirect(`/change-password?returnTo=${encodeURIComponent(safeReturnTo)}`);

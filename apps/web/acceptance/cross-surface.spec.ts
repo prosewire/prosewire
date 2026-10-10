@@ -115,6 +115,27 @@ test.describe
                   : "Create a publication",
             }),
           ).toBeVisible();
+          if (user === acceptance.publicationLessOwner) {
+            await page
+              .getByLabel("Publication name", { exact: true })
+              .fill("First Publication");
+            await page
+              .getByLabel("Public slug", { exact: true })
+              .fill("first-publication");
+            await page
+              .getByRole("button", { name: "Create publication", exact: true })
+              .click();
+            await expect(page).toHaveURL(`${baseUrl}/dashboard`);
+            await expect(
+              page.getByRole("heading", { name: "Good morning.", exact: true }),
+            ).toBeVisible();
+            await expect(
+              page.getByRole("button", {
+                name: "Switch publication. Current: First Publication",
+                exact: true,
+              }),
+            ).toBeVisible();
+          }
         } finally {
           await context.close();
         }
