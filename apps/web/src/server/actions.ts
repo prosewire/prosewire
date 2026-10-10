@@ -30,6 +30,7 @@ import {
   revokeApiKey as runRevokeApiKey,
   switchPublication as runSwitchPublication,
   switchWorkspace as runSwitchWorkspace,
+  transferOwnership as runTransferOwnership,
   updateMemberRole as runUpdateMemberRole,
   updateWorkspace as runUpdateWorkspace,
 } from "./workspace-entrypoints.ts";
@@ -347,6 +348,25 @@ export async function removeMember(formData: FormData): Promise<void> {
     }),
   );
   revalidatePath("/team");
+}
+
+export async function transferOwnership(formData: FormData): Promise<void> {
+  try {
+    await runTransferOwnership({
+      organizationId: text(formData, "organizationId"),
+      memberId: text(formData, "memberId"),
+      confirmed: formData.get("confirmed") === "on",
+    });
+  } catch (error) {
+    const tag = decodeErrorTag(error);
+    if (tag === "MemberNotFound")
+      redirect(
+        "/team?error=The%20selected%20member%20is%20no%20longer%20available",
+      );
+    redirectActionError(error, "/team");
+  }
+  revalidatePath("/", "layout");
+  redirect("/team?transferred=1");
 }
 
 export async function cancelInvitation(formData: FormData): Promise<void> {

@@ -26,6 +26,10 @@ describe("workspace permissions", () => {
   it("reserves workspace and member administration for administrators", () => {
     expect(hasPermission("owner", "workspace:delete")).toBe(true);
     expect(hasPermission("admin", "workspace:delete")).toBe(false);
+    expect(hasPermission("owner", "workspace:transfer")).toBe(true);
+    for (const role of teamRoles.filter((role) => role !== "owner")) {
+      expect(hasPermission(role, "workspace:transfer")).toBe(false);
+    }
     expect(hasPermission("admin", "members:manage")).toBe(true);
     expect(hasPermission("editor", "members:manage")).toBe(false);
     expect(hasPermission("admin", "audit:read")).toBe(true);
@@ -36,7 +40,9 @@ describe("workspace permissions", () => {
     const expected = {
       owner: permissions,
       admin: permissions.filter(
-        (permission) => permission !== "workspace:delete",
+        (permission) =>
+          permission !== "workspace:delete" &&
+          permission !== "workspace:transfer",
       ),
       editor: [
         "content:read",

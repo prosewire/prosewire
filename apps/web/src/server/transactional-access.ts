@@ -58,6 +58,28 @@ export async function lockWorkspaceAuthorization(
   });
 }
 
+// Membership changes serialize on the workspace before reading the actor or
+// locking a target. This avoids competing transfers upgrading each other's
+// shared member locks and lets removal/role changes recheck the committed roles.
+export async function lockWorkspaceMembershipAuthorization(
+  transaction: TransactionClient,
+  organizationId: OrganizationId,
+  userId: UserId,
+  capability: Permission,
+): Promise<WorkspaceAuthorization | undefined> {
+  await transaction
+    .select({ id: schema.organization.id })
+    .from(schema.organization)
+    .where(eq(schema.organization.id, organizationId))
+    .for("update");
+  return lockWorkspaceAuthorization(
+    transaction,
+    organizationId,
+    userId,
+    capability,
+  );
+}
+
 export async function lockBlogAuthorization(
   transaction: TransactionClient,
   blogId: BlogId,
