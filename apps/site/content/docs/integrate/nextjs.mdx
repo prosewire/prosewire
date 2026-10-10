@@ -49,7 +49,7 @@ The index route uses `blog.index.Page` and `blog.index.generateMetadata`. Fetche
 
 ## Pages Router shape
 
-Use `createProsewirePages` from `@prosewire/next/pages`. The returned index exposes `Page` and `getStaticProps`; the article route exposes `Page`, `getStaticPaths`, and `getStaticProps`. Published posts and known old slugs are prebuilt, with blocking fallback and ISR for new content.
+Use `createProsewirePages` from `@prosewire/next/pages`. The returned index exposes `Page` and `getStaticProps`; the article route exposes `Page`, `getStaticPaths`, and `getStaticProps`. Published posts are prebuilt. Old slugs and newly published posts resolve through blocking fallback; old slugs return permanent redirects, and ISR refreshes cached content.
 
 ## Own the styling
 
