@@ -19,8 +19,8 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@redis/client": "^6.2.1",
-    "effect": "4.0.0-rc.115"
+    "@redis/client": "^6.3.0",
+    "effect": "4.0.0"
   },
   "devDependencies": {
     "@effect/vitest": "4.0.0-rc.115",
