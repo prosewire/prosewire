@@ -25,6 +25,7 @@
     "@prosewire/core": "workspace:*",
     "@prosewire/db": "workspace:*",
     "@prosewire/jobs": "workspace:*",
+    "@streamparser/json": "0.0.26",
     "@tiptap/extensions": "3.31.3",
     "@tiptap/markdown": "3.31.3",
     "@tiptap/pm": "3.31.3",

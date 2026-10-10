@@ -6,6 +6,7 @@ import {
   type MediaUploadReservation,
   type MediaUsage,
   type MediaVariant,
+  type PortableImportReport,
   type PostCreateEncodedInput,
   type PostCreateInput,
   type PostRevision,
@@ -18,6 +19,8 @@ import {
   type PublicPostPage,
   type PublicPostResult,
   type PublicRedirect,
+  portableImportPath,
+  portableImportReport,
   publicPostPage,
   publicPostResult,
   publicRedirectOutput,
@@ -45,6 +48,23 @@ export interface PrivatePostListInput {
   readonly status?: PostStatus;
   readonly page?: number;
   readonly pageSize?: number;
+}
+
+export interface PortableImportInput {
+  readonly body: ReadableStream<Uint8Array>;
+  readonly contentType: "application/json" | "application/zip";
+  readonly mode?: "preview" | "apply";
+  /** Restore published/scheduled/archive states. Otherwise all posts arrive as drafts. */
+  readonly preserveStates?: boolean;
+}
+
+export class ProsewireImportError extends Schema.TaggedError<ProsewireImportError>()(
+  "ProsewireImportError",
+  { status: Schema.Int, item: Schema.String, reason: Schema.String },
+) {
+  override get message() {
+    return `${this.item}: ${this.reason}`;
+  }
 }
 
 function normalizedCreateInput(input: PostCreateEncodedInput): PostCreateInput {
@@ -77,6 +97,58 @@ export function createEffectClient(options: ProsewireClientOptions) {
 
   return {
     health: () => provideFetch(generated.health.check()),
+    imports: {
+      run: (input: PortableImportInput) =>
+        Effect.tryPromise({
+          try: async (signal) => {
+            const query = new URLSearchParams({
+              mode: input.mode ?? "preview",
+              preserveStates: String(input.preserveStates ?? false),
+            });
+            const response = await (options.fetch ?? globalThis.fetch)(
+              `${baseUrl}${portableImportPath}?${query}`,
+              {
+                method: "POST",
+                headers: {
+                  "content-type": input.contentType,
+                  ...(options.apiKey
+                    ? { authorization: `Bearer ${options.apiKey}` }
+                    : {}),
+                },
+                body: input.body,
+                duplex: "half",
+                signal,
+              } as RequestInit & { duplex: "half" },
+            );
+            const body: unknown = await response.json();
+            if (!response.ok) {
+              const failure = Schema.decodeUnknownSync(
+                Schema.Struct({
+                  item: Schema.optionalKey(Schema.String),
+                  message: Schema.String,
+                }),
+              )(body);
+              throw new ProsewireImportError({
+                status: response.status,
+                item: failure.item ?? "request",
+                reason: failure.message,
+              });
+            }
+            return Schema.decodeUnknownPromise(portableImportReport)(body);
+          },
+          catch: (cause) =>
+            cause instanceof ProsewireImportError
+              ? cause
+              : new ProsewireImportError({
+                  status: 0,
+                  item: "request",
+                  reason:
+                    cause instanceof Error
+                      ? cause.message
+                      : "Publication import failed",
+                }),
+        }),
+    },
     blogs: {
       list: () => provideFetch(generated.blogs.list()),
     },
@@ -130,6 +202,10 @@ export function createClient(options: ProsewireClientOptions) {
   const client = createEffectClient(options);
   return {
     health: () => Effect.runPromise(client.health()),
+    imports: {
+      run: (input: PortableImportInput) =>
+        Effect.runPromise(client.imports.run(input)),
+    },
     blogs: {
       list: () => Effect.runPromise(client.blogs.list()),
     },
@@ -178,6 +254,7 @@ export type {
   MediaUploadReservation,
   MediaUsage,
   MediaVariant,
+  PortableImportReport,
   PostRevision,
   PublicAuthor,
   PublicBlog,

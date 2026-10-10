@@ -5,6 +5,7 @@ import {
   mediaStartUploadInput,
   mediaUploadReservationOutput,
   paginatedPosts,
+  portableImportReport,
   postCreateInput,
   postOutput,
   postRevisionOutput,
@@ -12,6 +13,7 @@ import {
   postUpdateInput,
 } from "@prosewire/contract";
 import type { EffectClient } from "@prosewire/sdk";
+import { openPortableImportFile } from "@prosewire/sdk/import-node";
 import { Effect, Layer, Schema } from "effect";
 import { McpServer, Tool, Toolkit } from "effect/unstable/ai";
 import { version } from "./version.ts";
@@ -207,6 +209,24 @@ export const ProsewireToolkit = Toolkit.make(
   MediaUploadStart,
   MediaUploadComplete,
   MediaDelete,
+  Tool.make("publication_import", {
+    description:
+      "Preview or apply a create-only Prosewire JSON v2 export and optional matching media ZIP from files on the MCP server. Preview writes nothing. Apply imports drafts unless preserveStates explicitly restores publication states; existing content is never overwritten.",
+    parameters: Schema.Struct({
+      file: Schema.String,
+      mediaFile: Schema.optionalKey(Schema.String),
+      mode: Schema.Literals(["preview", "apply"]),
+      preserveStates: Schema.optionalKey(Schema.Boolean),
+    }),
+    success: portableImportReport,
+    failure: ProsewireToolFailure,
+    needsApproval: true,
+  })
+    .annotate(Tool.Title, "Import publication")
+    .annotate(Tool.Readonly, false)
+    .annotate(Tool.Destructive, false)
+    .annotate(Tool.Idempotent, true)
+    .annotate(Tool.OpenWorld, false),
 );
 
 const toolFailure = (error: unknown) =>
@@ -229,6 +249,9 @@ type McpOperation<F> = F extends (
   : never;
 
 export interface ProsewireMcpClient {
+  readonly imports: {
+    readonly run: McpOperation<EffectClient["imports"]["run"]>;
+  };
   readonly blogs: {
     readonly list: McpOperation<EffectClient["blogs"]["list"]>;
   };
@@ -279,6 +302,14 @@ export function createProsewireMcpHandlers(client: ProsewireMcpClient) {
     media_upload_complete: ({ id }) =>
       call(client.media.completeUpload({ params: { id } })),
     media_delete: ({ id }) => call(client.media.delete({ params: { id } })),
+    publication_import: ({ file, mediaFile, mode, preserveStates }) =>
+      call(
+        client.imports.run({
+          ...openPortableImportFile(file, mediaFile),
+          mode,
+          preserveStates: preserveStates ?? false,
+        }),
+      ),
   });
 }
 

@@ -78,3 +78,5 @@ Update accepts a partial post body, for example:
 ```
 
 Use an existing authenticated post response or portable export to resolve publication and author IDs. The current management API does not expose a standalone author-list endpoint.
+
+`import --data export.json [--media media.zip]` previews a Prosewire portable export with a `content:write` destination key. Add `--apply` to create content and `--preserve-states` only when deliberately restoring public or scheduled states. Posts otherwise arrive as drafts. Existing content is never overwritten. See [portable import](https://prosewire.com/docs/operate/portable-import/) for format limits and exact-artifact retry policy.

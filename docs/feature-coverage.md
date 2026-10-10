@@ -18,7 +18,7 @@ missing.
 | Bulk operations | Bulk archive is implemented; bulk editing of other fields is not |
 | Reusable snippets | Stored and visible in the content library; editor insertion UI is not implemented |
 | Localization | Publication language lists, default-language selection, and post locale assignment are implemented; translation management is not |
-| Import | Not implemented |
+| Import | Prosewire JSON v2 and managed-media ZIP v1 through streamed authenticated API, SDK `imports.run`, CLI `import`, and MCP `publication_import`; preview precedes explicit apply, posts default to drafts, preserved states require opt-in, existing content is never overwritten, and exact unchanged retries are idempotent; no dashboard, Markdown, CSV, third-party, or update/merge import |
 
 Known duplicate post slugs return HTTP 409 with a typed `ApiPostConflict`; dashboard writes show an actionable conflict message. Internal API persistence failures log only error tags, operations, driver codes, and constraint names, and return a stable, nonempty public message; raw SQL, bound values, and error messages are excluded from logs.
 
@@ -58,11 +58,11 @@ Scheduled posts keep their scheduled time as the public publication date, includ
 | JavaScript embed | Implemented without an iframe; loads a publication index or one article |
 | Rendered HTML API | Implemented with sanitized post content and stable `pw-*` classes |
 | Public JSON API | Implemented for published lists and individual posts |
-| Private management API | Implemented for health, publication listing, post list/get/create/update/archive, revision list/restore, and media upload/list/delete |
-| TypeScript SDK | Promise and Effect clients are published as pre-1.0 packages |
+| Private management API | Implemented for health, publication listing, post list/get/create/update/archive, revision list/restore, media upload/list/delete, and streamed portable-import preview/apply |
+| TypeScript SDK | Promise and Effect clients support portable import and a separate Node streaming file helper; packages are pre-1.0 |
 | Framework packages | Headless Next.js and Astro readers are published; the Next.js package supports direct Node.js ES module imports; acceptance tests scaffold fresh Next.js App/Pages and Astro static/server consumers from tarballs, build and serve production readers, and check public visibility and old slugs against the real API; Pages Router prebuilds canonical slugs and resolves old slugs through blocking fallback to avoid unsupported prerender redirects |
-| CLI | Public read commands and authenticated create/update/archive commands are published; command interruption aborts HTTP requests and file reads |
-| MCP server | Read, mutating, and destructive tools are published with operation metadata and approval requirements |
+| CLI | Public read commands and authenticated create/update/archive commands are published; `import --data [--media]` previews by default, `--apply` writes, and `--preserve-states` explicitly restores lifecycle states; command interruption aborts HTTP requests and file reads |
+| MCP server | Read, mutating, and destructive tools are published with operation metadata and approval requirements; `publication_import` streams local export files with an explicit preview/apply mode and requires approval |
 | Portable export | Versioned JSON includes publication relationships, revisions, and the media manifest; CSV includes managed cover identifiers; a separate ZIP contains sanitized original media files; all formats stream through paged database reads, history and media references stream independently, and canceled downloads release object-storage bodies |
 
 Upload reservations return HTTP 201 and are checked through the generated SDK against the private API router.

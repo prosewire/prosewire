@@ -1,6 +1,8 @@
+import { Effect, Result } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import {
   createClient,
+  createEffectClient,
   createPublicClient,
   type ProsewireRequestError,
 } from "./index.ts";
@@ -115,7 +117,155 @@ const mediaAsset = {
   updatedAt: "2026-01-03T00:00:00.000Z",
 };
 
+function respondToMedia(method: string, path: string) {
+  if (method === "GET" && path.endsWith("/media")) {
+    return Promise.resolve(
+      Response.json({
+        items: [mediaAsset],
+        usage: {
+          usedBytes: 2_048,
+          quotaBytes: 4_096,
+          remainingBytes: 2_048,
+        },
+        configured: true,
+        maxUploadBytes: 20_971_520,
+      }),
+    );
+  }
+  if (method === "POST" && path.endsWith("/media/uploads")) {
+    return Promise.resolve(
+      Response.json(
+        {
+          asset: { ...mediaAsset, status: "pending", url: null },
+          upload: {
+            url: "https://storage.example/signed",
+            method: "PUT",
+            headers: { "content-type": "image/webp" },
+            expiresAt: "2026-01-03T00:10:00.000Z",
+          },
+          usage: {
+            usedBytes: 1_024,
+            quotaBytes: 4_096,
+            remainingBytes: 3_072,
+          },
+        },
+        { status: 201 },
+      ),
+    );
+  }
+  if (path.includes("/media/")) {
+    return method === "DELETE"
+      ? Promise.resolve(Response.json({ ok: true }))
+      : Promise.resolve(Response.json(mediaAsset));
+  }
+  return undefined;
+}
+
 describe("Prosewire SDK", () => {
+  it("streams import bytes with authenticated preview defaults and explicit apply policy", async () => {
+    const report = {
+      mode: "preview",
+      fingerprint: "hash",
+      counts: { posts: 1 },
+      preserveStates: false,
+      alreadyImported: false,
+    };
+    const request = vi.fn<typeof fetch>(async (url, init) => {
+      expect(String(url)).toBe(
+        `https://content.example/api/v1/import?mode=${report.mode}&preserveStates=${report.preserveStates}`,
+      );
+      expect(new Headers(init?.headers).get("authorization")).toBe(
+        "Bearer pw_test_key",
+      );
+      expect(new Headers(init?.headers).get("content-type")).toBe(
+        "application/json",
+      );
+      expect(init?.body).toBeInstanceOf(ReadableStream);
+      expect(await new Response(init?.body).text()).toBe('{"posts":[]}');
+      return Response.json(report);
+    });
+    const client = createClient({
+      baseUrl: "https://content.example/",
+      apiKey: "pw_test_key",
+      fetch: request,
+    });
+    const stream = () => new Blob(['{"posts":[]}']).stream();
+    expect(
+      await client.imports.run({
+        body: stream(),
+        contentType: "application/json",
+      }),
+    ).toEqual(report);
+    report.mode = "apply";
+    report.preserveStates = true;
+    expect(
+      await client.imports.run({
+        body: stream(),
+        contentType: "application/json",
+        mode: "apply",
+        preserveStates: true,
+      }),
+    ).toEqual(report);
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+  it.each([400, 401, 403, 409, 500])(
+    "retains HTTP %s and item-specific import failures",
+    async (status) => {
+      const client = createEffectClient({
+        baseUrl: "https://content.example",
+        fetch: async () =>
+          Response.json(
+            { item: "posts[2]", message: "Cannot import this item" },
+            { status },
+          ),
+      });
+      const result = await Effect.runPromise(
+        client.imports
+          .run({ body: new Blob([]).stream(), contentType: "application/json" })
+          .pipe(Effect.result),
+      );
+      expect(Result.isFailure(result) && result.failure).toMatchObject({
+        _tag: "ProsewireImportError",
+        status,
+        item: "posts[2]",
+        reason: "Cannot import this item",
+      });
+    },
+  );
+  it("interrupts an active streamed import HTTP request", async () => {
+    let started!: () => void;
+    const ready = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    let requestSignal: AbortSignal | null | undefined;
+    const client = createEffectClient({
+      baseUrl: "https://content.example",
+      fetch: (_url, init) => {
+        requestSignal = init?.signal;
+        started();
+        return new Promise((_resolve, reject) =>
+          requestSignal?.addEventListener(
+            "abort",
+            () => reject(new DOMException("Canceled", "AbortError")),
+            { once: true },
+          ),
+        );
+      },
+    });
+    const controller = new AbortController();
+    const running = Effect.runPromiseExit(
+      client.imports.run({
+        body: new Blob([]).stream(),
+        contentType: "application/json",
+      }),
+      { signal: controller.signal },
+    );
+    await ready;
+    controller.abort();
+    expect((await running)._tag).toBe("Failure");
+    expect(requestSignal?.aborted).toBe(true);
+  });
+
   it("calls the typed API with a normalized URL and bearer key", async () => {
     const request = vi.fn(
       (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
@@ -170,49 +320,8 @@ describe("Prosewire SDK", () => {
         if (outgoing.method === "GET" && url.pathname.endsWith("/revisions")) {
           return Promise.resolve(Response.json([revision]));
         }
-        if (outgoing.method === "GET" && url.pathname.endsWith("/media")) {
-          return Promise.resolve(
-            Response.json({
-              items: [mediaAsset],
-              usage: {
-                usedBytes: 2_048,
-                quotaBytes: 4_096,
-                remainingBytes: 2_048,
-              },
-              configured: true,
-              maxUploadBytes: 20_971_520,
-            }),
-          );
-        }
-        if (
-          outgoing.method === "POST" &&
-          url.pathname.endsWith("/media/uploads")
-        ) {
-          return Promise.resolve(
-            Response.json(
-              {
-                asset: { ...mediaAsset, status: "pending", url: null },
-                upload: {
-                  url: "https://storage.example/signed",
-                  method: "PUT",
-                  headers: { "content-type": "image/webp" },
-                  expiresAt: "2026-01-03T00:10:00.000Z",
-                },
-                usage: {
-                  usedBytes: 1_024,
-                  quotaBytes: 4_096,
-                  remainingBytes: 3_072,
-                },
-              },
-              { status: 201 },
-            ),
-          );
-        }
-        if (url.pathname.includes("/media/")) {
-          return outgoing.method === "DELETE"
-            ? Promise.resolve(Response.json({ ok: true }))
-            : Promise.resolve(Response.json(mediaAsset));
-        }
+        const mediaResponse = respondToMedia(outgoing.method, url.pathname);
+        if (mediaResponse) return mediaResponse;
         if (outgoing.method === "DELETE") {
           return Promise.resolve(Response.json({ ok: true }));
         }
