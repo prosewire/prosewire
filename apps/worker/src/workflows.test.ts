@@ -1,6 +1,6 @@
 import { describe, expect, it } from "@effect/vitest";
 import * as EmailQueue from "@prosewire/jobs/email-queue";
-import { Effect, Layer } from "effect";
+import { Effect, Fiber, Layer, Option, Redacted } from "effect";
 import * as PersistedQueue from "effect/unstable/persistence/PersistedQueue";
 import { DurableQueue, WorkflowEngine } from "effect/unstable/workflow";
 import {
@@ -11,6 +11,7 @@ import { PostId, PublishedPost } from "./domain.ts";
 import { EmailDelivery } from "./email-delivery.ts";
 import { EmailOutbox } from "./email-outbox.ts";
 import { Publishing } from "./publishing.ts";
+import { WorkerConfig } from "./worker-config.ts";
 import {
   EmailDeliveryWorkflow,
   emailWorkerLayer,
@@ -21,6 +22,15 @@ import {
 } from "./workflows.ts";
 
 const now = "2026-08-25T12:00:00.000Z";
+const config = WorkerConfig.of({
+  databaseUrl: Redacted.make("postgres://test"),
+  redisUrl: Redacted.make("redis://test"),
+  analyticsRetentionDays: 365,
+  emailWorkerConcurrency: 1,
+  smtpUrl: Option.some(Redacted.make("smtp://localhost")),
+  emailFrom: "test@localhost",
+  environment: "production",
+});
 
 function testLayer(
   state: {
@@ -32,6 +42,7 @@ function testLayer(
   failure?: EmailQueue.EmailDeliveryError,
 ) {
   const services = Layer.mergeAll(
+    Layer.succeed(WorkerConfig, config),
     Layer.succeed(Publishing.Service, {
       publishScheduled: () =>
         Effect.sync(() => {
@@ -123,6 +134,61 @@ describe("worker workflows", () => {
       expect(result).toEqual({ dispatched: 2, deferred: 0 });
       expect(state.outboxCalls).toBe(2);
     }).pipe(Effect.provide(testLayer(state)));
+  });
+
+  it.effect("leaves the outbox untouched when SMTP is not configured", () => {
+    let dispatches = 0;
+    return Effect.gen(function* () {
+      expect(yield* startEmailOutbox()).toEqual({ dispatched: 0, deferred: 0 });
+      expect(dispatches).toBe(0);
+    }).pipe(
+      Effect.provideService(WorkerConfig, {
+        ...config,
+        smtpUrl: Option.none(),
+      }),
+      Effect.provideService(EmailOutbox.Service, {
+        dispatchPending: () =>
+          Effect.sync(() => {
+            dispatches += 1;
+            return { dispatched: 0, deferred: 0 };
+          }),
+      }),
+    );
+  });
+
+  it.effect("keeps queued email pending until SMTP is configured", () => {
+    const state = {
+      published: 0,
+      pruned: 0,
+      outboxCalls: 0,
+      delivered: [] as Array<EmailQueue.EmailDeliveryJob>,
+    };
+    const message = new EmailQueue.EmailDeliveryJob({
+      outboxId: "pending-1",
+      recipient: "person@example.com",
+      subject: "Invitation",
+      text: "Join",
+      html: null,
+    });
+
+    return Effect.gen(function* () {
+      yield* Layer.build(emailWorkerLayer(1)).pipe(
+        Effect.provideService(WorkerConfig, {
+          ...config,
+          smtpUrl: Option.none(),
+        }),
+      );
+      const pending = yield* EmailDeliveryWorkflow.execute(message).pipe(
+        Effect.forkChild,
+      );
+      yield* Effect.yieldNow;
+      expect(state.delivered).toEqual([]);
+      expect(pending.pollUnsafe()).toBeUndefined();
+
+      yield* Layer.build(emailWorkerLayer(1));
+      yield* Fiber.join(pending);
+      expect(state.delivered).toEqual([message]);
+    }).pipe(Effect.scoped, Effect.provide(testLayer(state)));
   });
 
   it.effect("retries retention after a failed run on the same day", () => {

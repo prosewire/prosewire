@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
-import { ConfigProvider, Effect, Option, Result } from "effect";
+import { ConfigProvider, Effect, Option } from "effect";
 import { WorkerConfig } from "./worker-config.ts";
 
 const load = (values: Record<string, string>) =>
@@ -17,21 +17,13 @@ const load = (values: Record<string, string>) =>
 
 describe("worker configuration", () => {
   for (const smtp of [undefined, "", "   "]) {
-    it.effect(`rejects production SMTP value ${JSON.stringify(smtp)}`, () =>
+    it.effect(`allows production without SMTP ${JSON.stringify(smtp)}`, () =>
       Effect.gen(function* () {
-        const result = yield* Effect.result(
-          load({
-            NODE_ENV: "production",
-            ...(smtp === undefined ? {} : { SMTP_URL: smtp }),
-          }),
-        );
-        expect(Result.isFailure(result)).toBe(true);
-        if (Result.isFailure(result)) {
-          expect(result.failure).toMatchObject({
-            _tag: "WorkerConfigurationError",
-            variable: "SMTP_URL",
-          });
-        }
+        const config = yield* load({
+          NODE_ENV: "production",
+          ...(smtp === undefined ? {} : { SMTP_URL: smtp }),
+        });
+        expect(Option.isNone(config.smtpUrl)).toBe(true);
       }),
     );
   }

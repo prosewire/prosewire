@@ -1,10 +1,11 @@
 import * as EmailQueue from "@prosewire/jobs/email-queue";
-import { Effect, Schedule } from "effect";
+import { Effect, Layer, Option, Schedule } from "effect";
 import { DurableQueue, Workflow } from "effect/unstable/workflow";
 import { AnalyticsRetention } from "./analytics-retention.ts";
 import { EmailDelivery, isRetryable } from "./email-delivery.ts";
 import { EmailOutbox } from "./email-outbox.ts";
 import { Publishing } from "./publishing.ts";
+import { WorkerConfig } from "./worker-config.ts";
 import { drainEmailOutbox } from "./worker-runtime.ts";
 
 export const EmailDeliveryWorkflow = Workflow.make("ProsewireEmailDelivery", {
@@ -23,29 +24,35 @@ const emailDeliveryRetrySchedule = Schedule.min([
 ]);
 
 export const emailWorkerLayer = (concurrency: number) =>
-  DurableQueue.worker(
-    EmailQueue.queue,
-    (message) =>
-      EmailDelivery.Service.pipe(
-        Effect.flatMap((delivery) => delivery.deliver(message)),
-        Effect.tapError((error) =>
-          Effect.logError("Email delivery attempt failed", error),
-        ),
-        Effect.retry({
-          times: 5,
-          schedule: emailDeliveryRetrySchedule,
-          while: isRetryable,
-        }),
-        Effect.tapError((error) =>
-          Effect.logError("Email delivery permanently failed", {
-            outboxId: message.outboxId,
-            recipient: message.recipient,
-            retryable: isRetryable(error),
-            error,
-          }),
-        ),
-      ),
-    { concurrency },
+  Layer.unwrap(
+    Effect.map(WorkerConfig, (config) =>
+      Option.isNone(config.smtpUrl)
+        ? Layer.empty
+        : DurableQueue.worker(
+            EmailQueue.queue,
+            (message) =>
+              EmailDelivery.Service.pipe(
+                Effect.flatMap((delivery) => delivery.deliver(message)),
+                Effect.tapError((error) =>
+                  Effect.logError("Email delivery attempt failed", error),
+                ),
+                Effect.retry({
+                  times: 5,
+                  schedule: emailDeliveryRetrySchedule,
+                  while: isRetryable,
+                }),
+                Effect.tapError((error) =>
+                  Effect.logError("Email delivery permanently failed", {
+                    outboxId: message.outboxId,
+                    recipient: message.recipient,
+                    retryable: isRetryable(error),
+                    error,
+                  }),
+                ),
+              ),
+            { concurrency },
+          ),
+    ),
   );
 
 export const startEmailDelivery = (message: EmailQueue.EmailDeliveryJob) =>
@@ -71,6 +78,10 @@ export const startAnalyticsRetention = Effect.fn("Worker.pruneAnalytics")(
 
 export const startEmailOutbox = Effect.fn("Worker.dispatchEmailOutbox")(
   function* () {
+    const config = yield* WorkerConfig;
+    if (Option.isNone(config.smtpUrl)) {
+      return { dispatched: 0, deferred: 0 };
+    }
     const outbox = yield* EmailOutbox.Service;
     const result = yield* drainEmailOutbox(outbox.dispatchPending);
     if (result.dispatched > 0 || result.deferred > 0) {

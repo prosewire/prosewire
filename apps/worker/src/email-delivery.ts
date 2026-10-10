@@ -86,10 +86,9 @@ export const layer = Layer.effect(
       : undefined;
     const send: Deliver = async (message) => {
       if (!transport) {
-        if (config.environment === "production") {
-          throw new Error("SMTP_URL is required in production");
-        }
-        return;
+        throw new Error(
+          "Email delivery is disabled: SMTP_URL is not configured",
+        );
       }
       await transport.sendMail({
         from: config.emailFrom,

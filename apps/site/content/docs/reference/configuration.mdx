@@ -56,12 +56,12 @@ Media storage credentials must allow reading, writing, deleting, and listing obj
 | --- | --- | --- |
 | `BETTER_AUTH_SECRET` | Yes | Unique authentication secret of at least 32 characters |
 | `PROSEWIRE_ALLOW_SIGN_UP` | No | Enables first-owner bootstrap for self-hosted or open registration for Cloud; defaults to `false` |
-| `SMTP_URL` | Required at production worker startup | SMTP or SMTPS connection URL |
+| `SMTP_URL` | For email delivery | SMTP or SMTPS connection URL; missing or blank disables delivery without blocking worker startup |
 | `EMAIL_FROM` | Production email | Sender identity; defaults to a localhost address in development |
 
 On self-hosted deployments, enable `PROSEWIRE_ALLOW_SIGN_UP=true` only to create the first owner. Direct registration closes automatically after the first account exists, even before that owner creates the team, but you should still set the value back to `false` and replace the web container after bootstrap. On Cloud, the flag keeps open registration available until you disable it. A valid, unexpired invitation still allows its invited email address to create an account in either deployment mode.
 
-Test SMTP delivery and invitation links from the public origin before onboarding a team.
+Without `SMTP_URL`, the worker logs a warning and leaves pending emails in the outbox or queue while scheduled publishing and retention continue. Configure SMTP and restart the worker to resume delivery. Test SMTP delivery and invitation links from the public origin before onboarding a team.
 
 ## Self-hosted administrator bootstrap
 
