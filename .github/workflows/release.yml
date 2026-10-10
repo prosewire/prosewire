@@ -11,11 +11,11 @@ concurrency:
 
 jobs:
   release:
-    name: Version and publish packages
+    name: Prepare or publish packages
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
-      contents: write # Commit generated versions directly to main.
+      contents: write # Push a version branch or published package tags.
       id-token: write # Authenticate to npm through trusted publishing.
     env:
       NPM_CONFIG_PROVENANCE: "true"
@@ -32,19 +32,21 @@ jobs:
           cache: pnpm
           registry-url: https://registry.npmjs.org
       - run: pnpm install --frozen-lockfile
-      - name: Generate package versions
+      - name: Prepare package versions and verify release inputs
         id: version
         run: |
           test "$GITHUB_REF" = "refs/heads/main"
           echo "start_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           changesets="$(find .changeset -maxdepth 1 -type f -name '*.md' ! -name README.md -print -quit)"
-          if [ -z "$changesets" ]; then
-            echo "No pending Changesets to release." >&2
-            exit 1
+          if [ -n "$changesets" ]; then
+            echo "prepared=true" >> "$GITHUB_OUTPUT"
+            pnpm version-packages
+          else
+            echo "prepared=false" >> "$GITHUB_OUTPUT"
           fi
-          pnpm version-packages
           pnpm release:preflight
-      - name: Commit generated versions to main
+      - name: Push generated versions for pull request review
+        if: steps.version.outputs.prepared == 'true'
         env:
           GH_TOKEN: ${{ secrets.RELEASE_GITHUB_TOKEN || github.token }}
           START_SHA: ${{ steps.version.outputs.start_sha }}
@@ -60,8 +62,23 @@ jobs:
           git fetch origin main:refs/remotes/origin/main
           test "$(git rev-parse origin/main)" = "$START_SHA"
           gh auth setup-git
-          git push origin HEAD:main
+          release_branch="release/packages-$START_SHA"
+          if git ls-remote --exit-code origin "refs/heads/$release_branch" >/dev/null; then
+            echo "The prepared branch $release_branch already exists; review it before preparing again." >&2
+            exit 1
+          fi
+          git push origin "HEAD:refs/heads/$release_branch"
+          {
+            echo '## Package versions prepared'
+            echo
+            echo "Branch: \`$release_branch\`"
+            echo
+            echo "[Review the version changes](https://github.com/$GITHUB_REPOSITORY/compare/main...$release_branch?expand=1)."
+            echo
+            echo 'Open and merge a pull request for this branch, then dispatch Release packages again on main to publish. This preparation run does not publish packages.'
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Publish packages
+        if: steps.version.outputs.prepared == 'false'
         id: changesets
         uses: changesets/action/publish@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
@@ -95,7 +112,7 @@ jobs:
             echo "- [$tag]($release_url)" >> "$GITHUB_STEP_SUMMARY"
           done < <(jq -r '.[] | [.name, .version] | @tsv' <<<"$PUBLISHED_PACKAGES")
       - name: Require at least one publication
-        if: steps.changesets.outputs.published != 'true'
+        if: steps.version.outputs.prepared == 'false' && steps.changesets.outputs.published != 'true'
         run: |
           echo "Changesets did not publish any packages." >&2
           exit 1

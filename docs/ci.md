@@ -24,17 +24,19 @@ Validation never runs automatically for a pull request or an ordinary push.
 
 ## Package releases
 
-`Release packages` runs only through `workflow_dispatch` on `main`. One serialized
-job consumes all pending Changesets, generates versions and changelogs, runs the
-package release preflight, and commits the generated files directly to `main`.
-It refuses to push if `main` moved after checkout.
+`Release packages` runs only through `workflow_dispatch` on `main`. When pending
+Changesets exist, its serialized job consumes them, generates versions and
+changelogs, runs the package release preflight, and pushes a
+`release/packages-<source-sha>` branch. It refuses to push if `main` moved after
+checkout or that release branch already exists. This preparation run does not
+publish packages or open a pull request; its summary links to the version diff.
 
-After pushing the version commit, the same job publishes through npm trusted
-publishing, creates a Changesets Git tag and GitHub release for every published
-package version, and verifies every package, tag, release, and provenance. The
-release identity must be allowed to bypass the pull-request rule for this one
-direct push. Use the `RELEASE_GITHUB_TOKEN` secret for that identity when the
-default Actions token has no bypass permission.
+Open and merge a pull request for the prepared branch, then dispatch the workflow
+again on `main`. With no pending Changesets, it verifies the release inputs,
+publishes through npm trusted publishing, creates a Changesets Git tag and GitHub
+release for every published package version, and verifies every package, tag,
+release, and provenance. Publication uses the merged commit. Neither phase needs
+permission to bypass the pull-request rule or permission for Actions to open PRs.
 
 Do not retry after an uncertain npm result without querying the registry first.
 
