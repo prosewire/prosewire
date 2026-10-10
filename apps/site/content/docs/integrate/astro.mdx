@@ -5,7 +5,7 @@ section: Integrate
 order: 2
 ---
 
-## Five-minute setup
+## Scaffold the reader
 
 From an existing Astro project, run:
 
@@ -39,6 +39,18 @@ export default defineConfig({
 ```
 
 This injects `/blog` and `/blog/[slug]`. Static sites fetch all published content and known slug redirects during the build. Server output fetches per request and sets shared-cache headers. Neither mode needs an API key.
+
+## Verify the first build
+
+The deployment URL must be reachable during the production build, and the publication slug must match a publication on that deployment. Publish a post in the dashboard before building the host application:
+
+```shell
+pnpm build
+```
+
+Run the built application with your deployment's normal production command. Open `/blog` and the published article. The index and article should render without a management key or client-side JavaScript. Check that a draft, future scheduled post, archived post, and unknown slug return 404; rename the published post and confirm its previous slug redirects to the replacement.
+
+For static output, this is a snapshot of content and redirects at build time. Rebuild and redeploy after publication, archiving, scheduling changes, or renaming. Server output reads on demand; its configured shared cache can retain an earlier response until it expires.
 
 ## Own the layout and markup
 

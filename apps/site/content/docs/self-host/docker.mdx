@@ -90,6 +90,22 @@ If the temporary password is lost before it is changed, replace `PROSEWIRE_BOOTS
 
 Upgrades do not delete or merge existing workspaces. If an older self-hosted database already contains more than one, members can still switch between them, but the instance cannot create another one. Move independent teams to separate installations before consolidating the data.
 
+## Verify the first publication
+
+After creating the first publication, publish one article and open its reader from the dashboard. Create a draft and a future scheduled post, and verify they do not appear in the public index or public JSON endpoint. Archive a published post and confirm its public URL returns 404. Rename the remaining published article and confirm the previous slug redirects to the replacement.
+
+For an embedded Next.js or Astro reader, follow the [Next.js guide](/docs/integrate/nextjs/) or [Astro guide](/docs/integrate/astro/) using this installation's external URL and publication slug. Build the host application and repeat the visibility checks. Static Astro output requires rebuilding and redeploying after publishing, archiving, or renaming.
+
+Record the exact checkout and the running image IDs before calling the installation verified:
+
+```shell
+git rev-parse HEAD
+docker compose images
+curl --fail https://publish.example.com/api/health
+```
+
+The health response proves the web process can reach its configured database. Verify migration exit status and worker logs separately; it does not prove either process is running correctly.
+
 ## Upgrade safely
 
 1. Back up Postgres and record the running image or source commit.
