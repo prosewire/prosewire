@@ -96,7 +96,7 @@ export function savePost(input: SavePostBoundaryInput) {
       } as const;
       const result = command.id
         ? yield* publishing.updatePost(
-            yield* Schema.decodeEffect(Schema.toType(UpdatePostCommand))({
+            yield* UpdatePostCommand.makeEffect({
               postId: command.id,
               ...fields,
             }).pipe(
@@ -105,9 +105,7 @@ export function savePost(input: SavePostBoundaryInput) {
             { _tag: "Dashboard", userId: actorId },
           )
         : yield* publishing.createPost(
-            yield* Schema.decodeEffect(Schema.toType(CreatePostCommand))(
-              fields,
-            ).pipe(
+            yield* CreatePostCommand.makeEffect(fields).pipe(
               Effect.mapError(() => invalidInput("Invalid post form data")),
             ),
             {
