@@ -612,453 +612,445 @@ export function Editor({
           </div>
         </main>
 
-        {sidebarOpen ? (
-          <aside
-            id="post-settings"
-            className="bg-[#f7f6f1] lg:sticky lg:top-[59px] lg:h-[calc(100vh-59px)] lg:overflow-y-auto"
-          >
-            <SidebarTabs selected={sidebarTab} onSelect={setSidebarTab} />
+        {/* Hidden panels still own successful form controls for every save. */}
+        <aside
+          id="post-settings"
+          hidden={!sidebarOpen}
+          className="bg-[#f7f6f1] lg:sticky lg:top-[59px] lg:h-[calc(100vh-59px)] lg:overflow-y-auto"
+        >
+          <SidebarTabs selected={sidebarTab} onSelect={setSidebarTab} />
 
-            <div className="px-5 py-6">
-              {sidebarTab === "post" ? (
-                <div className="space-y-5" role="tabpanel">
-                  <div className="flex items-center justify-between gap-3">
-                    <h2 className="text-sm font-semibold">Post settings</h2>
-                    <span className="rounded-full bg-[#eef0eb] px-2 py-1 text-[9px] font-bold capitalize text-[#536167]">
-                      {post.status}
-                    </span>
-                  </div>
+          <div className="px-5 py-6">
+            <div
+              className="space-y-5"
+              role="tabpanel"
+              hidden={sidebarTab !== "post"}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-sm font-semibold">Post settings</h2>
+                <span className="rounded-full bg-[#eef0eb] px-2 py-1 text-[9px] font-bold capitalize text-[#536167]">
+                  {post.status}
+                </span>
+              </div>
 
-                  <div>
-                    <Select
-                      name="authorId"
-                      label="Author"
-                      labelClassName={fieldLabelClass}
-                      value={authorId}
-                      onValueChange={setAuthorId}
-                      options={authors.map((author) => ({
-                        value: author.id,
-                        label: author.name,
-                      }))}
-                      size="small"
-                      className="h-10 rounded-lg px-3 text-xs shadow-none"
-                    />
-                  </div>
+              <div>
+                <Select
+                  name="authorId"
+                  label="Author"
+                  labelClassName={fieldLabelClass}
+                  value={authorId}
+                  onValueChange={setAuthorId}
+                  options={authors.map((author) => ({
+                    value: author.id,
+                    label: author.name,
+                  }))}
+                  size="small"
+                  className="h-10 rounded-lg px-3 text-xs shadow-none"
+                />
+              </div>
 
-                  <fieldset>
-                    <legend className={fieldLabelClass}>Categories</legend>
-                    <div className="max-h-44 space-y-1 overflow-y-auto rounded-xl border border-[#dcded8] bg-white p-2">
-                      {categories.length === 0 ? (
-                        <p className="px-2 py-2 text-[10px] text-[#7b8589]">
-                          No categories available
-                        </p>
-                      ) : (
-                        categories.map((category) => (
-                          <label
-                            key={category.id}
-                            className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs hover:bg-[#f4f3ee]"
-                          >
-                            <input
-                              type="checkbox"
-                              name="categoryId"
-                              value={category.id}
-                              checked={categoryIds.has(category.id)}
-                              onChange={(event) => {
-                                setCategoryIds((current) => {
-                                  const next = new Set(current);
-                                  if (event.target.checked)
-                                    next.add(category.id);
-                                  else next.delete(category.id);
-                                  return next;
-                                });
-                              }}
-                              className="size-3.5 accent-[#ef6848]"
-                            />
-                            {category.name}
-                          </label>
-                        ))
-                      )}
-                    </div>
-                  </fieldset>
-
-                  <div>
-                    <Select
-                      name="locale"
-                      label="Language"
-                      labelClassName={fieldLabelClass}
-                      defaultValue={post.locale}
-                      options={locales.map((locale) => ({
-                        value: locale,
-                        label: `${localeName(locale)} (${locale})`,
-                      }))}
-                      size="small"
-                      className="h-10 rounded-lg px-3 text-xs shadow-none"
-                    />
-                  </div>
-
-                  <label className="block">
-                    <span className={fieldLabelClass}>Schedule time</span>
-                    <input
-                      name="scheduledAt"
-                      type="datetime-local"
-                      defaultValue={post.scheduledAt}
-                      className={fieldClass}
-                    />
-                  </label>
-
-                  <label className="flex min-h-10 items-center justify-between gap-3 border-y border-[#dfe0db] py-2 text-xs font-medium">
-                    <span>Pin on the publication home</span>
-                    <input
-                      name="featured"
-                      type="checkbox"
-                      defaultChecked={post.featured}
-                      className="size-4 accent-[#ef6848]"
-                    />
-                  </label>
-
-                  <section>
-                    <h3 className="text-xs font-semibold">Portable source</h3>
-                    <p className="mt-1 text-[9px] leading-4 text-[#7b8589]">
-                      The rich editor saves Markdown. Open the source view for
-                      uncommon syntax or embedded HTML.
+              <fieldset>
+                <legend className={fieldLabelClass}>Categories</legend>
+                <div className="max-h-44 space-y-1 overflow-y-auto rounded-xl border border-[#dcded8] bg-white p-2">
+                  {categories.length === 0 ? (
+                    <p className="px-2 py-2 text-[10px] text-[#7b8589]">
+                      No categories available
                     </p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPreviewing(false);
-                        setSourceEditing((current) => !current);
-                        requestAnimationFrame(() =>
-                          document
-                            .querySelector<HTMLElement>(
-                              '[aria-label="Markdown source"]',
-                            )
-                            ?.focus(),
-                        );
-                      }}
-                      className="mt-3 h-9 w-full rounded-lg border border-[#d8dad4] bg-white px-3 text-[10px] font-semibold hover:bg-[#f4f3ee]"
-                    >
-                      {sourceEditing
-                        ? "Return to rich editor"
-                        : "Edit Markdown source"}
-                    </button>
-                  </section>
-
-                  <RevisionHistory post={post} />
-                </div>
-              ) : null}
-
-              {sidebarTab === "seo" ? (
-                <div role="tabpanel">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <MagnifyingGlass className="size-4 text-[#ef6848]" />
-                      <h2 className="text-sm font-semibold">
-                        Search appearance
-                      </h2>
-                    </div>
-                    <span className="text-xs font-bold text-[#1f6e52]">
-                      {analysis.score}/100
-                    </span>
-                  </div>
-
-                  <label className="mt-5 block">
-                    <span className={fieldLabelClass}>
-                      <span>URL slug</span>
-                      <span className="normal-case tracking-normal text-[#959da0]">
-                        Redirected after publish
-                      </span>
-                    </span>
-                    <div className="flex min-w-0 items-center rounded-lg border border-[#dcded8] bg-white focus-within:border-[#ef6848] focus-within:ring-2 focus-within:ring-[#ef6848]/10">
-                      <span className="shrink-0 pl-3 text-[10px] text-[#8a9397]">
-                        {displayBaseUrl}/
-                      </span>
-                      <input
-                        id="post-slug"
-                        name="slug"
-                        value={slug}
-                        onChange={(event) =>
-                          setSlug(slugify(event.target.value))
-                        }
-                        className="h-10 min-w-0 flex-1 border-0 bg-transparent px-1 pr-3 text-xs outline-none"
-                        required
-                      />
-                    </div>
-                  </label>
-
-                  <label className="mt-4 block">
-                    <span className={fieldLabelClass}>
-                      <span>Search title</span>
-                      <span className="normal-case tracking-normal text-[#959da0]">
-                        {seoTitle.length}/70
-                      </span>
-                    </span>
-                    <input
-                      name="seoTitle"
-                      value={seoTitle}
-                      onChange={(event) => setSeoTitle(event.target.value)}
-                      placeholder={title || "Uses post title"}
-                      maxLength={70}
-                      className={fieldClass}
-                    />
-                  </label>
-
-                  <label className="mt-4 block">
-                    <span className={fieldLabelClass}>
-                      <span>Meta description</span>
-                      <span className="normal-case tracking-normal text-[#959da0]">
-                        {description.length}/180
-                      </span>
-                    </span>
-                    <textarea
-                      name="seoDescription"
-                      value={description}
-                      onChange={(event) => setDescription(event.target.value)}
-                      placeholder="Uses the post summary"
-                      maxLength={180}
-                      className={`${textAreaClass} min-h-24`}
-                    />
-                  </label>
-
-                  <div className="mt-5 rounded-xl border border-[#dcded8] bg-white p-3">
-                    <p className="text-[9px] font-bold uppercase tracking-[.1em] text-[#8a9397]">
-                      Search preview
-                    </p>
-                    <p className="mt-3 truncate text-[10px] text-[#1f6e52]">
-                      {publicationName} · {displayBaseUrl}
-                    </p>
-                    <p className="mt-1 text-[15px] leading-5 text-[#2855a7]">
-                      {searchTitle}
-                    </p>
-                    <p className="mt-1 text-[10px] leading-4 text-[#5f6a70]">
-                      {searchDescription}
-                    </p>
-                  </div>
-
-                  <label className="mt-4 block">
-                    <span className={fieldLabelClass}>Focus phrase</span>
-                    <input
-                      name="focusKeyword"
-                      value={focusKeyword}
-                      onChange={(event) => setFocusKeyword(event.target.value)}
-                      className={fieldClass}
-                    />
-                  </label>
-
-                  <label className="mt-4 block">
-                    <span className={fieldLabelClass}>
-                      <span>Canonical URL</span>
-                      <span className="normal-case tracking-normal text-[#959da0]">
-                        Optional override
-                      </span>
-                    </span>
-                    <input
-                      name="canonicalUrl"
-                      type="url"
-                      value={canonicalUrl}
-                      onChange={(event) => setCanonicalUrl(event.target.value)}
-                      placeholder={`${baseUrl}/${resolvedSlug}`}
-                      className={fieldClass}
-                    />
-                  </label>
-
-                  <section className="mt-6 border-t border-[#dfe0db] pt-5">
-                    <div className="flex items-center justify-between gap-2">
-                      <h3 className="text-xs font-semibold">Content checks</h3>
-                      <span className="text-[10px] text-[#7b8589]">
-                        {
-                          analysis.checks.filter(
-                            (item) => item.status === "pass",
-                          ).length
-                        }
-                        /{analysis.checks.length} passed
-                      </span>
-                    </div>
-                    <div className="mt-3 space-y-2">
-                      {analysis.checks.map((item) => (
-                        <div
-                          key={item.id}
-                          className="rounded-xl border border-[#e0e1dc] bg-white p-3"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-[10px] font-semibold">
-                              {item.label}
-                            </p>
-                            <span
-                              className={cn(
-                                "text-[8px] font-bold uppercase tracking-wide",
-                                item.status === "pass"
-                                  ? "text-[#1f6e52]"
-                                  : item.status === "warning"
-                                    ? "text-[#c17c16]"
-                                    : "text-[#c64b35]",
-                              )}
-                            >
-                              {item.status}
-                            </span>
-                          </div>
-                          <p className="mt-1 text-[9px] leading-4 text-[#7d878b]">
-                            {item.detail}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-
-                  <section className="mt-6 border-t border-[#dfe0db] pt-5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Sparkle className="size-4 text-[#7b65b8]" />
-                        <h3 className="text-xs font-semibold">AI discovery</h3>
-                      </div>
-                      <span className="text-xs font-bold text-[#7b65b8]">
-                        {analysis.mentionScore}/5
-                      </span>
-                    </div>
-                    <p className="mt-2 text-[9px] leading-4 text-[#7b8589]">
-                      Checks answer-first structure, headings, definitions,
-                      lists, and context.
-                    </p>
-                  </section>
-                </div>
-              ) : null}
-
-              {sidebarTab === "social" ? (
-                <div role="tabpanel">
-                  <div className="flex items-center gap-2">
-                    <ImageIcon className="size-4 text-[#ef6848]" />
-                    <h2 className="text-sm font-semibold">Social card</h2>
-                  </div>
-                  <p className="mt-2 text-[10px] leading-4 text-[#7b8589]">
-                    Search fields provide the title and description. The cover
-                    image is used for Open Graph and large social cards.
-                  </p>
-
-                  <div className="mt-5 overflow-hidden rounded-xl border border-[#dcded8] bg-white">
-                    {hasCoverPreview ? (
-                      <div
-                        role="img"
-                        aria-label={coverImageAlt || "Post cover image"}
-                        className="aspect-[1.91/1] bg-[#e5e6e1] bg-cover bg-center"
-                        style={{
-                          backgroundImage: `url(${JSON.stringify(coverImageUrl)})`,
-                        }}
-                      />
-                    ) : (
-                      <div className="grid aspect-[1.91/1] place-items-center bg-[#efeee8] text-center text-[#7b8589]">
-                        <div>
-                          <ImageIcon className="mx-auto size-6" />
-                          <p className="mt-2 text-[10px]">No cover image yet</p>
-                        </div>
-                      </div>
-                    )}
-                    <div className="p-3">
-                      <p className="text-xs font-semibold leading-4">
-                        {searchTitle}
-                      </p>
-                      <p className="mt-1 truncate text-[9px] text-[#7b8589]">
-                        {displayBaseUrl}
-                      </p>
-                    </div>
-                  </div>
-
-                  {media.configured ? (
-                    <div className="mt-5 rounded-xl border border-[#dcded8] bg-white p-3">
-                      <label className="block">
-                        <span className={fieldLabelClass}>Upload image</span>
+                  ) : (
+                    categories.map((category) => (
+                      <label
+                        key={category.id}
+                        className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs hover:bg-[#f4f3ee]"
+                      >
                         <input
-                          type="file"
-                          accept="image/jpeg,image/png,image/webp,image/avif"
-                          disabled={uploadingCover}
+                          type="checkbox"
+                          name="categoryId"
+                          value={category.id}
+                          checked={categoryIds.has(category.id)}
                           onChange={(event) => {
-                            const file = event.target.files?.[0];
-                            if (file) void uploadCover(file);
-                            event.target.value = "";
+                            setCategoryIds((current) => {
+                              const next = new Set(current);
+                              if (event.target.checked) next.add(category.id);
+                              else next.delete(category.id);
+                              return next;
+                            });
                           }}
-                          className="block w-full text-[10px] text-[#687279] file:mr-3 file:rounded-lg file:border-0 file:bg-[#172329] file:px-3 file:py-2 file:text-[10px] file:font-semibold file:text-white disabled:opacity-60"
+                          className="size-3.5 accent-[#ef6848]"
                         />
+                        {category.name}
                       </label>
-                      <p className="mt-2 text-[9px] leading-4 text-[#7b8589]">
-                        {uploadingCover
-                          ? "Uploading and processing image…"
-                          : `JPEG, PNG, WebP, or AVIF. Maximum ${Math.floor(media.maxUploadBytes / 1_048_576)} MB.`}
-                      </p>
-                      {uploadError ? (
-                        <p className="mt-2 text-[9px] leading-4 text-[#b84432]">
-                          {uploadError}
+                    ))
+                  )}
+                </div>
+              </fieldset>
+
+              <div>
+                <Select
+                  name="locale"
+                  label="Language"
+                  labelClassName={fieldLabelClass}
+                  defaultValue={post.locale}
+                  options={locales.map((locale) => ({
+                    value: locale,
+                    label: `${localeName(locale)} (${locale})`,
+                  }))}
+                  size="small"
+                  className="h-10 rounded-lg px-3 text-xs shadow-none"
+                />
+              </div>
+
+              <label className="block">
+                <span className={fieldLabelClass}>Schedule time</span>
+                <input
+                  name="scheduledAt"
+                  type="datetime-local"
+                  defaultValue={post.scheduledAt}
+                  className={fieldClass}
+                />
+              </label>
+
+              <label className="flex min-h-10 items-center justify-between gap-3 border-y border-[#dfe0db] py-2 text-xs font-medium">
+                <span>Pin on the publication home</span>
+                <input
+                  name="featured"
+                  type="checkbox"
+                  defaultChecked={post.featured}
+                  className="size-4 accent-[#ef6848]"
+                />
+              </label>
+
+              <section>
+                <h3 className="text-xs font-semibold">Portable source</h3>
+                <p className="mt-1 text-[9px] leading-4 text-[#7b8589]">
+                  The rich editor saves Markdown. Open the source view for
+                  uncommon syntax or embedded HTML.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPreviewing(false);
+                    setSourceEditing((current) => !current);
+                    requestAnimationFrame(() =>
+                      document
+                        .querySelector<HTMLElement>(
+                          '[aria-label="Markdown source"]',
+                        )
+                        ?.focus(),
+                    );
+                  }}
+                  className="mt-3 h-9 w-full rounded-lg border border-[#d8dad4] bg-white px-3 text-[10px] font-semibold hover:bg-[#f4f3ee]"
+                >
+                  {sourceEditing
+                    ? "Return to rich editor"
+                    : "Edit Markdown source"}
+                </button>
+              </section>
+
+              <RevisionHistory post={post} />
+            </div>
+
+            <div role="tabpanel" hidden={sidebarTab !== "seo"}>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <MagnifyingGlass className="size-4 text-[#ef6848]" />
+                  <h2 className="text-sm font-semibold">Search appearance</h2>
+                </div>
+                <span className="text-xs font-bold text-[#1f6e52]">
+                  {analysis.score}/100
+                </span>
+              </div>
+
+              <label className="mt-5 block">
+                <span className={fieldLabelClass}>
+                  <span>URL slug</span>
+                  <span className="normal-case tracking-normal text-[#959da0]">
+                    Redirected after publish
+                  </span>
+                </span>
+                <div className="flex min-w-0 items-center rounded-lg border border-[#dcded8] bg-white focus-within:border-[#ef6848] focus-within:ring-2 focus-within:ring-[#ef6848]/10">
+                  <span className="shrink-0 pl-3 text-[10px] text-[#8a9397]">
+                    {displayBaseUrl}/
+                  </span>
+                  <input
+                    id="post-slug"
+                    name="slug"
+                    value={slug}
+                    onChange={(event) => setSlug(slugify(event.target.value))}
+                    className="h-10 min-w-0 flex-1 border-0 bg-transparent px-1 pr-3 text-xs outline-none"
+                    required
+                  />
+                </div>
+              </label>
+
+              <label className="mt-4 block">
+                <span className={fieldLabelClass}>
+                  <span>Search title</span>
+                  <span className="normal-case tracking-normal text-[#959da0]">
+                    {seoTitle.length}/70
+                  </span>
+                </span>
+                <input
+                  name="seoTitle"
+                  value={seoTitle}
+                  onChange={(event) => setSeoTitle(event.target.value)}
+                  placeholder={title || "Uses post title"}
+                  maxLength={70}
+                  className={fieldClass}
+                />
+              </label>
+
+              <label className="mt-4 block">
+                <span className={fieldLabelClass}>
+                  <span>Meta description</span>
+                  <span className="normal-case tracking-normal text-[#959da0]">
+                    {description.length}/180
+                  </span>
+                </span>
+                <textarea
+                  name="seoDescription"
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  placeholder="Uses the post summary"
+                  maxLength={180}
+                  className={`${textAreaClass} min-h-24`}
+                />
+              </label>
+
+              <div className="mt-5 rounded-xl border border-[#dcded8] bg-white p-3">
+                <p className="text-[9px] font-bold uppercase tracking-[.1em] text-[#8a9397]">
+                  Search preview
+                </p>
+                <p className="mt-3 truncate text-[10px] text-[#1f6e52]">
+                  {publicationName} · {displayBaseUrl}
+                </p>
+                <p className="mt-1 text-[15px] leading-5 text-[#2855a7]">
+                  {searchTitle}
+                </p>
+                <p className="mt-1 text-[10px] leading-4 text-[#5f6a70]">
+                  {searchDescription}
+                </p>
+              </div>
+
+              <label className="mt-4 block">
+                <span className={fieldLabelClass}>Focus phrase</span>
+                <input
+                  name="focusKeyword"
+                  value={focusKeyword}
+                  onChange={(event) => setFocusKeyword(event.target.value)}
+                  className={fieldClass}
+                />
+              </label>
+
+              <label className="mt-4 block">
+                <span className={fieldLabelClass}>
+                  <span>Canonical URL</span>
+                  <span className="normal-case tracking-normal text-[#959da0]">
+                    Optional override
+                  </span>
+                </span>
+                <input
+                  name="canonicalUrl"
+                  type="url"
+                  value={canonicalUrl}
+                  onChange={(event) => setCanonicalUrl(event.target.value)}
+                  placeholder={`${baseUrl}/${resolvedSlug}`}
+                  className={fieldClass}
+                />
+              </label>
+
+              <section className="mt-6 border-t border-[#dfe0db] pt-5">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-xs font-semibold">Content checks</h3>
+                  <span className="text-[10px] text-[#7b8589]">
+                    {
+                      analysis.checks.filter((item) => item.status === "pass")
+                        .length
+                    }
+                    /{analysis.checks.length} passed
+                  </span>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {analysis.checks.map((item) => (
+                    <div
+                      key={item.id}
+                      className="rounded-xl border border-[#e0e1dc] bg-white p-3"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[10px] font-semibold">
+                          {item.label}
                         </p>
-                      ) : null}
+                        <span
+                          className={cn(
+                            "text-[8px] font-bold uppercase tracking-wide",
+                            item.status === "pass"
+                              ? "text-[#1f6e52]"
+                              : item.status === "warning"
+                                ? "text-[#c17c16]"
+                                : "text-[#c64b35]",
+                          )}
+                        >
+                          {item.status}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-[9px] leading-4 text-[#7d878b]">
+                        {item.detail}
+                      </p>
                     </div>
-                  ) : null}
+                  ))}
+                </div>
+              </section>
 
-                  {readyMedia.length > 0 ? (
-                    <div className="mt-4">
-                      <Select
-                        name="coverImageLibrary"
-                        label="Media library"
-                        labelClassName={fieldLabelClass}
-                        value={coverImageAssetId || "external"}
-                        onValueChange={(value) => {
-                          const asset = readyMedia.find(
-                            (item) => item.id === value,
-                          );
-                          setCoverImageAssetId(asset?.id ?? "");
-                          if (asset?.url) setCoverImageUrl(asset.url);
-                        }}
-                        options={[
-                          {
-                            value: "external",
-                            label: "Use an external URL",
-                          },
-                          ...readyMedia.map((asset) => ({
-                            value: asset.id,
-                            label: asset.filename,
-                          })),
-                        ]}
-                        size="small"
-                        className="h-10 rounded-lg px-3 text-xs shadow-none"
-                      />
-                    </div>
-                  ) : null}
-
-                  <label className="mt-5 block">
-                    <span className={fieldLabelClass}>Cover image URL</span>
-                    <input
-                      name="coverImageUrl"
-                      type="url"
-                      value={coverImageUrl}
-                      onChange={(event) => {
-                        setCoverImageAssetId("");
-                        setCoverImageUrl(event.target.value);
-                      }}
-                      placeholder="https://…"
-                      className={fieldClass}
-                    />
-                  </label>
-
-                  <label className="mt-4 block">
-                    <span className={fieldLabelClass}>Image alt text</span>
-                    <textarea
-                      name="coverImageAlt"
-                      value={coverImageAlt}
-                      onChange={(event) => setCoverImageAlt(event.target.value)}
-                      className={`${textAreaClass} min-h-20`}
-                    />
-                  </label>
-
-                  <div className="mt-6 rounded-xl border border-[#dce8e2] bg-[#f0f8f3] p-3">
-                    <p className="text-[10px] font-semibold text-[#1f6e52]">
-                      Generated from post data
-                    </p>
-                    <p className="mt-1 text-[9px] leading-4 text-[#5f6a70]">
-                      Prosewire adds the article URL, publication name, locale,
-                      author, category, and publish dates to public metadata.
-                    </p>
+              <section className="mt-6 border-t border-[#dfe0db] pt-5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Sparkle className="size-4 text-[#7b65b8]" />
+                    <h3 className="text-xs font-semibold">AI discovery</h3>
                   </div>
+                  <span className="text-xs font-bold text-[#7b65b8]">
+                    {analysis.mentionScore}/5
+                  </span>
+                </div>
+                <p className="mt-2 text-[9px] leading-4 text-[#7b8589]">
+                  Checks answer-first structure, headings, definitions, lists,
+                  and context.
+                </p>
+              </section>
+            </div>
+
+            <div role="tabpanel" hidden={sidebarTab !== "social"}>
+              <div className="flex items-center gap-2">
+                <ImageIcon className="size-4 text-[#ef6848]" />
+                <h2 className="text-sm font-semibold">Social card</h2>
+              </div>
+              <p className="mt-2 text-[10px] leading-4 text-[#7b8589]">
+                Search fields provide the title and description. The cover image
+                is used for Open Graph and large social cards.
+              </p>
+
+              <div className="mt-5 overflow-hidden rounded-xl border border-[#dcded8] bg-white">
+                {hasCoverPreview ? (
+                  <div
+                    role="img"
+                    aria-label={coverImageAlt || "Post cover image"}
+                    className="aspect-[1.91/1] bg-[#e5e6e1] bg-cover bg-center"
+                    style={{
+                      backgroundImage: `url(${JSON.stringify(coverImageUrl)})`,
+                    }}
+                  />
+                ) : (
+                  <div className="grid aspect-[1.91/1] place-items-center bg-[#efeee8] text-center text-[#7b8589]">
+                    <div>
+                      <ImageIcon className="mx-auto size-6" />
+                      <p className="mt-2 text-[10px]">No cover image yet</p>
+                    </div>
+                  </div>
+                )}
+                <div className="p-3">
+                  <p className="text-xs font-semibold leading-4">
+                    {searchTitle}
+                  </p>
+                  <p className="mt-1 truncate text-[9px] text-[#7b8589]">
+                    {displayBaseUrl}
+                  </p>
+                </div>
+              </div>
+
+              {media.configured ? (
+                <div className="mt-5 rounded-xl border border-[#dcded8] bg-white p-3">
+                  <label className="block">
+                    <span className={fieldLabelClass}>Upload image</span>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/avif"
+                      disabled={uploadingCover}
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (file) void uploadCover(file);
+                        event.target.value = "";
+                      }}
+                      className="block w-full text-[10px] text-[#687279] file:mr-3 file:rounded-lg file:border-0 file:bg-[#172329] file:px-3 file:py-2 file:text-[10px] file:font-semibold file:text-white disabled:opacity-60"
+                    />
+                  </label>
+                  <p className="mt-2 text-[9px] leading-4 text-[#7b8589]">
+                    {uploadingCover
+                      ? "Uploading and processing image…"
+                      : `JPEG, PNG, WebP, or AVIF. Maximum ${Math.floor(media.maxUploadBytes / 1_048_576)} MB.`}
+                  </p>
+                  {uploadError ? (
+                    <p className="mt-2 text-[9px] leading-4 text-[#b84432]">
+                      {uploadError}
+                    </p>
+                  ) : null}
                 </div>
               ) : null}
+
+              {readyMedia.length > 0 ? (
+                <div className="mt-4">
+                  <Select
+                    name="coverImageLibrary"
+                    label="Media library"
+                    labelClassName={fieldLabelClass}
+                    value={coverImageAssetId || "external"}
+                    onValueChange={(value) => {
+                      const asset = readyMedia.find(
+                        (item) => item.id === value,
+                      );
+                      setCoverImageAssetId(asset?.id ?? "");
+                      if (asset?.url) setCoverImageUrl(asset.url);
+                    }}
+                    options={[
+                      {
+                        value: "external",
+                        label: "Use an external URL",
+                      },
+                      ...readyMedia.map((asset) => ({
+                        value: asset.id,
+                        label: asset.filename,
+                      })),
+                    ]}
+                    size="small"
+                    className="h-10 rounded-lg px-3 text-xs shadow-none"
+                  />
+                </div>
+              ) : null}
+
+              <label className="mt-5 block">
+                <span className={fieldLabelClass}>Cover image URL</span>
+                <input
+                  name="coverImageUrl"
+                  type="url"
+                  value={coverImageUrl}
+                  onChange={(event) => {
+                    setCoverImageAssetId("");
+                    setCoverImageUrl(event.target.value);
+                  }}
+                  placeholder="https://…"
+                  className={fieldClass}
+                />
+              </label>
+
+              <label className="mt-4 block">
+                <span className={fieldLabelClass}>Image alt text</span>
+                <textarea
+                  name="coverImageAlt"
+                  value={coverImageAlt}
+                  onChange={(event) => setCoverImageAlt(event.target.value)}
+                  className={`${textAreaClass} min-h-20`}
+                />
+              </label>
+
+              <div className="mt-6 rounded-xl border border-[#dce8e2] bg-[#f0f8f3] p-3">
+                <p className="text-[10px] font-semibold text-[#1f6e52]">
+                  Generated from post data
+                </p>
+                <p className="mt-1 text-[9px] leading-4 text-[#5f6a70]">
+                  Prosewire adds the article URL, publication name, locale,
+                  author, category, and publish dates to public metadata.
+                </p>
+              </div>
             </div>
-          </aside>
-        ) : null}
+          </div>
+        </aside>
       </div>
     </form>
   );
