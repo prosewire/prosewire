@@ -65,3 +65,116 @@ Set `PROSEWIRE_ALLOW_SIGN_UP=true` only while creating the first account and wor
 - Capture migration, web, and worker logs in the platform's logging system
 
 No managed Prosewire control plane or billing service is required. The runtime is self-contained apart from Postgres, Redis, object storage and CDN delivery, SMTP, TLS termination, and the infrastructure services you choose.
+
+## Allow an unused Railway stack to sleep
+
+Railway Serverless observes outbound traffic and normally sleeps a container
+5–10 minutes after that traffic stops. The setting takes effect on a new
+container after redeployment. A quiet metrics graph does not prove sleep: private
+Postgres and Redis traffic also counts. See [Railway Serverless](https://docs.railway.com/deployments/serverless).
+
+The default Prosewire worker continuously scans scheduled posts and the email
+outbox every 30 seconds. Its durable workflow engine also polls Postgres and
+consumes Redis queues. Keep that mode for deployments without a verified wake
+path, or whenever immediate recovery after a producer crash is required.
+Never enable Serverless on a continuous worker without a verified inbound
+wake path: a slept worker with no HTTP listener cannot be woken by a content
+write. Keep Serverless disabled on continuous workers.
+
+An opt-in worker command releases the complete Effect runtime after two empty
+scans, thirty seconds apart, and retains only HTTP ingress:
+
+```shell
+node apps/worker/dist/index.mjs --idle-http
+```
+
+An authenticated HTTP wake returns `202` as soon as it is accepted and starts
+due publishing and email dispatch without making a content save wait for scans.
+The dashboard, private API, SDK, CLI, and MCP share these repository hooks;
+revision restores and applied imports containing scheduled posts also wake the
+worker. Draft edits, synchronous publish-now operations, and reads send no hints.
+A wake arriving during runtime disposal waits for a fresh runtime. No PostgreSQL
+or Redis connection, notification listener, workflow poll, queue consumer, or
+SMTP transport survives parking. The web pool uses node-postgres defaults to close idle clients after ten
+seconds; the container image disables Next.js telemetry in build and runtime.
+
+The worker **does not park** while any scheduled post (including a future one),
+undispatched outbox row (including a deferred retry or lease), unfinished email
+workflow, or queued/leased Redis email exists. These keep the established
+30-second scans and email consumers running. Permanent delivery failures remain
+terminal failures; they are not reported as successful delivery. Missing SMTP
+preserves pending mail, which also prevents parking. Failed scans do not establish
+idleness and continue polling.
+
+### Configure and verify wake-up before switching modes
+
+1. Deploy the reviewed image to **every producer/web replica**, keeping the
+   continuous worker running during setup. Older images do not send HTTP hints.
+2. Give the single worker HTTP ingress on its `PORT` (default `3000`). Set a
+   random, server-only `PROSEWIRE_WORKER_WAKE_TOKEN` of at least 32 characters.
+   Configure the same token and `PROSEWIRE_WORKER_WAKE_URL` ending in `/wake` on
+   every web replica. Use private networking for web-to-worker traffic. Never
+   embed this token in frontend code or a URL.
+3. Configure an independent, deployment-owned recovery/maintenance wake. It must
+   run while web and worker are asleep, monitor failures, and retry a failed
+   wake. The same image includes `node apps/worker/dist/wake.mjs`, which needs
+   only the wake URL and token, opens no database or Redis connection, and exits
+   nonzero if the wake is not accepted. It can run under Railway cron or
+   another external scheduler. Do not use a timer in a sleeping container.
+4. Stop the old worker before starting `--idle-http`; keep exactly one worker
+   per database, including during deployment transitions. Set
+   `PROSEWIRE_WORKER_RECOVERY_CONFIGURED=true` on the idle worker only after the
+   independent recovery job has been configured and tested. This is an operator
+   declaration, not automatic proof that an external scheduler exists.
+5. Verify an authenticated `POST /wake` returns `202` after accepting the wake.
+   An unauthenticated call returns `401`; shutdown returns `503`. Failed scans
+   continue retrying while HTTP ingress remains available. `GET
+   /health` checks HTTP ingress only and performs no database work. Avoid a
+   continuous uptime monitor that keeps the service awake.
+6. Verify an invitation is dispatched immediately from a parked worker; verify
+   a future scheduled post keeps the worker active and publishes with its
+   original `scheduledAt`; restart the worker with queued mail and verify
+   recovery. Simulate a missed hint and observe the independent recovery job.
+   On an isolated Railway environment, also hold a future scheduled post for
+   more than twenty minutes and verify the worker stays awake. Verify a cold
+   wake succeeds inside the retry deadline. Then verify empty-stack connection
+   counts, outbound traffic, and actual Railway sleep across a full inactivity
+   window before production activation.
+
+Optional configuration profiles are committed as
+`deploy/railway-worker-idle.json` and `deploy/railway-worker-recovery.json`.
+Select them explicitly on the corresponding services; neither is an automatic
+root Railway configuration. They define commands and restart/cron behavior.
+Serverless, ingress, secret variables, image digests, and persistent volumes
+remain deployment-owned settings. Preserve the Postgres/Redis images, major
+versions, volumes, persistence, and backups when enabling sleep.
+
+### The remaining recovery tradeoff
+
+Postgres commit and HTTP wake are not one atomic operation. Wake hints run in an explicitly observed background fiber after the durable
+commit. Saves do not wait for worker boot. Each hint retries until accepted or a
+sixty-second deadline, with bounded request timeouts and exponential cold-start
+backoff. A process shutdown can also interrupt an in-flight hint.
+An unavailable endpoint is logged without rolling back or losing the committed
+content or email intent. A producer crash after commit can still lose its hint.
+The independent recovery timer covers that failure window and runs retention
+when there is no editorial activity. Idle workers prune on each cold process
+start and then at most once per day while that process remains alive; this
+idempotent pruning can run more often than the continuous worker's daily timer.
+
+The example recovery profile uses `*/15 * * * *` in UTC. **This is not the
+ordinary job schedule**: successful post-commit hints run immediately, and future
+scheduled posts keep polling. A lost hint or producer crash can nevertheless
+leave work waiting for the next recovery run, plus platform startup/scheduler
+lag. If that exceptional delay is unacceptable, keep continuous mode until a
+durable external event/wake service with the required retry guarantee exists.
+Shorter recovery intervals reduce this delay but can prevent the stack from
+reaching Railway's 5–10 minute sleep window. Railway cron has a five-minute
+minimum and does not promise exact-to-the-minute execution; see
+[Railway cron requirements](https://docs.railway.com/cron-jobs).
+
+The idle command does not exit to simulate platform sleep, pause a project, or
+drop deferred jobs. Local connection closure proves application idleness only;
+only the deployed platform can prove that a container has actually slept.
+To roll back, stop the idle worker and restart the normal worker command before
+removing the recovery job or web wake configuration.

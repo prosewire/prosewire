@@ -128,6 +128,10 @@ const runtimeLayer = Layer.mergeAll(
 
 export const workerRuntime = ManagedRuntime.make(runtimeLayer);
 
+// Idle HTTP sessions own fresh runtimes so parking releases every scoped
+// listener, queue consumer, SQL pool, and SMTP transport before the next wake.
+export const makeWorkerRuntime = () => ManagedRuntime.make(runtimeLayer);
+
 export type WorkerServices =
   | WorkerConfig
   | WorkerDatabase.Service

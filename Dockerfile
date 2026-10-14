@@ -1,5 +1,6 @@
 FROM node:26-alpine@sha256:aadf416b2cdce311a8811ba3f0608a61b77dbf997500e2eafe781b51f6a0b019 AS base
 ENV PNPM_HOME=/pnpm
+ENV NEXT_TELEMETRY_DISABLED=1
 ENV PATH=$PNPM_HOME/bin:$PATH
 RUN npm install --global pnpm@11.20.0 && pnpm --version
 WORKDIR /app
@@ -27,6 +28,7 @@ RUN pnpm --filter @prosewire/web... build && pnpm --filter @prosewire/worker bui
 
 FROM node:26-alpine@sha256:aadf416b2cdce311a8811ba3f0608a61b77dbf997500e2eafe781b51f6a0b019 AS runner
 ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
     HOSTNAME=0.0.0.0 \
     PORT=3000 \
     PROSEWIRE_MIGRATIONS_DIR=/app/packages/db/drizzle

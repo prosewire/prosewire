@@ -11,6 +11,7 @@ import {
   EmailDeliveryError,
   EmailDeliveryJob,
   forgetCompleted,
+  hasOutstandingWork,
   migrateLegacyIdentities,
   queue,
 } from "./email-queue.ts";
@@ -106,6 +107,7 @@ describe.skipIf(!redisUrl)("Email durable queue Redis integration", () => {
           ).toBe(0);
           yield* redis.send("DEL", legacyKey, legacyQueue);
           expect(yield* redis.send<number>("LLEN", queueKey)).toBe(1);
+          expect(yield* hasOutstandingWork(prefix)).toBe(true);
 
           const executionId = yield* EmailRedisTestWorkflow.executionId(job);
           expect(
@@ -125,6 +127,19 @@ describe.skipIf(!redisUrl)("Email durable queue Redis integration", () => {
           expect(yield* redis.send<number>("HLEN", `${queueKey}:pending`)).toBe(
             0,
           );
+          expect(yield* hasOutstandingWork(prefix)).toBe(false);
+          yield* redis.send("HSET", `${queueKey}:pending`, "leased", "payload");
+          expect(yield* hasOutstandingWork(prefix)).toBe(true);
+          yield* redis.send("DEL", `${queueKey}:pending`);
+          yield* redis.send(
+            "ZADD",
+            `${queueKey}:delayed`,
+            "9999999999999",
+            "retry",
+          );
+          expect(yield* hasOutstandingWork(prefix)).toBe(true);
+          yield* redis.send("DEL", `${queueKey}:delayed`);
+          expect(yield* hasOutstandingWork(prefix)).toBe(false);
           expect(
             yield* forgetCompleted(executionId, job.outboxId, prefix),
           ).toBe(true);
