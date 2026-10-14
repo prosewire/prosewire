@@ -12,6 +12,7 @@ import type { SocialProviderId } from "@/lib/auth-providers";
 export type ProsewireDeployment = "self-hosted" | "cloud";
 
 export interface MediaStorageConfig {
+  readonly delivery: "cdn" | "signed";
   readonly endpoint: string;
   readonly region: string;
   readonly bucket: string;
@@ -115,6 +116,34 @@ export class WebConfig extends Context.Service<WebConfig, WebConfigShape>()(
       const mediaPublicUrl = yield* Config.option(
         Config.String("PROSEWIRE_MEDIA_PUBLIC_URL"),
       );
+      const mediaDelivery = yield* Config.String(
+        "PROSEWIRE_MEDIA_DELIVERY",
+      ).pipe(Config.withDefault("cdn"));
+      if (mediaDelivery !== "cdn" && mediaDelivery !== "signed") {
+        return yield* new ConfigurationError({
+          message: "PROSEWIRE_MEDIA_DELIVERY must be cdn or signed",
+        });
+      }
+      if (mediaDelivery === "signed") {
+        const explicitPublicUrl = yield* Config.option(
+          Config.String("PROSEWIRE_PUBLIC_URL"),
+        );
+        if (
+          Option.isNone(explicitPublicUrl) ||
+          !isHttpUrl(explicitPublicUrl.value)
+        ) {
+          return yield* new ConfigurationError({
+            message:
+              "Signed media delivery requires an explicit HTTP(S) PROSEWIRE_PUBLIC_URL",
+          });
+        }
+        if (Option.isSome(mediaPublicUrl)) {
+          return yield* new ConfigurationError({
+            message:
+              "Signed media delivery derives its URL from PROSEWIRE_PUBLIC_URL; unset PROSEWIRE_MEDIA_PUBLIC_URL",
+          });
+        }
+      }
       const mediaRegion = yield* Config.String("PROSEWIRE_MEDIA_REGION").pipe(
         Config.withDefault("auto"),
       );
@@ -163,7 +192,7 @@ export class WebConfig extends Context.Service<WebConfig, WebConfigShape>()(
         Option.isSome(mediaBucket),
         Option.isSome(mediaAccessKeyId),
         Option.isSome(mediaSecretAccessKey),
-        Option.isSome(mediaPublicUrl),
+        ...(mediaDelivery === "cdn" ? [Option.isSome(mediaPublicUrl)] : []),
       ];
       const configuredMediaParts = mediaParts.filter(Boolean).length;
       if (
@@ -172,7 +201,7 @@ export class WebConfig extends Context.Service<WebConfig, WebConfigShape>()(
       ) {
         return yield* new ConfigurationError({
           message:
-            "PROSEWIRE_MEDIA_ENDPOINT, PROSEWIRE_MEDIA_BUCKET, PROSEWIRE_MEDIA_ACCESS_KEY_ID, PROSEWIRE_MEDIA_SECRET_ACCESS_KEY, and PROSEWIRE_MEDIA_PUBLIC_URL must be configured together",
+            "Configure all four S3 media credentials; cdn delivery also requires PROSEWIRE_MEDIA_PUBLIC_URL",
         });
       }
       if (deployment === "cloud" && configuredMediaParts === 0) {
@@ -204,25 +233,26 @@ export class WebConfig extends Context.Service<WebConfig, WebConfigShape>()(
         Option.isSome(mediaEndpoint) &&
         Option.isSome(mediaBucket) &&
         Option.isSome(mediaAccessKeyId) &&
-        Option.isSome(mediaSecretAccessKey) &&
-        Option.isSome(mediaPublicUrl)
+        Option.isSome(mediaSecretAccessKey)
       ) {
-        if (
-          !isHttpUrl(mediaEndpoint.value) ||
-          !isHttpUrl(mediaPublicUrl.value)
-        ) {
+        const deliveryUrl =
+          mediaDelivery === "signed"
+            ? `${publicUrl.replace(/\/$/, "")}/media`
+            : Option.getOrElse(mediaPublicUrl, () => "");
+        if (!isHttpUrl(mediaEndpoint.value) || !isHttpUrl(deliveryUrl)) {
           return yield* new ConfigurationError({
             message:
               "PROSEWIRE_MEDIA_ENDPOINT and PROSEWIRE_MEDIA_PUBLIC_URL must be valid HTTP(S) URLs",
           });
         }
         mediaStorage = {
+          delivery: mediaDelivery,
           endpoint: mediaEndpoint.value.replace(/\/$/, ""),
           region: mediaRegion,
           bucket: mediaBucket.value,
           accessKeyId: mediaAccessKeyId.value,
           secretAccessKey: mediaSecretAccessKey.value,
-          publicUrl: mediaPublicUrl.value.replace(/\/$/, ""),
+          publicUrl: deliveryUrl.replace(/\/$/, ""),
           forcePathStyle: mediaForcePathStyle,
           maxUploadBytes: mediaMaxUploadBytes,
           uploadUrlExpiresSeconds: mediaUploadUrlExpiresSeconds,

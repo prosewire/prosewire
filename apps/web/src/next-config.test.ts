@@ -22,6 +22,9 @@ describe("self-hosted Next.js configuration", () => {
     expect(headers.get("Content-Security-Policy")).toContain(
       "frame-ancestors 'none'",
     );
+    expect(headers.get("Content-Security-Policy")).toContain(
+      "connect-src 'self' https:",
+    );
     expect(headers.get("Content-Security-Policy")).not.toContain(
       "'unsafe-eval'",
     );

@@ -26,7 +26,7 @@ const securityHeaders = [
       "object-src 'none'",
       "img-src 'self' data: https:",
       "font-src 'self' data:",
-      "connect-src 'self'",
+      "connect-src 'self' https:",
       `script-src 'self' 'unsafe-inline'${developmentEval}`,
       "style-src 'self' 'unsafe-inline'",
     ].join("; "),

@@ -5,6 +5,7 @@ import { vi } from "vitest";
 import { ObjectStorage } from "./object-storage.ts";
 
 const storageConfig = {
+  delivery: "cdn" as const,
   endpoint: "https://storage.test",
   region: "auto",
   bucket: "test",
@@ -15,6 +16,36 @@ const storageConfig = {
   maxUploadBytes: 100,
   uploadUrlExpiresSeconds: 600,
 };
+
+it.effect(
+  "signs short-lived GET and HEAD reads without requesting the bucket",
+  () =>
+    Effect.gen(function* () {
+      const client = new S3Client({
+        endpoint: storageConfig.endpoint,
+        region: storageConfig.region,
+        credentials: { accessKeyId: "test", secretAccessKey: "test" },
+      });
+      const send = vi.spyOn(client, "send");
+      const storage = ObjectStorage.make(storageConfig, client);
+      const get = new URL(
+        yield* storage.signedReadUrl("images/cover.webp", "GET"),
+      );
+      const head = new URL(
+        yield* storage.signedReadUrl("images/cover.webp", "HEAD"),
+      );
+      expect(get.searchParams.get("X-Amz-Expires")).toBe("60");
+      expect(get.searchParams.get("response-cache-control")).toBe(
+        "private, no-store",
+      );
+      expect(head.searchParams.get("X-Amz-Expires")).toBe("60");
+      expect(get.searchParams.get("X-Amz-Signature")).not.toBe(
+        head.searchParams.get("X-Amz-Signature"),
+      );
+      expect(send).not.toHaveBeenCalled();
+      client.destroy();
+    }),
+);
 
 it.effect.each(["put", "stream"] as const)(
   "%s aborts S3 and waits for its request to settle before releasing the caller",

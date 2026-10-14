@@ -35,14 +35,19 @@ The two public URL values should be the same external HTTPS origin seen by users
 | `PROSEWIRE_MEDIA_BUCKET` | With endpoint | Private bucket for uploads and processed variants |
 | `PROSEWIRE_MEDIA_ACCESS_KEY_ID` | With endpoint | Object-storage access-key identifier |
 | `PROSEWIRE_MEDIA_SECRET_ACCESS_KEY` | With endpoint | Object-storage secret key |
-| `PROSEWIRE_MEDIA_PUBLIC_URL` | With endpoint | CDN origin used for processed asset URLs |
+| `PROSEWIRE_MEDIA_DELIVERY` | No | `cdn` (default) or `signed` for a private bucket without a CDN |
+| `PROSEWIRE_MEDIA_PUBLIC_URL` | CDN mode | CDN origin used for processed asset URLs; unset in signed mode |
 | `PROSEWIRE_MEDIA_FORCE_PATH_STYLE` | No | Enables path-style bucket addressing; defaults to `false` |
 | `PROSEWIRE_MEDIA_MAX_UPLOAD_BYTES` | No | Maximum reservation size from 1 byte through 100 MiB; defaults to 20 MiB |
 | `PROSEWIRE_MEDIA_UPLOAD_URL_EXPIRES_SECONDS` | No | Signed upload lifetime from 60 through 3600 seconds; defaults to 600 |
 
-Set all five endpoint, bucket, credential, and public URL values together. Cloud mode rejects a missing media configuration. Self-hosted mode can omit it and continue using external cover-image URLs.
+Set the endpoint, bucket and both credentials together. CDN mode also requires the media public URL. Signed mode requires an explicit `PROSEWIRE_PUBLIC_URL` and rejects `PROSEWIRE_MEDIA_PUBLIC_URL`. Cloud mode rejects a missing media configuration. Self-hosted mode can omit it and continue using external cover-image URLs.
 
 The media bucket must stay private. Put a CDN in front of it and configure the CDN to serve only processed keys under `publications/`. Deny the temporary `_uploads/` prefix. Processed filenames contain a checksum, so the CDN may cache them; Prosewire records the resulting CDN URL with each variant.
+
+For a private Railway bucket without a CDN, set `PROSEWIRE_MEDIA_DELIVERY=signed`. Prosewire records stable `/media/...` URLs and redirects authorized requests to one-minute signed bucket URLs. The application transfers no image bytes. Public requests require a ready variant referenced by a published, non-future post in the same publication; authenticated workspace members can preview unpublished variants. Raw uploads, failed or deleted assets, and unknown keys return 404. Imported image references in published post bodies also work. Management keys do not grant image preview access through this route.
+
+Redirects use `Cache-Control: no-store`. An already issued bucket URL remains usable until its one-minute expiry, including after archiving a post or revoking a member. Treat these temporary URLs as credentials and do not log them. Existing CDN URLs are unchanged when switching modes; migrate existing variant and cover URLs separately before switching a populated installation.
 
 Browser uploads use a signed `PUT` request. The bucket CORS policy must allow the exact Prosewire dashboard origin, the `PUT` method, and the `Content-Type` request header. Do not use a wildcard origin for a credentialed production dashboard. The application checks the reserved byte count against the object metadata, reads the object back, detects its MIME type from the image, rejects animated or multi-page inputs, and produces sanitized original, 1600-pixel, and 480-pixel variants.
 

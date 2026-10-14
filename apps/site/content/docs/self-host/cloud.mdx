@@ -17,7 +17,13 @@ A cloud deployment runs three commands from the same immutable image:
 | Web | `node apps/web/server.js` | One or more replicas |
 | Worker | `node apps/worker/dist/index.mjs` | Exactly one per database |
 
-Provide Postgres through `DATABASE_URL`, Redis through `REDIS_URL`, and a private S3-compatible bucket plus CDN through the `PROSEWIRE_MEDIA_*` variables. Cloud mode refuses to start without media storage. Run the migration job to completion before replacing web replicas or the worker. Do not let an orchestrator repeatedly restart a completed migration as a long-running service.
+Provide Postgres through `DATABASE_URL`, Redis through `REDIS_URL`, and a private S3-compatible bucket through the `PROSEWIRE_MEDIA_*` variables. Use CDN delivery or the signed delivery described below. Cloud mode refuses to start without media storage. Run the migration job to completion before replacing web replicas or the worker. Do not let an orchestrator repeatedly restart a completed migration as a long-running service.
+
+### Private Railway media bucket
+
+Set `PROSEWIRE_MEDIA_DELIVERY=signed` and an explicit `PROSEWIRE_PUBLIC_URL` matching the dashboard's HTTPS origin. Leave `PROSEWIRE_MEDIA_PUBLIC_URL` unset. Reference the existing bucket's `ENDPOINT`, `BUCKET`, `ACCESS_KEY_ID`, `SECRET_ACCESS_KEY` and `REGION` in the corresponding media variables. Match `PROSEWIRE_MEDIA_FORCE_PATH_STYLE` to the bucket's credential `urlStyle`; avoid rotating its credentials just to wire the service.
+
+Preserve existing bucket CORS rules and add the dashboard's exact origin with `PUT` and the `Content-Type` request header. Browser uploads need this rule; server-side SDK uploads do not. Verify a browser upload, completion and image preview, then a published image's anonymous `/media/...` redirect. Signed reads expire after one minute; Prosewire does not proxy image bytes or make the bucket public. See [media configuration](/docs/reference/configuration/) for visibility and migration details.
 
 ## Build and publish an image
 

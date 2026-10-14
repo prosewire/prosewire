@@ -42,6 +42,10 @@ export interface Shape {
   readonly maxUploadBytes: number;
   readonly uploadUrlExpiresSeconds: number;
   readonly publicUrl: (key: string) => string;
+  readonly signedReadUrl: (
+    key: string,
+    method: "GET" | "HEAD",
+  ) => Effect.Effect<string, NotConfigured | StorageError>;
   readonly createUploadTarget: (
     key: string,
     contentType: string,
@@ -83,6 +87,7 @@ export const disabled: Shape = {
   maxUploadBytes: 0,
   uploadUrlExpiresSeconds: 0,
   publicUrl: () => "",
+  signedReadUrl: () => Effect.fail(unavailable()),
   createUploadTarget: () => Effect.fail(unavailable()),
   head: () => Effect.fail(unavailable()),
   get: () => Effect.fail(unavailable()),
@@ -174,6 +179,20 @@ export function make(
         .split("/")
         .map((part) => encodeURIComponent(part))
         .join("/")}`,
+    signedReadUrl: (key, method) =>
+      request("sign media read", () =>
+        getSignedUrl(
+          client,
+          method === "HEAD"
+            ? new HeadObjectCommand({ Bucket: config.bucket, Key: key })
+            : new GetObjectCommand({
+                Bucket: config.bucket,
+                Key: key,
+                ResponseCacheControl: "private, no-store",
+              }),
+          { expiresIn: 60 },
+        ),
+      ),
     createUploadTarget: (key, contentType, byteSize) =>
       request("sign upload", async () => ({
         url: await getSignedUrl(
