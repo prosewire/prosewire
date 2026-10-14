@@ -12,7 +12,10 @@ import { describe, expect, it } from "vitest";
 import { WorkerDatabase } from "./database.ts";
 import { hasPendingWork } from "./idle-work.ts";
 import { clusterLayer, migrateWorkflowStorage } from "./workflow-storage.ts";
-import { EmailDeliveryWorkflow } from "./workflows.ts";
+import {
+  EmailDeliveryWorkflow,
+  resumeSuspendedEmailWorkflows,
+} from "./workflows.ts";
 
 const databaseUrl = process.env["DATABASE_URL"];
 
@@ -38,12 +41,13 @@ describe.skipIf(!databaseUrl)("durable worker idle predicate", () => {
       );
       try {
         let queued = 0;
+        let suspended = true;
         const engine = ClusterWorkflowEngine.layer.pipe(
           Layer.provideMerge(clusterLayer(Redacted.make(database.url))),
         );
         const runtime = ManagedRuntime.make(
           EmailDeliveryWorkflow.toLayer((job) =>
-            job.outboxId === "suspended"
+            job.outboxId.startsWith("suspended") && suspended
               ? Effect.flatMap(
                   WorkflowEngine.WorkflowInstance,
                   Workflow.suspend,
@@ -141,8 +145,40 @@ describe.skipIf(!databaseUrl)("durable worker idle predicate", () => {
               discard: true,
             }),
           );
+          await runtime.runPromise(
+            EmailDeliveryWorkflow.execute(message("suspended-two"), {
+              discard: true,
+            }),
+          );
           // A missing reply and a Suspended reply both prohibit parking.
           expect(await busy()).toBe(true);
+          const executionId = await runtime.runPromise(
+            EmailDeliveryWorkflow.executionId(message("suspended")),
+          );
+          await expect
+            .poll(() =>
+              runtime.runPromise(EmailDeliveryWorkflow.poll(executionId)),
+            )
+            .toMatchObject({ value: { _tag: "Suspended" } });
+          const secondExecutionId = await runtime.runPromise(
+            EmailDeliveryWorkflow.executionId(message("suspended-two")),
+          );
+          await expect
+            .poll(() =>
+              runtime.runPromise(EmailDeliveryWorkflow.poll(secondExecutionId)),
+            )
+            .toMatchObject({ value: { _tag: "Suspended" } });
+          suspended = false;
+          // The idle query must not reset persisted workflow state.
+          expect(await busy()).toBe(true);
+          expect(
+            await runtime.runPromise(EmailDeliveryWorkflow.poll(executionId)),
+          ).toMatchObject({ value: { _tag: "Suspended" } });
+          // Both scheduler modes repair every stranded run in one pass.
+          expect(
+            await runtime.runPromise(resumeSuspendedEmailWorkflows()),
+          ).toBe(2);
+          await expect.poll(busy).toBe(false);
         } finally {
           await runtime.dispose();
         }

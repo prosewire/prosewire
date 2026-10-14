@@ -13,6 +13,7 @@ import {
 } from "./worker-runtime.ts";
 import { WorkflowRetention } from "./workflow-retention.ts";
 import {
+  resumeSuspendedEmailWorkflows,
   startAnalyticsRetention,
   startEmailOutbox,
   startScheduledPublishing,
@@ -50,7 +51,7 @@ const runWorker = Effect.gen(function* () {
   const dispatchEmailOutbox = startEmailOutbox();
   const pollEmailOutbox = repeatScheduled(
     "Email outbox",
-    dispatchEmailOutbox,
+    dispatchEmailOutbox.pipe(Effect.andThen(resumeSuspendedEmailWorkflows())),
     emailOutboxSchedule,
   );
   const dispatchNotifiedEmails = emailOutboxNotifications.wait.pipe(
