@@ -1,6 +1,6 @@
 import { NodeCrypto } from "@effect/platform-node-shared";
 import { PgClient } from "@effect/sql-pg";
-import { Layer, ManagedRuntime, Redacted } from "effect";
+import { Effect, Layer, ManagedRuntime, Redacted } from "effect";
 import {
   MessageStorage,
   ShardingConfig,
@@ -29,6 +29,19 @@ export const clusterLayer = (databaseUrl: Redacted.Redacted<string>) =>
     Layer.provideMerge(postgresLayer(databaseUrl)),
     Layer.provide(NodeCrypto.layer),
   );
+
+/** Use the engine's SQL connection and schema, including its pinned table layout. */
+export const listWorkflowExecutions = Effect.fn(
+  "WorkflowStorage.listExecutions",
+)(function* (workflowName: string, after: string) {
+  const sql = yield* PgClient.PgClient;
+  return yield* sql<{ entity_id: string }>`
+      select distinct entity_id from cluster_messages
+      where entity_type = ${`Workflow/${workflowName}`} and tag = 'run'
+        and entity_id > ${after}
+      order by entity_id limit 100
+    `;
+});
 
 /**
  * Applies Effect's internal message-storage migrations during the one-shot

@@ -6,6 +6,7 @@ import {
   EmailDeliveryJob,
   emailOutboxNotificationChannel,
 } from "@prosewire/jobs/email-queue";
+import { notifyWorker } from "@prosewire/jobs/worker-wake";
 import { and, eq, gt, sql } from "drizzle-orm";
 import { Clock, Context, Crypto, Effect, Layer, Result, Schema } from "effect";
 import { BlogAccess } from "./authorization.ts";
@@ -697,6 +698,7 @@ export const create = Effect.fn("WorkspaceRepository.create")(function* () {
           return Result.succeed(undefined);
         }),
     );
+    yield* notifyWorker;
     return invitationId;
   });
 

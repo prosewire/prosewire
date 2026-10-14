@@ -9,7 +9,8 @@
     "./config": "./src/config.ts",
     "./email-queue": "./src/email-queue.ts",
     "./redis": "./src/redis.ts",
-    "./runtime": "./src/runtime.ts"
+    "./runtime": "./src/runtime.ts",
+    "./worker-wake": "./src/worker-wake.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

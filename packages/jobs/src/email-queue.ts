@@ -35,6 +35,23 @@ export const queue = DurableQueue.make({
   idempotencyKey: ({ outboxId }) => outboxId,
 });
 
+/** Inspect waiting, leased and retry-delayed work using the pinned queue layout. */
+export const hasOutstandingWork = Effect.fn("EmailQueue.hasOutstandingWork")(
+  function* (prefix = redisQueuePrefix) {
+    const redis = yield* JobRedis.Service;
+    const key = `${prefix}DurableQueue/${queue.name}`;
+    const count = yield* redis.send<number>(
+      "EVAL",
+      "return redis.call('LLEN', KEYS[1]) + redis.call('HLEN', KEYS[2]) + redis.call('ZCARD', KEYS[3])",
+      "3",
+      key,
+      `${key}:pending`,
+      `${key}:delayed`,
+    );
+    return count > 0;
+  },
+);
+
 /** Call only for an expired, terminal workflow whose outbox remains dispatched. */
 export const forgetCompleted = Effect.fn("EmailQueue.forgetCompleted")(
   function* (executionId: string, outboxId: string, prefix = redisQueuePrefix) {

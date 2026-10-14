@@ -7,6 +7,7 @@ import {
 } from "@prosewire/core";
 import type { Db } from "@prosewire/db/client";
 import * as schema from "@prosewire/db/schema";
+import { notifyWorker } from "@prosewire/jobs/worker-wake";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { Clock, Context, Effect, Layer, Option, Result, Schema } from "effect";
 import { canonicalLocale, normalizeLanguageSettings } from "@/lib/locales";
@@ -500,6 +501,10 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
         });
         return Result.succeed({ postId, blogSlug: locked.blogSlug });
       }),
+    ).pipe(
+      Effect.tap(() =>
+        command.status === "scheduled" ? notifyWorker : Effect.void,
+      ),
     );
   });
 
@@ -533,6 +538,7 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
         : [...new Set(command.categoryIds)];
     const now = new Date(yield* Clock.currentTimeMillis);
 
+    let needsWake = false;
     return yield* executeResult<
       MutationResult,
       | PostErrors.InvalidPost
@@ -570,6 +576,7 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
         }
 
         const nextStatus = command.status ?? existing.status;
+        needsWake = nextStatus === "scheduled";
         const nextLocale = command.locale
           ? canonicalLocale(command.locale)
           : existing.locale;
@@ -764,12 +771,13 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
           blogSlug: locked.blogSlug,
         });
       }),
-    );
+    ).pipe(Effect.tap(() => (needsWake ? notifyWorker : Effect.void)));
   });
 
   const restorePostRevision = Effect.fn("Publishing.restorePostRevision")(
     function* (command: RestorePostRevisionCommand, actor: Actor) {
       const now = new Date(yield* Clock.currentTimeMillis);
+      let needsWake = false;
       return yield* executeResult<
         MutationResult,
         | PostErrors.PostNotFound
@@ -833,6 +841,7 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
             );
           }
           const snapshot = decoded.value;
+          needsWake = snapshot.status === "scheduled";
           if (!locked.locales.includes(snapshot.locale)) {
             return Result.fail(
               new PostErrors.InvalidPost({
@@ -1005,7 +1014,7 @@ export const create = Effect.fn("PublishingRepository.create")(function* () {
             blogSlug: locked.blogSlug,
           });
         }),
-      );
+      ).pipe(Effect.tap(() => (needsWake ? notifyWorker : Effect.void)));
     },
   );
 

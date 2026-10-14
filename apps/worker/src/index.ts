@@ -2,6 +2,7 @@ import * as JobRedis from "@prosewire/jobs/redis";
 import { Clock, Effect, Option, Schedule } from "effect";
 import { disposeWorkerRuntime, runWorkerEffect } from "./app-runtime.ts";
 import { EmailOutboxNotifications } from "./email-outbox-notifications.ts";
+import { runIdleHttpWorker } from "./idle-http.ts";
 import { runUntilShutdown } from "./shutdown.ts";
 import { WorkerConfig } from "./worker-config.ts";
 import {
@@ -93,14 +94,17 @@ const program = Effect.gen(function* () {
 });
 
 try {
-  await runWorkerEffect(
-    program.pipe(
-      Effect.scoped,
-      Effect.tapCause((cause) =>
-        Effect.logError("Publishing worker stopped unexpectedly", cause),
+  if (process.argv.includes("--idle-http")) {
+    await runIdleHttpWorker();
+  } else
+    await runWorkerEffect(
+      program.pipe(
+        Effect.scoped,
+        Effect.tapCause((cause) =>
+          Effect.logError("Publishing worker stopped unexpectedly", cause),
+        ),
       ),
-    ),
-  );
+    );
 } finally {
   await disposeWorkerRuntime();
 }

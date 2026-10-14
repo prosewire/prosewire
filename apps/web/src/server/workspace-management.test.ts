@@ -10,6 +10,7 @@ import * as schema from "@prosewire/db/schema";
 import { openTestDatabase, type TestDatabase } from "@prosewire/db/testing";
 import { and, eq, sql } from "drizzle-orm";
 import { Effect, Layer, Redacted, Result } from "effect";
+import { vi } from "vitest";
 import { BlogAccess } from "./authorization.ts";
 import { WebConfig } from "./config.ts";
 import { databaseLayer } from "./database-test-support.ts";
@@ -117,6 +118,59 @@ describe.skipIf(!databaseUrl)(
           ),
         ),
       );
+
+    it.effect(
+      "wakes only after an invitation commits and leaves rolled-back writes unwoken",
+      () =>
+        Effect.gen(function* () {
+          yield* Effect.promise(() => seedWorkspace({ actorIsOwner: true }));
+          vi.stubEnv("PROSEWIRE_WORKER_WAKE_URL", "http://worker.test/wake");
+          vi.stubEnv(
+            "PROSEWIRE_WORKER_WAKE_TOKEN",
+            "test-worker-token-with-32-characters",
+          );
+          const fetch = vi.fn(async () => {
+            // A different database connection can see the committed intent when
+            // the hint is sent; an uncommitted transaction could not satisfy this.
+            const rows =
+              await testDatabase.client.query.emailDeliveryOutbox.findMany();
+            expect(rows).toHaveLength(1);
+            return new Response(null, { status: 202 });
+          });
+          vi.stubGlobal("fetch", fetch);
+          try {
+            const workspace = yield* WorkspaceRepository.Service;
+            yield* workspace.inviteMember(
+              new InviteMemberInput({
+                organizationId,
+                email: "committed@example.com",
+                role: "viewer",
+              }),
+              actor,
+            );
+            expect(fetch).toHaveBeenCalledTimes(1);
+            yield* Effect.promise(() =>
+              testDatabase.client.execute(
+                sql`alter table ${schema.emailDeliveryOutbox} add constraint reject_wake_test check (${schema.emailDeliveryOutbox.recipient} <> 'rollback@example.com')`,
+              ),
+            );
+            yield* Effect.result(
+              workspace.inviteMember(
+                new InviteMemberInput({
+                  organizationId,
+                  email: "rollback@example.com",
+                  role: "viewer",
+                }),
+                actor,
+              ),
+            );
+            expect(fetch).toHaveBeenCalledTimes(1);
+          } finally {
+            vi.unstubAllGlobals();
+            vi.unstubAllEnvs();
+          }
+        }).pipe(Effect.provide(layer())),
+    );
 
     it.effect(
       "reads workspaces and publications whose slugs truncate at a separator",

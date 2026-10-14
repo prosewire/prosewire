@@ -7,6 +7,7 @@ import {
 } from "@prosewire/contract";
 import type { Db } from "@prosewire/db/client";
 import * as schema from "@prosewire/db/schema";
+import { notifyWorker } from "@prosewire/jobs/worker-wake";
 import { and, eq, sql, sum } from "drizzle-orm";
 import { Clock, Context, Effect, Layer, Schema } from "effect";
 import { ApiAccess } from "./api-access.ts";
@@ -336,6 +337,7 @@ async function writeImport(
       await run(storage.put(variant.storageKey, variant.mimeType, body));
     }
   }
+  let hasScheduledPosts = false;
   for (const collection of [
     "authors",
     "categories",
@@ -344,9 +346,16 @@ async function writeImport(
     "posts",
     "redirects",
   ] as const) {
-    for await (const record of preparedRecords(files, collection))
+    for await (const record of preparedRecords(files, collection)) {
       await insertRecord(tx, record);
+      if (
+        record.collection === "posts" &&
+        record.values["status"] === "scheduled"
+      )
+        hasScheduledPosts = true;
+    }
   }
+  return hasScheduledPosts;
 }
 
 async function authorizeDestination(
@@ -403,6 +412,7 @@ export const create = Effect.fn("PortableImport.create")(function* () {
             ? cause
             : new ImportPersistenceError({ cause }),
       }).pipe(Effect.uninterruptible);
+      let needsWake = false;
       return yield* database
         .execute("publication.import", (client) =>
           client
@@ -445,7 +455,7 @@ export const create = Effect.fn("PortableImport.create")(function* () {
               try {
                 // These objects have fresh deterministic IDs. Cleanup runs while the
                 // publication lock is still held, before a retry can reuse their keys.
-                await writeImport(tx, files, storage, written, run);
+                needsWake = await writeImport(tx, files, storage, written, run);
                 await tx.insert(schema.auditLog).values({
                   organizationId: authorization.organizationId,
                   blogId: principal.blogId,
@@ -504,6 +514,7 @@ export const create = Effect.fn("PortableImport.create")(function* () {
         .pipe(
           // Finish the database transaction and compensation before scoped temp-file cleanup.
           Effect.uninterruptible,
+          Effect.tap(() => (needsWake ? notifyWorker : Effect.void)),
           Effect.mapError((error) => {
             const cause = error.cause;
             return cause instanceof ApiImportRejected ||

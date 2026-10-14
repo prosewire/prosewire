@@ -10,6 +10,7 @@ import * as schema from "@prosewire/db/schema";
 import { openTestDatabase, type TestDatabase } from "@prosewire/db/testing";
 import { eq } from "drizzle-orm";
 import { Effect, Layer, Redacted, Schema } from "effect";
+import { vi } from "vitest";
 import { ApiAccess } from "./api-access.ts";
 import { BlogAccess } from "./authorization.ts";
 import { WebConfig } from "./config.ts";
@@ -229,6 +230,105 @@ describe.skipIf(!databaseUrl)("Publishing transitions with PostgreSQL", () => {
         ),
       ),
     );
+
+  it.effect(
+    "wakes only committed scheduled results, including updates without a status field",
+    () =>
+      Effect.gen(function* () {
+        const actorId = UserId.make("editor-1");
+        yield* Effect.promise(() => seedPublication("editor", actorId));
+        const publishing = yield* PublishingRepository.Service;
+        const actor = { _tag: "Dashboard" as const, userId: actorId };
+        vi.stubEnv("PROSEWIRE_WORKER_WAKE_URL", "http://worker.test/wake");
+        vi.stubEnv(
+          "PROSEWIRE_WORKER_WAKE_TOKEN",
+          "test-worker-token-with-32-characters",
+        );
+        const fetch = vi.fn(async () => new Response(null, { status: 202 }));
+        vi.stubGlobal("fetch", fetch);
+        try {
+          const draft = yield* publishing.createPost(
+            new CreatePostCommand({
+              blogId: BlogId.make(blogId),
+              authorId: AuthorId.make(authorId),
+              title: "Draft",
+              slug: "draft",
+              contentMarkdown: "draft",
+              status: "draft",
+              featured: false,
+              locale: "en",
+              categoryIds: [],
+            }),
+            actor,
+          );
+          yield* publishing.updatePost(
+            new UpdatePostCommand({
+              blogId: BlogId.make(blogId),
+              postId: draft.postId,
+              title: "Draft edit",
+            }),
+            actor,
+          );
+          expect(fetch).not.toHaveBeenCalled();
+          yield* publishing.createPost(
+            new CreatePostCommand({
+              blogId: BlogId.make(blogId),
+              authorId: AuthorId.make(authorId),
+              title: "Scheduled",
+              slug: "scheduled",
+              contentMarkdown: "scheduled",
+              status: "scheduled",
+              scheduledAt: new Date("2099-01-01"),
+              featured: false,
+              locale: "en",
+              categoryIds: [],
+            }),
+            actor,
+          );
+          expect(fetch).toHaveBeenCalledTimes(1);
+          yield* publishing.updatePost(
+            new UpdatePostCommand({
+              blogId: BlogId.make(blogId),
+              postId: draft.postId,
+              status: "scheduled",
+              scheduledAt: new Date("2099-01-01"),
+            }),
+            actor,
+          );
+          expect(fetch).toHaveBeenCalledTimes(2);
+          yield* publishing.updatePost(
+            new UpdatePostCommand({
+              blogId: BlogId.make(blogId),
+              postId: draft.postId,
+              title: "Scheduled edit",
+            }),
+            actor,
+          );
+          expect(fetch).toHaveBeenCalledTimes(3);
+          const revisions = yield* Effect.promise(() =>
+            testDatabase.client.query.postRevision.findMany({
+              where: eq(schema.postRevision.postId, draft.postId),
+            }),
+          );
+          const revision = revisions.find(
+            (row) => row.snapshot["status"] === "draft",
+          );
+          if (!revision) throw new Error("Missing draft revision");
+          yield* publishing.restorePostRevision(
+            new RestorePostRevisionCommand({
+              blogId: BlogId.make(blogId),
+              postId: draft.postId,
+              revisionId: PostRevisionId.make(revision.id),
+            }),
+            actor,
+          );
+          expect(fetch).toHaveBeenCalledTimes(3);
+        } finally {
+          vi.unstubAllGlobals();
+          vi.unstubAllEnvs();
+        }
+      }).pipe(Effect.provide(layer())),
+  );
 
   it.effect(
     "preserves the original publication time when editing a live post",
