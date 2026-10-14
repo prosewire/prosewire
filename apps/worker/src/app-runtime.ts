@@ -1,3 +1,4 @@
+import type { PgClient } from "@effect/sql-pg";
 import * as JobQueueConfig from "@prosewire/jobs/config";
 import type * as JobRedis from "@prosewire/jobs/redis";
 import * as JobQueueRuntime from "@prosewire/jobs/runtime";
@@ -134,6 +135,7 @@ export const makeWorkerRuntime = () => ManagedRuntime.make(runtimeLayer);
 
 export type WorkerServices =
   | WorkerConfig
+  | PgClient.PgClient
   | WorkerDatabase.Service
   | JobRedis.Service
   | WorkflowEngine.WorkflowEngine

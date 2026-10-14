@@ -7,6 +7,7 @@ import { EmailOutbox } from "./email-outbox.ts";
 import { Publishing } from "./publishing.ts";
 import { WorkerConfig } from "./worker-config.ts";
 import { drainEmailOutbox } from "./worker-runtime.ts";
+import { listWorkflowExecutions } from "./workflow-storage.ts";
 
 export const EmailDeliveryWorkflow = Workflow.make("ProsewireEmailDelivery", {
   payload: EmailQueue.EmailDeliveryJob,
@@ -57,6 +58,31 @@ export const emailWorkerLayer = (concurrency: number) =>
 
 export const startEmailDelivery = (message: EmailQueue.EmailDeliveryJob) =>
   EmailDeliveryWorkflow.execute(message, { discard: true }).pipe(Effect.asVoid);
+
+/** Repair RC.115 deferred completions that raced the persisted suspended reply. */
+export const resumeSuspendedEmailWorkflows = Effect.fn(
+  "Worker.resumeSuspendedEmailWorkflows",
+)(function* () {
+  let after = "";
+  let resumed = 0;
+  while (true) {
+    const rows = yield* listWorkflowExecutions(
+      EmailDeliveryWorkflow._tag,
+      after,
+    );
+    for (const row of rows) {
+      const result = yield* EmailDeliveryWorkflow.poll(row.entity_id);
+      if (Option.isSome(result) && result.value._tag === "Suspended") {
+        // Replay uses the persisted deferred and queue idempotency identity,
+        // so a delivered email is not sent again. Waiting runs stay suspended.
+        yield* EmailDeliveryWorkflow.resume(row.entity_id);
+        resumed += 1;
+      }
+      after = row.entity_id;
+    }
+    if (rows.length < 100) return resumed;
+  }
+});
 
 // These scans are repeatable database operations. Await the actual work so the
 // scheduler observes failures, and avoid persisting an execution for every poll.

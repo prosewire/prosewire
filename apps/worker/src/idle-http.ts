@@ -7,6 +7,7 @@ import { makeIdleController } from "./idle-controller.ts";
 import { hasPendingWork } from "./idle-work.ts";
 import { WorkflowRetention } from "./workflow-retention.ts";
 import {
+  resumeSuspendedEmailWorkflows,
   startAnalyticsRetention,
   startEmailOutbox,
   startScheduledPublishing,
@@ -42,6 +43,7 @@ function makeWorkerController() {
         const now = new Date(millis);
         yield* startScheduledPublishing(now);
         yield* startEmailOutbox();
+        yield* resumeSuspendedEmailWorkflows();
         if (millis >= nextRetentionAt) {
           yield* startAnalyticsRetention(now);
           const retention = yield* WorkflowRetention.Service;
