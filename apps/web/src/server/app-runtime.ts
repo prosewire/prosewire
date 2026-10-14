@@ -9,6 +9,7 @@ import { ContentQueries } from "./content-queries.ts";
 import { Dashboard } from "./dashboard.ts";
 import { Database } from "./database.ts";
 import { Media } from "./media.ts";
+import { MediaDelivery } from "./media-delivery.ts";
 import { MediaImage } from "./media-image.ts";
 import { ObjectStorage } from "./object-storage.ts";
 import { PlatformCrypto } from "./platform-crypto.ts";
@@ -41,6 +42,7 @@ const applicationLayer = Layer.mergeAll(
   AccountSecurity.layer,
   Dashboard.layer,
   Media.layer,
+  MediaDelivery.layer,
   PostExport.layer,
   PortableImport.layer,
   PublicContent.layer,
@@ -62,6 +64,7 @@ export type AppServices =
   | ApiContent.Service
   | Dashboard.Service
   | Media.Service
+  | MediaDelivery.Service
   | PostExport.Service
   | PortableImport.Service
   | PublicContent.Service
