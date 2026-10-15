@@ -55,7 +55,7 @@
     "provenance": true
   },
   "dependencies": {
-    "effect": "4.0.0-rc.115",
+    "effect": "4.0.2",
     "fflate": "^0.8.3"
   },
   "devDependencies": {
