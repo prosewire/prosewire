@@ -15,15 +15,15 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@effect/platform-node-shared": "4.0.0-rc.115",
-    "@effect/sql-pg": "4.0.0-rc.115",
+    "@effect/platform-node-shared": "4.0.5",
+    "@effect/sql-pg": "4.0.5",
     "@prosewire/contract": "workspace:*",
     "@prosewire/db": "workspace:*",
     "@prosewire/jobs": "workspace:*",
-    "better-auth": "^1.7.5",
-    "drizzle-orm": "^0.45.2",
-    "effect": "4.0.0-rc.115",
-    "nodemailer": "^10.0.10"
+    "better-auth": "^1.7.10",
+    "drizzle-orm": "^0.45.4",
+    "effect": "4.0.5",
+    "nodemailer": "^10.1.1"
   },
   "devDependencies": {
     "@effect/vitest": "4.0.0-rc.115",
